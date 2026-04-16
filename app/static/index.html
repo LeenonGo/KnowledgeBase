@@ -1343,6 +1343,37 @@ async function askQuestion() {
   }
 }
 
+
+function md2html(md) {
+  if(!md) return '';
+  let html = md;
+  // code blocks (```...```)
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function(m, lang, code) {
+    return '<pre style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;overflow-x:auto;font-size:13px;margin:8px 0;"><code>'+code.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</code></pre>';
+  });
+  // inline code
+  html = html.replace(/`([^`]+)`/g, '<code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;font-size:13px;">$1</code>');
+  // bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // italic
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // headers
+  html = html.replace(/^### (.+)$/gm, '<h4 style="margin:12px 0 6px;font-size:15px;">$1</h4>');
+  html = html.replace(/^## (.+)$/gm, '<h3 style="margin:14px 0 8px;font-size:16px;">$1</h3>');
+  html = html.replace(/^# (.+)$/gm, '<h2 style="margin:16px 0 8px;font-size:18px;">$1</h2>');
+  // unordered lists
+  html = html.replace(/^- (.+)$/gm, '<li style="margin-left:16px;">$1</li>');
+  // ordered lists
+  html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin-left:16px;list-style:decimal;">$1</li>');
+  // paragraphs (double newline)
+  html = html.replace(/\n\n/g, '</p><p style="margin:8px 0;">');
+  // single newline to <br>
+  html = html.replace(/\n/g, '<br>');
+  // reference tags [来源: xxx, 第X块]
+  html = html.replace(/\[来源: ([^\]]+)\]/g, '<span class="source-tag" style="display:inline-block;font-size:11px;background:#e6f7ff;color:#1890ff;padding:2px 8px;border-radius:4px;margin:2px;border:1px solid #91d5ff;">📎 $1</span>');
+  return '<p style="margin:0;">'+html+'</p>';
+}
+
 function addMessage(role, content) {
   const id = 'msg-'+Date.now();
   const div = document.getElementById('chat-messages');
@@ -1354,7 +1385,7 @@ function addMessage(role, content) {
   const avatar = role === 'user' ? '你' : 'AI';
   const bg = role === 'user' ? '#1890ff' : '#f5f5f5';
   const color = role === 'user' ? '#fff' : '#333';
-  let html = role === 'loading' ? '<div style="color:#999;">⏳ 思考中...</div>' : content;
+  let html = role === 'loading' ? '<div style="color:#999;">⏳ 思考中...</div>' : (role === 'assistant' ? md2html(content) : content);
   if(role !== 'user' && role !== 'loading') {
     html += '<div class="chat-actions">'
       + '<button class="feedback-btn" title="👍" onclick="this.style.opacity=this.style.opacity===\'1\'?\'.4\':\'1\'">👍</button>'
