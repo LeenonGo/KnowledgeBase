@@ -1,30 +1,38 @@
-"""LLM 调用 — 读取配置，支持 OpenAI 兼容接口"""
+"""LLM 调用 — 支持 Ollama / OpenAI 兼容接口，动态读取配置"""
+
+import json
+from pathlib import Path
 
 from openai import OpenAI
 
-from app.core.config import load_config
+CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "models.json"
 
 
-def get_llm_client() -> OpenAI:
-    """获取 LLM 客户端"""
-    config = load_config()
-    llm = config.llm
-    return OpenAI(base_url=llm.base_url, api_key=llm.api_key)
+def _load_config() -> dict:
+    if CONFIG_PATH.exists():
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def get_llm_client() -> tuple:
+    """获取 LLM 客户端和模型配置"""
+    cfg = _load_config().get("llm", {})
+    base_url = cfg.get("base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+    api_key = cfg.get("api_key", "")
+    model = cfg.get("model", "qwen3.6-plus")
+    client = OpenAI(base_url=base_url, api_key=api_key)
+    return client, model, cfg
 
 
 def generate_answer(question: str, context: str) -> str:
     """
     基于检索到的上下文生成回答。
-    
-    Args:
-        question: 用户问题
-        context: 检索到的参考文本
-    Returns:
-        LLM 生成的回答
+    自动读取最新模型配置。
     """
-    config = load_config()
-    llm_config = config.llm
-    client = get_llm_client()
+    client, model, cfg = get_llm_client()
+    max_tokens = cfg.get("max_tokens", 2048)
+    temperature = cfg.get("temperature", 0.7)
 
     system_prompt = (
         "你是一个知识库问答助手。请根据以下参考内容回答用户的问题。\n"
@@ -37,13 +45,13 @@ def generate_answer(question: str, context: str) -> str:
     user_prompt = f"参考内容：\n{context}\n\n用户问题：{question}"
 
     response = client.chat.completions.create(
-        model=llm_config.model,
+        model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        max_tokens=llm_config.max_tokens,
-        temperature=llm_config.temperature,
+        max_tokens=max_tokens,
+        temperature=temperature,
     )
 
     return response.choices[0].message.content

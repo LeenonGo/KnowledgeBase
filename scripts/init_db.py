@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """初始化数据库 — 创建表并插入默认数据"""
 
+import os
 import sys
 from pathlib import Path
 
 # 加到 path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.core.database import engine, Base
+# 强制用 MySQL
+os.environ["DB_TYPE"] = "mysql"
+
+from app.core.database import engine, Base, DATABASE_URL
 from app.models.models import (  # noqa: F401 — 确保所有模型被导入
     Department, User, KnowledgeBase, Document,
     KBDepartmentAccess, KBUserAccess, Conversation, ConversationTurn,
@@ -16,7 +20,9 @@ from app.models.models import (  # noqa: F401 — 确保所有模型被导入
 
 
 def main():
+    print(f"数据库: {DATABASE_URL.split('@')[1]}")  # 不打印密码
     print("正在创建数据库表...")
+
     Base.metadata.create_all(bind=engine)
 
     from app.core.database import SessionLocal
@@ -32,14 +38,35 @@ def main():
             return
 
         # 创建默认部门
-        dept = Department(
+        dept_head = Department(
             id="dept-001",
-            name="技术中心",
-            path="/总公司/技术中心",
-            description="技术研发部门",
+            name="总公司",
+            path="/总公司",
+            description="集团总部",
             status="active",
         )
-        db.add(dept)
+        db.add(dept_head)
+        db.flush()
+
+        dept_rd = Department(
+            id="dept-002",
+            name="研发部",
+            path="/总公司/研发部",
+            parent_id="dept-001",
+            description="研发部门",
+            status="active",
+        )
+        db.add(dept_rd)
+
+        dept_sales = Department(
+            id="dept-003",
+            name="销售部",
+            path="/总公司/销售部",
+            parent_id="dept-001",
+            description="销售部门",
+            status="active",
+        )
+        db.add(dept_sales)
         db.flush()
 
         # 创建默认管理员
@@ -59,7 +86,6 @@ def main():
 
         print("✅ 数据库初始化完成！")
         print(f"   管理员账号: admin / admin123")
-        print(f"   数据库路径: {Path(__file__).parent.parent / 'data' / 'knowledge.db'}")
 
     except Exception as e:
         db.rollback()

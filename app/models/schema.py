@@ -7,6 +7,7 @@ class QueryRequest(BaseModel):
     """问答请求"""
     question: str
     top_k: int = 5
+    kb_id: str | None = None
 
 
 class QueryResponse(BaseModel):

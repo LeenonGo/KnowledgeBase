@@ -1,6 +1,6 @@
 {
   "llm": {
-    "provider": "ali",
+    "provider": "dashscope",
     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "api_key": "sk-your-api-key-here",
     "model": "qwen3.6-plus",
@@ -8,10 +8,30 @@
     "temperature": 0.7
   },
   "embedding": {
-    "provider": "openai",
+    "provider": "dashscope",
     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "api_key": "sk-your-api-key-here",
     "model": "text-embedding-v3",
     "dimensions": 1024
   }
 }
+
+<!-- Ollama 本地部署示例：
+{
+  "llm": {
+    "provider": "ollama",
+    "base_url": "http://localhost:11434/v1",
+    "api_key": "",
+    "model": "llama3",
+    "max_tokens": 2048,
+    "temperature": 0.7
+  },
+  "embedding": {
+    "provider": "ollama",
+    "base_url": "http://localhost:11434/v1",
+    "api_key": "",
+    "model": "bge-m3",
+    "dimensions": 1024
+  }
+}
+-->
