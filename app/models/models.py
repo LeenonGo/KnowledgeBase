@@ -1,0 +1,195 @@
+"""SQLAlchemy ORM 模型 — 第一期 P0 核心表"""
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import (
+    Column, String, Text, Integer, Float, Boolean, DateTime, ForeignKey, UniqueConstraint, Index
+)
+from sqlalchemy.orm import relationship
+
+from app.core.database import Base
+
+
+def gen_id():
+    return str(uuid.uuid4())[:8]
+
+
+# ─── 部门 ─────────────────────────────────────────
+class Department(Base):
+    __tablename__ = "department"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    name = Column(String(128), nullable=False)
+    path = Column(String(512), nullable=False, comment="层级路径，如 /总公司/技术中心/研发部")
+    parent_id = Column(String(32), ForeignKey("department.id"), nullable=True)
+    description = Column(Text, default="")
+    status = Column(String(16), default="active")  # active / disabled
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # 自引用关系
+    children = relationship("Department", backref="parent", remote_side=[id])
+
+
+# ─── 用户 ─────────────────────────────────────────
+class User(Base):
+    __tablename__ = "user"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    username = Column(String(64), unique=True, nullable=False)
+    display_name = Column(String(128), nullable=False)
+    email = Column(String(256), default="")
+    phone = Column(String(32), default="")
+    password_hash = Column(String(256), nullable=False)
+    department_id = Column(String(32), ForeignKey("department.id"), nullable=True)
+    position = Column(String(128), default="")
+    role = Column(String(32), default="user", comment="super_admin / kb_admin / user")
+    status = Column(String(16), default="active")  # active / disabled
+    last_login = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    department = relationship("Department", lazy="joined")
+
+
+# ─── 知识库 ───────────────────────────────────────
+class KnowledgeBase(Base):
+    __tablename__ = "knowledge_base"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    name = Column(String(256), nullable=False)
+    description = Column(Text, default="")
+    embedding_model = Column(String(128), default="text-embedding-v3")
+    llm_model = Column(String(128), default="qwen3.6-plus")
+    owner_id = Column(String(32), ForeignKey("user.id"), nullable=True)
+    status = Column(String(16), default="active")  # active / archived / deleted
+    deleted_at = Column(DateTime, nullable=True, comment="软删除时间")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner = relationship("User", lazy="joined")
+
+
+# ─── 文档 ─────────────────────────────────────────
+class Document(Base):
+    __tablename__ = "document"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    filename = Column(String(512), nullable=False)
+    original_name = Column(String(512), nullable=False)
+    file_hash = Column(String(64), nullable=False, comment="SHA-256 内容哈希")
+    file_size = Column(Integer, default=0)
+    chunk_count = Column(Integer, default=0)
+    kb_id = Column(String(32), ForeignKey("knowledge_base.id"), nullable=False)
+    uploader_id = Column(String(32), ForeignKey("user.id"), nullable=True)
+    status = Column(String(16), default="indexed")  # indexing / indexed / failed / superseded / deleted
+    chunking_strategy = Column(String(32), default="fixed")
+    chunk_size = Column(Integer, default=512)
+    chunk_overlap = Column(Integer, default=64)
+    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    kb = relationship("KnowledgeBase", lazy="joined")
+    uploader = relationship("User", lazy="joined")
+
+    __table_args__ = (
+        Index("ix_doc_kb", "kb_id"),
+        Index("ix_doc_hash", "file_hash"),
+    )
+
+
+# ─── 知识库 × 部门 授权 ───────────────────────────
+class KBDepartmentAccess(Base):
+    __tablename__ = "kb_department_access"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    kb_id = Column(String(32), ForeignKey("knowledge_base.id"), nullable=False)
+    department_id = Column(String(32), ForeignKey("department.id"), nullable=False)
+    role = Column(String(16), default="viewer", comment="admin / editor / viewer")
+    created_by = Column(String(32), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("kb_id", "department_id", name="uq_kb_dept"),
+    )
+
+
+# ─── 知识库 × 用户 授权 ───────────────────────────
+class KBUserAccess(Base):
+    __tablename__ = "kb_user_access"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    kb_id = Column(String(32), ForeignKey("knowledge_base.id"), nullable=False)
+    user_id = Column(String(32), ForeignKey("user.id"), nullable=False)
+    role = Column(String(16), default="viewer", comment="admin / editor / viewer")
+    created_by = Column(String(32), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("kb_id", "user_id", name="uq_kb_user"),
+    )
+
+
+# ─── 会话 ─────────────────────────────────────────
+class Conversation(Base):
+    __tablename__ = "conversation"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    user_id = Column(String(32), ForeignKey("user.id"), nullable=False)
+    title = Column(String(512), default="新对话")
+    status = Column(String(16), default="active")  # active / closed
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ─── 对话轮次 ─────────────────────────────────────
+class ConversationTurn(Base):
+    __tablename__ = "conversation_turn"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    conversation_id = Column(String(32), ForeignKey("conversation.id"), nullable=False)
+    role = Column(String(16), nullable=False, comment="user / assistant")
+    content = Column(Text, nullable=False)
+    sources = Column(Text, default="", comment="JSON 格式的引用来源列表")
+    model = Column(String(128), default="")
+    latency_ms = Column(Integer, default=0)
+    confidence = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_turn_conv", "conversation_id"),
+    )
+
+
+# ─── 用户反馈 ─────────────────────────────────────
+class QAFeedback(Base):
+    __tablename__ = "qa_feedback"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    turn_id = Column(String(32), ForeignKey("conversation_turn.id"), nullable=False)
+    user_id = Column(String(32), ForeignKey("user.id"), nullable=False)
+    rating = Column(String(16), nullable=False, comment="up / down")
+    comment = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ─── 审计日志 ─────────────────────────────────────
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    user_id = Column(String(32), nullable=True)
+    username = Column(String(64), default="")
+    action = Column(String(64), nullable=False, comment="login / upload / delete / query / ...")
+    resource = Column(String(512), default="", comment="操作对象")
+    detail = Column(Text, default="", comment="操作详情（脱敏）")
+    ip_address = Column(String(64), default="")
+    status = Column(String(16), default="success")  # success / failure
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_audit_user", "user_id"),
+        Index("ix_audit_time", "created_at"),
+    )
