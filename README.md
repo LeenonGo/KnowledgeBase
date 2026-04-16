@@ -66,15 +66,16 @@ python -m app.main
 | 登录页 | 用户名密码登录 |
 | 仪表盘 | 统计卡片、问答趋势图表、待处理事项 |
 | 知识库列表 | 创建/搜索/筛选/删除知识库 |
-| 知识库详情 | 文档管理（上传/删除）、权限设置、模型配置、统计分析 |
-| 文档上传 | 拖拽上传、分块策略配置（固定长度/结构分析）、进度条 |
-| 智能问答 | 多会话管理、引用标注、点赞/点踩反馈 |
+| 知识库详情 | 文档管理（上传/删除/查看分块）、权限设置、模型配置、统计分析 |
+| 文档上传 | 三步向导（选文件→配策略→上传结果），支持自定义分块参数，完成后可跳转查看分块 |
+| 分块查看/编辑 | 搜索/排序/折叠/编辑/删除单个分块 |
+| 智能问答 | 多会话管理、引用标注、点赞/点踩反馈、60s 超时保护 |
 | 用户管理 | CRUD、批量导入 |
 | 部门管理 | 树形部门结构 |
 | 权限管理 | 角色定义、知识库授权矩阵 |
 | 审计日志 | 操作记录筛选 |
 | 质量监控 | 差评率、无结果率、反馈审核 |
-| 系统配置 | 通用设置、模型配置（LLM/Embedding 分离）、检索策略、缓存设置 |
+| 系统配置 | 通用设置、模型配置、Prompt 管理、检索策略、缓存设置 |
 
 ### API 接口
 
@@ -82,11 +83,19 @@ python -m app.main
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/upload` | 上传文档到指定知识库（form: file, kb_id） |
+| POST | `/api/upload` | 上传文档（form: file, kb_id, chunk_size, chunk_overlap） |
 | GET | `/api/documents?kb_id=xxx` | 获取文档列表 |
 | DELETE | `/api/documents/{filename}?kb_id=xxx` | 删除文档 |
 | POST | `/api/query` | 语义问答（body: question, top_k, kb_id） |
 | POST | `/api/reindex?kb_id=xxx` | 重建向量索引 |
+
+#### 分块管理
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/documents/{filename}/chunks?kb_id=xxx` | 获取文档所有分块 |
+| PUT | `/api/chunks/{chunk_id}` | 编辑分块（自动重新 Embedding） |
+| DELETE | `/api/chunks/{chunk_id}` | 删除单个分块 |
 
 #### 知识库管理
 
@@ -113,6 +122,20 @@ python -m app.main
 |---|---|---|
 | GET | `/api/config/models` | 获取模型配置 |
 | POST | `/api/config/models` | 保存模型配置 |
+| GET | `/api/config/prompts` | 获取所有 Prompt 模板 |
+| POST | `/api/config/prompts` | 保存 Prompt 模板 |
+
+### Prompt 管理
+
+系统支持多种 Prompt 模板，可在 **系统配置 → Prompt 管理** 界面编辑：
+
+| 类型 | 用途 | 变量 |
+|---|---|---|
+| `qa` | 问答主 Prompt | `{context}` `{question}` `{history}` |
+| `rewrite` | 多轮对话指代消解 | `{history}` `{question}` |
+| `refuse` | 检索不足时拒答话术 | 无 |
+
+模板存储于 `config/prompts.json`，修改后立即生效。
 
 ## 项目结构
 
@@ -125,8 +148,8 @@ knowledge-base/
 │   ├── core/
 │   │   ├── config.py         # 配置加载
 │   │   ├── database.py       # 数据库连接（MySQL/SQLite）
-│   │   ├── embedding.py      # 向量化（支持多提供商）
-│   │   ├── llm.py            # LLM 调用（支持多提供商）
+│   │   ├── embedding.py      # 向量化（支持多提供商，动态配置）
+│   │   ├── llm.py            # LLM 调用（支持多提供商，Prompt 可配置）
 │   │   ├── loader.py         # 文档加载（TXT/PDF/DOCX/MD）
 │   │   ├── splitter.py       # 文本分块
 │   │   └── vectorstore.py    # 向量存储（按知识库隔离）
@@ -134,10 +157,11 @@ knowledge-base/
 │   │   ├── models.py         # SQLAlchemy ORM 模型
 │   │   └── schema.py         # Pydantic 请求/响应模型
 │   └── static/
-│       └── index.html        # 前端 SPA（12 个页面）
+│       └── index.html        # 前端 SPA（12+页面）
 ├── config/
 │   ├── models.json           # 模型配置（含 API Key，已 gitignore）
-│   └── models.json.example   # 配置模板
+│   ├── models.json.example   # 配置模板
+│   └── prompts.json          # Prompt 模板（可追踪）
 ├── data/
 │   ├── chroma_db/            # ChromaDB 向量数据
 │   ├── uploads/              # 上传文件存储
@@ -190,14 +214,17 @@ knowledge-base/
 
 - [x] FastAPI 后端框架
 - [x] MySQL 数据库（10 张表）
-- [x] 用户与部门管理
-- [x] 知识库管理（CRUD + 文档隔离）
-- [x] 文档上传与解析（TXT/PDF/DOCX/MD）
-- [x] 文本分块与向量化
-- [x] 语义检索 + LLM 问答
-- [x] 模型配置持久化（支持 Ollama）
-- [x] 索引重建
-- [x] 前端 SPA（12 个页面）
+- [x] 用户与部门管理（总公司/研发部/销售部）
+- [x] 知识库管理（CRUD + 文档隔离 + kb_id 过滤）
+- [x] 文档上传三步向导（选文件→配策略→上传结果）
+- [x] 文档分块查看/编辑（搜索/排序/编辑/删除）
+- [x] 文本分块（参数可配置：chunk_size, chunk_overlap）
+- [x] Embedding 向量化（支持多提供商，动态配置）
+- [x] 语义检索 + LLM 问答（60s 超时保护）
+- [x] Prompt 管理（问答/改写/拒答，界面可编辑）
+- [x] 模型配置持久化（支持 DashScope / Ollama / OpenAI / 自定义）
+- [x] 索引重建（换模型后一键重建）
+- [x] 前端 SPA（12+ 页面）
 
 ### 🔲 第二期 P1 — 质量提升
 
@@ -205,7 +232,7 @@ knowledge-base/
 - [ ] 混合检索（向量 + BM25 + RRF 融合）
 - [ ] Cross-Encoder 精排（BGE-Reranker-v2-m3）
 - [ ] 多轮会话 + 指代消解
-- [ ] 用户反馈机制
+- [ ] 用户反馈机制（联通后端）
 - [ ] 审计日志持久化
 - [ ] 查询缓存（Redis）
 - [ ] 文档去重（SHA-256 + 版本管理）
