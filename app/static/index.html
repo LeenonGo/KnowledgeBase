@@ -3,294 +3,998 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>知识库问答</title>
+<title>RAG 知识库管理系统</title>
 <style>
-  :root { --bg: #f5f7fa; --card: #fff; --primary: #4f46e5; --primary-hover: #4338ca; --text: #1e293b; --muted: #64748b; --border: #e2e8f0; --success: #10b981; --radius: 12px; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
-
-  .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
-  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
-  .subtitle { color: var(--muted); margin-bottom: 32px; }
-
-  .card { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 24px; margin-bottom: 20px; }
-  .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-
-  /* Upload */
-  .dropzone { border: 2px dashed var(--border); border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; transition: .2s; }
-  .dropzone:hover, .dropzone.dragover { border-color: var(--primary); background: #eef2ff; }
-  .dropzone .icon { font-size: 36px; margin-bottom: 8px; }
-  .dropzone p { color: var(--muted); font-size: 14px; }
-  .dropzone .formats { font-size: 12px; color: var(--muted); margin-top: 4px; }
-  #fileInput { display: none; }
-
-  /* File preview */
-  .file-preview { display: none; margin-top: 16px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); }
-  .file-preview.show { display: block; }
-  .file-info { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-  .file-info .file-icon { font-size: 32px; }
-  .file-meta { flex: 1; }
-  .file-meta .file-name { font-weight: 600; font-size: 15px; word-break: break-all; }
-  .file-meta .file-size { color: var(--muted); font-size: 13px; margin-top: 2px; }
-  .file-actions { display: flex; gap: 10px; }
-  .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: .2s; }
-  .btn-primary { background: var(--primary); color: #fff; }
-  .btn-primary:hover { background: var(--primary-hover); }
-  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
-  .btn-secondary { background: #fff; color: var(--text); border: 1px solid var(--border); }
-  .btn-secondary:hover { background: #f1f5f9; }
-
-  /* Progress bar */
-  .progress-wrap { display: none; margin-top: 16px; }
-  .progress-wrap.show { display: block; }
-  .progress-bar-bg { width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
-  .progress-bar-fill { height: 100%; width: 0%; background: var(--primary); border-radius: 4px; transition: width .3s; }
-  .progress-text { font-size: 13px; color: var(--muted); margin-top: 6px; text-align: right; }
-
-  .upload-status { margin-top: 12px; font-size: 14px; padding: 10px 14px; border-radius: 8px; display: none; }
-  .upload-status.success { display: block; background: #ecfdf5; color: #065f46; }
-  .upload-status.error { display: block; background: #fef2f2; color: #991b1b; }
-
-  /* Query */
-  .query-box { display: flex; gap: 10px; }
-  .query-box input { flex: 1; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; outline: none; transition: .2s; }
-  .query-box input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
-  .query-box button { padding: 12px 24px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: .2s; white-space: nowrap; }
-  .query-box button:hover { background: var(--primary-hover); }
-  .query-box button:disabled { opacity: .5; cursor: not-allowed; }
-
-  /* Answer */
-  .answer-card { display: none; }
-  .answer-card .label { font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; letter-spacing: .5px; }
-  .answer-card .answer-text { line-height: 1.7; font-size: 15px; white-space: pre-wrap; }
-  .answer-card .sources { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
-  .answer-card .sources span { font-size: 12px; color: var(--muted); }
-  .answer-card .sources .tag { display: inline-block; background: #f1f5f9; padding: 3px 10px; border-radius: 20px; font-size: 12px; margin-left: 8px; }
-
-  .loading { display: none; text-align: center; padding: 20px; color: var(--muted); }
-  .loading.show { display: block; }
-  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 8px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Doc list */
-  .doc-list { margin-top: 12px; }
-  .doc-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f8fafc; border-radius: 6px; margin-bottom: 6px; font-size: 14px; }
-  .doc-item .name { flex: 1; }
-  .doc-item .chunks { color: var(--muted); font-size: 12px; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:#f0f2f5;color:#333}
+/* Sidebar */
+.sidebar{position:fixed;top:0;left:0;width:220px;height:100vh;background:#001529;color:#fff;overflow-y:auto;z-index:100;padding-top:16px}
+.sidebar h2{padding:16px 20px 12px;font-size:15px;color:#fff;border-bottom:1px solid rgba(255,255,255,.1)}
+.side-section{padding:12px 0}
+.side-section-title{font-size:11px;color:rgba(255,255,255,.35);padding:4px 20px 8px;text-transform:uppercase;letter-spacing:1px}
+.sidebar a{display:block;padding:8px 20px 8px 28px;color:rgba(255,255,255,.75);text-decoration:none;font-size:13px;transition:all .2s;border-left:3px solid transparent;cursor:pointer}
+.sidebar a:hover,.sidebar a.active{background:rgba(24,144,255,.15);color:#fff;border-left-color:#1890ff}
+/* Main */
+.main{margin-left:220px;padding:24px}
+.screen{display:none;animation:fadeIn .3s}
+.screen.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.screen-title{font-size:22px;font-weight:600;margin-bottom:20px;color:#1a1a1a;display:flex;align-items:center;gap:12px}
+.badge{font-size:12px;background:#e6f7ff;color:#1890ff;padding:2px 10px;border-radius:12px}
+/* Cards */
+.card{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:20px;margin-bottom:16px}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.card-header h3{font-size:16px;font-weight:600}
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.stat-card{background:#fff;border-radius:8px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.stat-card .label{font-size:13px;color:#999;margin-bottom:8px}
+.stat-card .value{font-size:28px;font-weight:700;color:#1a1a1a}
+.stat-card .trend{font-size:12px;margin-top:4px}
+.stat-card .trend.up{color:#52c41a}
+.stat-card .trend.down{color:#ff4d4f}
+/* Table */
+table{width:100%;border-collapse:collapse}
+table th{background:#fafafa;padding:12px 16px;text-align:left;font-size:13px;color:#666;border-bottom:1px solid #f0f0f0;font-weight:600}
+table td{padding:12px 16px;border-bottom:1px solid #f0f0f0;font-size:13px}
+table tr:hover td{background:#fafafa}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:6px;font-size:13px;border:1px solid #d9d9d9;background:#fff;cursor:pointer;transition:all .2s;color:#333}
+.btn:hover{border-color:#1890ff;color:#1890ff}
+.btn-primary{background:#1890ff;color:#fff;border-color:#1890ff}
+.btn-primary:hover{background:#40a9ff;border-color:#40a9ff;color:#fff}
+.btn-danger{color:#ff4d4f;border-color:#ff4d4f}
+.btn-danger:hover{background:#ff4d4f;color:#fff}
+.btn-sm{padding:4px 10px;font-size:12px}
+/* Tags */
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:500}
+.tag-green{background:#f6ffed;color:#52c41a;border:1px solid #b7eb8f}
+.tag-blue{background:#e6f7ff;color:#1890ff;border:1px solid #91d5ff}
+.tag-orange{background:#fff7e6;color:#fa8c16;border:1px solid #ffd591}
+.tag-red{background:#fff1f0;color:#ff4d4f;border:1px solid #ffa39e}
+.tag-gray{background:#f5f5f5;color:#999;border:1px solid #d9d9d9}
+.tag-purple{background:#f9f0ff;color:#722ed1;border:1px solid #d3adf7}
+/* Form */
+.input{padding:7px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:13px;outline:none;transition:border .2s;width:100%}
+.input:focus{border-color:#1890ff;box-shadow:0 0 0 2px rgba(24,144,255,.15)}
+.select{padding:7px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:13px;outline:none;background:#fff;min-width:160px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:500;margin-bottom:6px;color:#333}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.divider{height:1px;background:#f0f0f0;margin:16px 0}
+.flex{display:flex}.flex-between{display:flex;justify-content:space-between;align-items:center}
+.gap-8{gap:8px}.gap-12{gap:12px}.gap-16{gap:16px}
+.mt-16{margin-top:16px}.mb-16{margin-bottom:16px}
+.text-muted{color:#999;font-size:12px}
+.avatar{width:32px;height:32px;border-radius:50%;background:#1890ff;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid #f0f0f0;margin-bottom:16px}
+.tab{padding:10px 20px;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;color:#666}
+.tab:hover{color:#1890ff}
+.tab.active{color:#1890ff;border-bottom-color:#1890ff;font-weight:500}
+/* Chat */
+.chat-container{display:flex;height:calc(100vh - 180px);background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.chat-sidebar-panel{width:260px;border-right:1px solid #f0f0f0;display:flex;flex-direction:column}
+.chat-sidebar-header{padding:16px;border-bottom:1px solid #f0f0f0}
+.chat-list{flex:1;overflow-y:auto;padding:8px}
+.chat-item{padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px;transition:background .2s}
+.chat-item:hover{background:#f5f5f5}
+.chat-item.active{background:#e6f7ff}
+.chat-item .title{font-size:13px;font-weight:500;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-item .meta{font-size:11px;color:#999}
+.chat-main{flex:1;display:flex;flex-direction:column}
+.chat-messages{flex:1;overflow-y:auto;padding:20px}
+.message{margin-bottom:20px;display:flex;gap:12px}
+.message.user{flex-direction:row-reverse}
+.message .bubble{max-width:70%;padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.6}
+.message.assistant .bubble{background:#f5f5f5;border-bottom-left-radius:4px}
+.message.user .bubble{background:#1890ff;color:#fff;border-bottom-right-radius:4px}
+.source-tag{display:inline-block;font-size:11px;background:#e6f7ff;color:#1890ff;padding:2px 8px;border-radius:4px;margin-top:8px;cursor:pointer;border:1px solid #91d5ff}
+.source-tag:hover{background:#bae7ff}
+.chat-input-area{padding:16px 20px;border-top:1px solid #f0f0f0}
+.chat-input-row{display:flex;gap:12px;align-items:flex-end}
+.chat-input{flex:1;padding:10px 16px;border:1px solid #d9d9d9;border-radius:8px;font-size:14px;resize:none;height:44px;outline:none;font-family:inherit}
+.chat-input:focus{border-color:#1890ff}
+.chat-actions{display:flex;gap:8px;align-items:center;margin-top:6px}
+.feedback-btn{background:none;border:none;cursor:pointer;font-size:18px;opacity:.4;transition:opacity .2s;padding:2px 6px}
+.feedback-btn:hover{opacity:1}
+/* Upload */
+.upload-zone{border:2px dashed #d9d9d9;border-radius:8px;padding:40px;text-align:center;transition:all .2s;cursor:pointer}
+.upload-zone:hover{border-color:#1890ff;background:#f0f9ff}
+.upload-zone .icon{font-size:48px;margin-bottom:12px}
+.upload-zone .text{font-size:14px;color:#666}
+.upload-zone .hint{font-size:12px;color:#999;margin-top:8px}
+/* Tree */
+.tree-item{padding:6px 0 6px 24px;position:relative;font-size:13px}
+.tree-item .node{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;cursor:pointer}
+.tree-item .node:hover{background:#f5f5f5}
+/* Steps */
+.steps{display:flex;margin-bottom:24px}
+.step{flex:1;text-align:center;position:relative;padding-bottom:16px}
+.step::after{content:'';position:absolute;left:50%;right:-50%;top:14px;height:2px;background:#e8e8e8}
+.step:last-child::after{display:none}
+.step .number{width:28px;height:28px;border-radius:50%;background:#e8e8e8;color:#999;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;margin-bottom:8px;position:relative;z-index:1}
+.step.active .number{background:#1890ff;color:#fff}
+.step.done .number{background:#52c41a;color:#fff}
+.step .label{font-size:12px;color:#999}
+.step.active .label{color:#333;font-weight:500}
+/* Progress */
+.progress{height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden}
+.progress-bar{height:100%;background:#1890ff;border-radius:4px;transition:width .3s}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center}
+.modal{background:#fff;border-radius:8px;width:560px;max-height:80vh;overflow-y:auto;box-shadow:0 4px 24px rgba(0,0,0,.15)}
+.modal-header{padding:16px 24px;border-bottom:1px solid #f0f0f0;font-size:16px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.modal-body{padding:24px}
+.modal-footer{padding:12px 24px;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;gap:8px}
+/* Chart */
+.chart-bar{display:flex;align-items:flex-end;gap:12px;height:140px;justify-content:center}
+.bar{width:32px;border-radius:4px 4px 0 0;background:#1890ff;transition:height .5s;position:relative}
+.bar .bar-label{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);font-size:11px;color:#999;white-space:nowrap}
+.bar .bar-value{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:11px;color:#666;font-weight:600}
+/* Pagination */
+.pagination{display:flex;justify-content:flex-end;gap:4px;margin-top:16px}
+.page-btn{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #d9d9d9;border-radius:6px;font-size:13px;cursor:pointer;background:#fff}
+.page-btn.active{background:#1890ff;color:#fff;border-color:#1890ff}
+/* Login */
+.login-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}
+.login-box{background:#fff;border-radius:12px;padding:40px;width:400px;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.login-box h1{text-align:center;margin-bottom:8px;font-size:24px;color:#1a1a1a}
+.login-box .subtitle{text-align:center;color:#999;margin-bottom:32px;font-size:14px}
+/* Upload file list */
+.file-list-item{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #f0f0f5;font-size:13px}
+.file-list-item:last-child{border-bottom:none}
+/* Chunk preview */
+.chunk-preview{border:1px solid #f0f0f0;border-radius:6px;padding:12px;font-size:12px;max-height:200px;overflow-y:auto}
+.chunk-item{margin-bottom:8px;padding:8px;background:#f9f9f9;border-radius:4px}
+.chunk-item:last-child{margin-bottom:0}
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>📚 知识库问答</h1>
-  <p class="subtitle">上传文档，然后向它提问</p>
 
-  <!-- Upload -->
-  <div class="card">
-    <h2>📄 上传文档</h2>
-    <div class="dropzone" id="dropzone">
-      <div class="icon">📂</div>
-      <p>点击或拖拽文件到这里</p>
-      <div class="formats">支持 TXT、Markdown、PDF、Word (docx)</div>
+<!-- Sidebar -->
+<nav class="sidebar" id="sidebar" style="display:none;">
+  <h2>📚 RAG 知识库系统</h2>
+  <div class="side-section">
+    <div class="side-section-title">概览</div>
+    <a onclick="nav('dashboard')" class="active">📊 仪表盘</a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-title">知识库</div>
+    <a onclick="nav('kb-list')">📂 知识库列表</a>
+    <a onclick="nav('qa-chat')">💬 智能问答</a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-title">管理</div>
+    <a onclick="nav('user-mgmt')">👥 用户管理</a>
+    <a onclick="nav('dept-tree')">🏢 部门管理</a>
+    <a onclick="nav('perm-mgmt')">🔑 权限管理</a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-title">运维</div>
+    <a onclick="nav('audit-log')">📋 审计日志</a>
+    <a onclick="nav('quality')">📈 质量监控</a>
+    <a onclick="nav('sys-config')">⚙️ 系统配置</a>
+  </div>
+  <div style="padding:12px 20px;border-top:1px solid rgba(255,255,255,.1);margin-top:auto;position:absolute;bottom:0;width:100%;">
+    <a onclick="logout()" style="padding:0;border:none;color:rgba(255,255,255,.5);font-size:12px;">🚪 退出登录</a>
+  </div>
+</nav>
+
+<div class="main" id="main-area">
+
+<!-- ==================== 1. 登录页 ==================== -->
+<div id="login" class="screen active">
+<div class="login-page">
+  <div class="login-box">
+    <h1>📚 RAG 知识库</h1>
+    <p class="subtitle">企业智能知识管理平台</p>
+    <div class="form-group"><label>用户名</label><input class="input" id="login-user" type="text" placeholder="请输入用户名" value="admin"></div>
+    <div class="form-group"><label>密码</label><input class="input" id="login-pass" type="password" placeholder="请输入密码" value="admin123"></div>
+    <div class="flex-between mb-16">
+      <label style="font-size:13px;color:#666;"><input type="checkbox" checked> 记住登录</label>
+      <a href="#" style="font-size:13px;color:#1890ff;">忘记密码？</a>
     </div>
-    <input type="file" id="fileInput" accept=".txt,.md,.pdf,.docx">
+    <button class="btn btn-primary" style="width:100%;justify-content:center;height:40px;font-size:15px;" onclick="doLogin()">登 录</button>
+    <p style="text-align:center;margin-top:16px;font-size:12px;color:#ccc;">SSO 单点登录（P2 开放）</p>
+  </div>
+</div>
+</div>
 
-    <!-- 文件信息预览 -->
-    <div class="file-preview" id="filePreview">
-      <div class="file-info">
-        <span class="file-icon" id="fileIcon">📄</span>
-        <div class="file-meta">
-          <div class="file-name" id="fileName"></div>
-          <div class="file-size" id="fileSize"></div>
+<!-- ==================== 2. 仪表盘 ==================== -->
+<div id="dashboard" class="screen">
+  <div class="screen-title">仪表盘 <span class="badge">管理员视图</span></div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="label">知识库数量</div><div class="value" id="stat-kb">0</div><div class="trend up">↑ 系统运行中</div></div>
+    <div class="stat-card"><div class="label">文档总数</div><div class="value" id="stat-docs">0</div><div class="trend up">↑ 已索引</div></div>
+    <div class="stat-card"><div class="label">今日问答次数</div><div class="value">--</div><div class="trend up">--</div></div>
+    <div class="stat-card"><div class="label">问答准确率</div><div class="value">--</div><div class="trend up">--</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+    <div class="card">
+      <div class="card-header"><h3>📈 近 7 天问答趋势</h3></div>
+      <div class="chart-bar" style="padding-bottom:30px;">
+        <div class="bar" style="height:60px;background:#91caff;"><span class="bar-value">--</span><span class="bar-label">周一</span></div>
+        <div class="bar" style="height:80px;background:#91caff;"><span class="bar-value">--</span><span class="bar-label">周二</span></div>
+        <div class="bar" style="height:100px;background:#91caff;"><span class="bar-value">--</span><span class="bar-label">周三</span></div>
+        <div class="bar" style="height:90px;background:#91caff;"><span class="bar-value">--</span><span class="bar-label">周四</span></div>
+        <div class="bar" style="height:110px;background:#91caff;"><span class="bar-value">--</span><span class="bar-label">周五</span></div>
+        <div class="bar" style="height:50px;background:#91caff;"><span class="bar-value">--</span><span class="bar-label">周六</span></div>
+        <div class="bar" style="height:70px;background:#1890ff;"><span class="bar-value">--</span><span class="bar-label">周日</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>🔥 热门知识库</h3></div>
+      <div id="hot-kb-list" style="font-size:13px;"><div class="text-muted" style="padding:20px;text-align:center;">暂无数据</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3>⚠️ 待处理事项</h3></div>
+    <table>
+      <tr><th>类型</th><th>描述</th><th>数量</th><th>操作</th></tr>
+      <tr><td><span class="tag tag-red">点踩反馈</span></td><td>待审核的用户差评反馈</td><td>0</td><td><button class="btn btn-sm" onclick="nav('quality')">去处理</button></td></tr>
+      <tr><td><span class="tag tag-orange">解析失败</span></td><td>文档解析失败，需人工处理</td><td>0</td><td><button class="btn btn-sm" onclick="nav('kb-list')">去处理</button></td></tr>
+      <tr><td><span class="tag tag-purple">低置信度</span></td><td>置信度低于 0.5 的问答记录</td><td>--</td><td><button class="btn btn-sm" onclick="nav('audit-log')">查看</button></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== 3. 知识库列表 ==================== -->
+<div id="kb-list" class="screen">
+  <div class="screen-title" style="justify-content:space-between;">
+    <span>知识库管理</span>
+    <button class="btn btn-primary" onclick="showModal('create-kb')">＋ 创建知识库</button>
+  </div>
+  <div class="card">
+    <div class="flex-between mb-16">
+      <div class="flex gap-12">
+        <input class="input" placeholder="搜索知识库名称..." style="width:280px;" id="kb-search">
+        <select class="select"><option>全部状态</option><option>活跃</option><option>归档</option></select>
+      </div>
+      <div class="text-muted">共 <span id="kb-total">0</span> 个知识库</div>
+    </div>
+    <table>
+      <tr><th>知识库名称</th><th>文档数</th><th>Chunks</th><th>Embedding 模型</th><th>权限范围</th><th>状态</th><th>操作</th></tr>
+      <tbody id="kb-table-body"><tr><td colspan="7" style="text-align:center;padding:40px;color:#999;">暂无知识库</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== 4. 知识库详情 ==================== -->
+<div id="kb-detail" class="screen">
+  <div class="screen-title">
+    <a onclick="nav('kb-list')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
+    📖 <span id="kb-detail-name">知识库</span> <span class="tag tag-green">活跃</span>
+  </div>
+  <div class="tabs" id="kb-detail-tabs">
+    <div class="tab active" onclick="switchTab(this,'kb-tab-docs')">文档管理</div>
+    <div class="tab" onclick="switchTab(this,'kb-tab-perm')">权限设置</div>
+    <div class="tab" onclick="switchTab(this,'kb-tab-settings')">知识库设置</div>
+    <div class="tab" onclick="switchTab(this,'kb-tab-stats')">统计分析</div>
+  </div>
+  <!-- KB Tab: Documents -->
+  <div id="kb-tab-docs">
+    <div class="card">
+      <div class="flex-between mb-16">
+        <div class="flex gap-12">
+          <input class="input" placeholder="搜索文档..." style="width:240px;">
+          <select class="select"><option>全部类型</option><option>PDF</option><option>Word</option><option>Markdown</option><option>TXT</option></select>
+          <select class="select"><option>全部状态</option><option>已索引</option><option>索引中</option><option>失败</option></select>
+        </div>
+        <button class="btn btn-primary" onclick="nav('doc-upload')">⬆️ 上传文档</button>
+      </div>
+      <table>
+        <tr><th>文档名称</th><th>大小</th><th>Chunks</th><th>状态</th><th>操作</th></tr>
+        <tbody id="doc-table-body"><tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">暂无文档</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- KB Tab: Permissions -->
+  <div id="kb-tab-perm" style="display:none;">
+    <div class="card">
+      <div class="card-header"><h3>部门授权</h3><button class="btn btn-primary btn-sm" onclick="showModal('add-dept-access')">＋ 添加部门</button></div>
+      <table><tr><th>部门</th><th>角色</th><th>授权方式</th><th>操作时间</th><th>操作</th></tr>
+        <tbody><tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">暂无部门授权（P1 实现）</td></tr></tbody></table>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>用户授权</h3><button class="btn btn-primary btn-sm" onclick="showModal('add-user-access')">＋ 添加用户</button></div>
+      <table><tr><th>用户</th><th>所属部门</th><th>角色</th><th>操作时间</th><th>操作</th></tr>
+        <tbody><tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">暂无用户授权（P1 实现）</td></tr></tbody></table>
+    </div>
+  </div>
+  <!-- KB Tab: Settings -->
+  <div id="kb-tab-settings" style="display:none;">
+    <div class="card">
+      <h3 class="mb-16">知识库基本信息</h3>
+      <div class="form-row">
+        <div class="form-group"><label>知识库名称</label><input class="input" id="kb-set-name" value=""></div>
+        <div class="form-group"><label>状态</label><select class="select" style="width:100%;"><option>活跃</option><option>归档</option><option>维护</option></select></div>
+      </div>
+      <div class="form-group"><label>描述</label><textarea class="input" rows="3" style="resize:vertical;" id="kb-set-desc"></textarea></div>
+      <div class="divider"></div>
+      <h3 class="mb-16">模型配置</h3>
+      <div class="form-row">
+        <div class="form-group"><label>Embedding 模型</label><select class="select" style="width:100%;"><option>text-embedding-v3</option><option>BGE-M3</option><option>text-embedding-3-large</option></select></div>
+        <div class="form-group"><label>LLM 模型</label><select class="select" style="width:100%;"><option>qwen3.6-plus</option><option>GPT-4o</option><option>DeepSeek-V3</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Temperature</label><input class="input" type="number" value="0.3" step="0.1" min="0" max="2"></div>
+        <div class="form-group"><label>Reranker 模型</label><select class="select" style="width:100%;"><option>bge-reranker-v2-m3</option><option>Cohere Rerank</option></select></div>
+      </div>
+      <button class="btn btn-primary mt-16">保存设置</button>
+    </div>
+  </div>
+  <!-- KB Tab: Stats -->
+  <div id="kb-tab-stats" style="display:none;">
+    <div class="stats-row">
+      <div class="stat-card"><div class="label">总文档数</div><div class="value" id="kb-stat-docs">0</div></div>
+      <div class="stat-card"><div class="label">总 Chunks</div><div class="value" id="kb-stat-chunks">0</div></div>
+      <div class="stat-card"><div class="label">本周问答</div><div class="value">--</div></div>
+      <div class="stat-card"><div class="label">平均延迟</div><div class="value">--</div></div>
+    </div>
+    <div class="card">
+      <h3 class="mb-16">📊 高频引用文档 Top 5</h3>
+      <table><tr><th>#</th><th>文档名</th><th>引用次数</th><th>占比</th></tr>
+        <tbody><tr><td colspan="4" style="text-align:center;padding:40px;color:#999;">暂无统计数据（P1 实现）</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 5. 文档上传 ==================== -->
+<div id="doc-upload" class="screen">
+  <div class="screen-title">
+    <a onclick="nav('kb-detail')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
+    上传文档
+  </div>
+  <div class="steps">
+    <div class="step active" id="step-1"><div class="number">1</div><div class="label">选择文件</div></div>
+    <div class="step" id="step-2"><div class="number">2</div><div class="label">配置分块策略</div></div>
+    <div class="step" id="step-3"><div class="number">3</div><div class="label">确认上传</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div class="card">
+      <h3 class="mb-16">选择文件</h3>
+      <div class="upload-zone" id="upload-zone">
+        <div class="icon">📁</div>
+        <div class="text">拖拽文件到此处，或点击选择文件</div>
+        <div class="hint">支持 PDF、Word、Markdown、TXT · 单文件 ≤ 50MB</div>
+      </div>
+      <input type="file" id="file-input" style="display:none;" accept=".pdf,.docx,.doc,.md,.txt">
+      <div id="selected-files" style="margin-top:16px;"></div>
+    </div>
+    <div class="card">
+      <h3 class="mb-16">分块策略配置</h3>
+      <div class="form-group">
+        <label>分块策略</label>
+        <select class="select" style="width:100%;" onchange="toggleChunkConfig(this.value)">
+          <option value="fixed">固定长度 + Overlap（推荐）</option>
+          <option value="structural">结构分析分块</option>
+          <option value="semantic">语义分块（P1）</option>
+        </select>
+      </div>
+      <div id="chunk-config-fixed">
+        <div class="form-row">
+          <div class="form-group"><label>Chunk 大小（tokens）</label><input class="input" type="number" value="512" id="chunk-size"></div>
+          <div class="form-group"><label>Overlap（tokens）</label><input class="input" type="number" value="64" id="chunk-overlap"></div>
+        </div>
+        <div class="text-muted">默认 512 tokens / 64 tokens overlap</div>
+      </div>
+      <div id="chunk-config-structural" style="display:none;">
+        <div class="form-row">
+          <div class="form-group"><label>最大 Chunk 大小（tokens）</label><input class="input" type="number" value="1024"></div>
+          <div class="form-group"><label>切分层级</label><select class="select" style="width:100%;"><option>H2 及以上</option><option>H3 及以上</option></select></div>
+        </div>
+        <div class="text-muted">基于标题层级切分，保留 heading_path 元数据</div>
+      </div>
+      <div class="divider"></div>
+      <h3 class="mb-16">预览</h3>
+      <div class="chunk-preview" id="chunk-preview">
+        <div class="text-muted" style="text-align:center;padding:20px;">上传文件后可预览分块效果</div>
+      </div>
+      <button class="btn btn-primary mt-16" style="width:100%;justify-content:center;" id="upload-btn" onclick="doUpload()" disabled>确认上传并索引</button>
+      <div id="upload-progress" style="display:none;margin-top:16px;">
+        <div class="progress"><div class="progress-bar" id="upload-progress-bar" style="width:0%"></div></div>
+        <div class="text-muted" style="text-align:right;margin-top:6px;" id="upload-progress-text">0%</div>
+      </div>
+      <div id="upload-result" style="margin-top:12px;display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 6. 智能问答 ==================== -->
+<div id="qa-chat" class="screen">
+  <div class="screen-title">💬 智能问答</div>
+  <div class="chat-container">
+    <div class="chat-sidebar-panel">
+      <div class="chat-sidebar-header">
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="newChat()">＋ 新对话</button>
+      </div>
+      <div class="chat-list" id="chat-list">
+        <div class="chat-item active"><div class="title">新对话</div><div class="meta">刚刚</div></div>
+      </div>
+      <div style="padding:12px;border-top:1px solid #f0f0f0;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:12px;">Top-K</label>
+          <input class="input" type="number" value="5" id="qa-topk" style="font-size:12px;" min="1" max="20">
         </div>
       </div>
-      <div class="file-actions">
-        <button class="btn btn-primary" id="confirmBtn" onclick="confirmUpload()">确认上传</button>
-        <button class="btn btn-secondary" onclick="cancelFile()">取消</button>
+    </div>
+    <div class="chat-main">
+      <div class="chat-messages" id="chat-messages">
+        <div style="text-align:center;padding:60px 20px;color:#999;">
+          <div style="font-size:48px;margin-bottom:16px;">💬</div>
+          <div style="font-size:16px;">输入问题开始对话</div>
+          <div style="font-size:13px;margin-top:8px;">系统将从知识库中检索相关内容并生成回答</div>
+        </div>
       </div>
-    </div>
-
-    <!-- 上传进度 -->
-    <div class="progress-wrap" id="progressWrap">
-      <div class="progress-bar-bg">
-        <div class="progress-bar-fill" id="progressFill"></div>
-      </div>
-      <div class="progress-text" id="progressText">0%</div>
-    </div>
-
-    <div class="upload-status" id="uploadStatus"></div>
-    <div class="doc-list" id="docList"></div>
-  </div>
-
-  <!-- Query -->
-  <div class="card">
-    <h2>💬 提问</h2>
-    <div class="query-box">
-      <input type="text" id="questionInput" placeholder="输入你的问题..." onkeydown="if(event.key==='Enter')ask()">
-      <button id="askBtn" onclick="ask()">提问</button>
-    </div>
-    <div class="loading" id="loading"><span class="spinner"></span>思考中...</div>
-    <div class="answer-card" id="answerCard">
-      <div class="label">回答</div>
-      <div class="answer-text" id="answerText"></div>
-      <div class="sources" id="sourcesArea">
-        <span>来源：</span>
+      <div class="chat-input-area">
+        <div class="chat-input-row">
+          <textarea class="chat-input" id="qa-input" placeholder="输入问题，Enter 发送..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();askQuestion()}"></textarea>
+          <button class="btn btn-primary" style="height:44px;" onclick="askQuestion()" id="qa-send-btn">发送</button>
+        </div>
+        <div class="chat-actions">
+          <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" checked> 流式输出</label>
+          <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox"> 显示检索过程</label>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
+<!-- ==================== 7. 用户管理 ==================== -->
+<div id="user-mgmt" class="screen">
+  <div class="screen-title" style="justify-content:space-between;">
+    <span>👥 用户管理</span>
+    <div class="flex gap-8">
+      <button class="btn">📥 批量导入</button>
+      <button class="btn btn-primary" onclick="showModal('create-user')">＋ 创建用户</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="flex-between mb-16">
+      <div class="flex gap-12">
+        <input class="input" placeholder="搜索用户名/姓名..." style="width:240px;">
+        <select class="select"><option>全部部门</option><option>技术中心</option><option>研发中心</option><option>产品中心</option></select>
+        <select class="select"><option>全部状态</option><option>启用</option><option>禁用</option></select>
+        <select class="select"><option>全部角色</option><option>super_admin</option><option>kb_admin</option><option>user</option></select>
+      </div>
+    </div>
+    <table>
+      <tr><th>用户</th><th>用户名</th><th>部门</th><th>岗位</th><th>系统角色</th><th>状态</th><th>最后登录</th><th>操作</th></tr>
+      <tbody>
+        <tr>
+          <td><div class="flex gap-8" style="align-items:center;"><div class="avatar" style="background:#1890ff;">管</div><span>管理员</span></div></td>
+          <td>admin</td><td>技术中心</td><td>IT 负责人</td>
+          <td><span class="tag tag-purple">super_admin</span></td>
+          <td><span class="tag tag-green">启用</span></td>
+          <td>2026-04-13 10:32</td>
+          <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm">角色</button></td>
+        </tr>
+        <tr>
+          <td><div class="flex gap-8" style="align-items:center;"><div class="avatar" style="background:#52c41a;">张</div><span>张工</span></div></td>
+          <td>zhangsan</td><td>研发中心</td><td>高级工程师</td>
+          <td><span class="tag tag-blue">kb_admin</span></td>
+          <td><span class="tag tag-green">启用</span></td>
+          <td>2026-04-13 09:15</td>
+          <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm">角色</button></td>
+        </tr>
+        <tr>
+          <td><div class="flex gap-8" style="align-items:center;"><div class="avatar" style="background:#fa8c16;">李</div><span>李工</span></div></td>
+          <td>lisi</td><td>研发中心</td><td>工程师</td>
+          <td><span class="tag tag-green">user</span></td>
+          <td><span class="tag tag-green">启用</span></td>
+          <td>2026-04-12 16:20</td>
+          <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm">角色</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="pagination"><div class="page-btn active">1</div><div class="page-btn">2</div><div class="page-btn">›</div></div>
+  </div>
+</div>
+
+<!-- ==================== 8. 部门管理 ==================== -->
+<div id="dept-tree" class="screen">
+  <div class="screen-title flex-between" style="display:flex;justify-content:space-between;">
+    <span>🏢 部门管理</span>
+    <button class="btn btn-primary" onclick="showModal('add-dept')">＋ 添加部门</button>
+  </div>
+  <div class="card">
+    <div class="tree-item root">
+      <div class="node"><span class="icon">📁</span><strong>总公司</strong></div>
+      <div class="tree-item">
+        <div class="node"><span class="icon">📁</span><strong>技术中心</strong></div>
+        <div class="tree-item"><div class="node"><span class="icon">📁</span>研发中心</div></div>
+        <div class="tree-item"><div class="node"><span class="icon">📁</span>测试中心</div></div>
+      </div>
+      <div class="tree-item"><div class="node"><span class="icon">📁</span>产品中心</div></div>
+      <div class="tree-item"><div class="node"><span class="icon">📁</span>运营中心</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 9. 权限管理 ==================== -->
+<div id="perm-mgmt" class="screen">
+  <div class="screen-title">🔑 权限管理</div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'perm-tab-roles')">角色管理</div>
+    <div class="tab" onclick="switchTab(this,'perm-tab-access')">知识库授权矩阵</div>
+  </div>
+  <div id="perm-tab-roles">
+    <div class="card">
+      <div class="card-header"><h3>系统角色定义</h3><button class="btn btn-primary btn-sm" onclick="showModal('create-role')">＋ 新建角色</button></div>
+      <table>
+        <tr><th>角色名</th><th>描述</th><th>功能权限</th><th>优先级</th><th>操作</th></tr>
+        <tr>
+          <td><span class="tag tag-purple">super_admin</span></td>
+          <td>超级管理员，拥有系统全部权限</td>
+          <td>所有功能</td>
+          <td><span class="tag tag-red">最高</span></td>
+          <td><button class="btn btn-sm">编辑</button></td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">kb_admin</span></td>
+          <td>知识库管理员，管理特定知识库</td>
+          <td>文档上传、删除、检索、知识配置</td>
+          <td><span class="tag tag-orange">中等</span></td>
+          <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm btn-danger">删除</button></td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-green">user</span></td>
+          <td>普通用户，只能检索问答</td>
+          <td>检索、提问、查看回答</td>
+          <td><span class="tag tag-gray">最低</span></td>
+          <td><button class="btn btn-sm">编辑</button></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+  <div id="perm-tab-access" style="display:none;">
+    <div class="card">
+      <h3 class="mb-16">知识库权限配置（P1 实现）</h3>
+      <div class="text-muted" style="padding:40px;text-align:center;">暂无数据，待实现</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 10. 审计日志 ==================== -->
+<div id="audit-log" class="screen">
+  <div class="screen-title">📋 审计日志</div>
+  <div class="card">
+    <div class="flex-between mb-16">
+      <div class="flex gap-12">
+        <input class="input" placeholder="搜索操作内容..." style="width:240px;">
+        <select class="select"><option>全部操作类型</option><option>登录</option><option>上传文档</option><option>删除文档</option><option>查询问题</option></select>
+        <select class="select"><option>全部用户</option></select>
+        <input class="input" type="date" style="width:180px;">
+        <input class="input" type="date" style="width:180px;">
+        <button class="btn btn-primary">筛选</button>
+      </div>
+    </div>
+    <table>
+      <tr><th>时间</th><th>用户</th><th>IP 地址</th><th>操作类型</th><th>详情</th><th>状态</th></tr>
+      <tbody>
+        <tr><td colspan="6" style="text-align:center;padding:40px;color:#999;">暂无数据（P1 实现）</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== 11. 质量监控 ==================== -->
+<div id="quality" class="screen">
+  <div class="screen-title">📈 质量监控</div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="label">差评率</div><div class="value">--</div><div class="trend up">目标 &lt; 5%</div></div>
+    <div class="stat-card"><div class="label">无结果率</div><div class="value">--</div><div class="trend up">目标 &lt; 15%</div></div>
+    <div class="stat-card"><div class="label">平均检索延迟</div><div class="value">--s</div><div class="trend up">目标 P95 &lt; 3s</div></div>
+    <div class="stat-card"><div class="label">总反馈数</div><div class="value">--</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3>待审核的点踩反馈</h3><button class="btn btn-primary btn-sm">批量处理</button></div>
+    <table>
+      <tr><th>时间</th><th>用户</th><th>问题</th><th>回答</th><th>原因</th><th>操作</th></tr>
+      <tbody>
+        <tr><td colspan="6" style="text-align:center;padding:40px;color:#999;">暂无待审核反馈</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== 12. 系统配置 ==================== -->
+<div id="sys-config" class="screen">
+  <div class="screen-title">⚙️ 系统配置</div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'config-tab-general')">通用设置</div>
+    <div class="tab" onclick="switchTab(this,'config-tab-model')">模型配置</div>
+    <div class="tab" onclick="switchTab(this,'config-tab-retrieval')">检索策略</div>
+    <div class="tab" onclick="switchTab(this,'config-tab-cache')">缓存设置</div>
+  </div>
+  <div id="config-tab-general">
+    <div class="card">
+      <h3 class="mb-16">系统基本信息</h3>
+      <div class="form-group"><label>系统名称</label><input class="input" value="RAG 知识库管理系统"></div>
+      <div class="form-group"><label>Logo URL</label><input class="input" value=""></div>
+      <div class="form-group"><label>默认语言</label><select class="select" style="width:100%;"><option>简体中文</option><option>English</option></select></div>
+      <div class="form-group"><label>每页条数</label><input class="input" type="number" value="20"></div>
+      <button class="btn btn-primary mt-16">保存</button>
+    </div>
+  </div>
+  <div id="config-tab-model" style="display:none;">
+    <div class="card">
+      <h3 class="mb-16">全局模型配置</h3>
+      <div class="form-row">
+        <div class="form-group"><label>默认 LLM 模型</label><select class="select" style="width:100%;"><option>qwen3.6-plus</option><option>GPT-4o</option><option>Claude 3.5 Sonnet</option></select></div>
+        <div class="form-group"><label>默认 Embedding 模型</label><select class="select" style="width:100%;"><option>text-embedding-v3</option><option>BGE-M3</option></select></div>
+      </div>
+      <div class="divider"></div>
+      <h3 class="mb-16">API 配置</h3>
+      <div class="form-group"><label>LLM API Key</label><input class="input" type="password" value="********"></div>
+      <div class="form-group"><label>Embedding API Key</label><input class="input" type="password" value="********"></div>
+      <button class="btn btn-primary mt-16">保存配置</button>
+    </div>
+  </div>
+  <div id="config-tab-retrieval" style="display:none;">
+    <div class="card">
+      <h3 class="mb-16">检索策略配置</h3>
+      <div class="form-row">
+        <div class="form-group"><label>默认 Top-K</label><input class="input" type="number" value="5"></div>
+        <div class="form-group"><label>RRF 融合 K 值</label><input class="input" type="number" value="60"></div>
+      </div>
+      <div class="form-group"><label>拒答阈值（Cross-Encoder）</label><input class="input" type="number" step="0.1" value="0.3"></div>
+      <div class="form-group"><label>是否启用 BM25</label><select class="select" style="width:100%;"><option>启用</option><option>关闭</option></select></div>
+      <div class="form-group"><label>是否启用 Reranker</label><select class="select" style="width:100%;"><option>启用</option><option>关闭</option></select></div>
+      <button class="btn btn-primary mt-16">保存配置</button>
+    </div>
+  </div>
+  <div id="config-tab-cache" style="display:none;">
+    <div class="card">
+      <h3 class="mb-16">缓存策略</h3>
+      <div class="form-row">
+        <div class="form-group"><label>查询缓存有效期</label><input class="input" type="number" value="86400" title="秒"></div>
+        <div class="form-group"><label>会话超时时间</label><input class="input" type="number" value="1800" title="秒"></div>
+      </div>
+      <div class="form-group"><label>缓存后端</label><select class="select" style="width:100%;"><option>Redis</option><option>内存</option></select></div>
+      <button class="btn btn-primary mt-16">保存配置</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- end main-area -->
+
+<!-- ============= Modals ============= -->
+<div id="modal-overlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this)hideModal()"></div>
+
+<!-- Create KB Modal -->
+<div id="modal-create-kb" class="modal" style="display:none;">
+  <div class="modal-header"><span>创建知识库</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label>知识库名称 *</label><input class="input" id="new-kb-name" placeholder="请输入知识库名称"></div>
+    <div class="form-group"><label>描述</label><textarea class="input" rows="3" id="new-kb-desc" placeholder="请输入知识库描述"></textarea></div>
+    <div class="form-group"><label>所属部门</label><select class="select" style="width:100%"><option>全部部门</option></select></div>
+  </div>
+  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="createKB()">创建</button></div>
+</div>
+
+<!-- Create User Modal -->
+<div id="modal-create-user" class="modal" style="display:none;">
+  <div class="modal-header"><span>创建用户</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body">
+    <div class="form-row">
+      <div class="form-group"><label>用户名 *</label><input class="input" id="new-user-username" placeholder="请输入用户名"></div>
+      <div class="form-group"><label>显示姓名 *</label><input class="input" id="new-user-name" placeholder="请输入姓名"></div>
+    </div>
+    <div class="form-group"><label>邮箱</label><input class="input" type="email" id="new-user-email" placeholder="请输入邮箱"></div>
+    <div class="form-group"><label>所属部门</label><select class="select" style="width:100%"><option>技术中心</option><option>研发中心</option><option>产品中心</option></select></div>
+    <div class="form-group"><label>系统角色</label><select class="select" style="width:100%"><option>user</option><option>kb_admin</option></select></div>
+  </div>
+  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="createUser()">创建</button></div>
+</div>
+
+<!-- Add Dept Access Modal -->
+<div id="modal-add-dept-access" class="modal" style="display:none;">
+  <div class="modal-header"><span>添加部门授权</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label>选择部门</label><select class="select" style="width:100%"><option>技术中心</option><option>研发中心</option><option>产品中心</option></select></div>
+    <div class="form-group"><label>角色</label><select class="select" style="width:100%"><option value="admin">管理员</option><option value="viewer">查看者</option></select></div>
+  </div>
+  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="addDeptAccess()">添加</button></div>
+</div>
+
+<!-- Add User Access Modal -->
+<div id="modal-add-user-access" class="modal" style="display:none;">
+  <div class="modal-header"><span>添加用户授权</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label>选择用户</label><select class="select" style="width:100%"><option>张工 (zhangsan)</option><option>李工 (lisi)</option></select></div>
+    <div class="form-group"><label>角色</label><select class="select" style="width:100%"><option value="admin">管理员</option><option value="viewer">查看者</option></select></div>
+  </div>
+  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="addUserAccess()">添加</button></div>
+</div>
+
+<!-- ============= JavaScript ============= -->
 <script>
-const API = '';
-const docs = [];
-let selectedFile = null;
+let currentKbId = null;
 
-// 格式化文件大小
-function formatSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+// Navigation
+function nav(screenName) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(screenName).classList.add('active');
+  document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+  const link = Array.from(document.querySelectorAll('.sidebar a')).find(a => a.textContent.includes(screenName === 'qa-chat' ? '问答' : screenName === 'doc-upload' ? '上传' : screenName));
+  if(link) link.classList.add('active');
 }
 
-// 根据扩展名返回图标
-function fileIcon(name) {
-  const ext = name.split('.').pop().toLowerCase();
-  const map = { pdf: '📕', docx: '📘', md: '📝', txt: '📄' };
-  return map[ext] || '📄';
+function switchTab(tab, tabId) {
+  tab.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  Object.values(document.querySelectorAll('[id^="'+tabId.split('-')[0]+'-tab-"]'))
+         .forEach(el => el.style.display = 'none');
+  document.getElementById(tabId).style.display = 'block';
 }
 
-// Upload - 选文件
-const dropzone = document.getElementById('dropzone');
-const fileInput = document.getElementById('fileInput');
-const filePreview = document.getElementById('filePreview');
-
-dropzone.addEventListener('click', () => fileInput.click());
-dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
-dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-dropzone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropzone.classList.remove('dragover');
-  if (e.dataTransfer.files.length) selectFile(e.dataTransfer.files[0]);
-});
-fileInput.addEventListener('change', () => {
-  if (fileInput.files.length) selectFile(fileInput.files[0]);
-  fileInput.value = '';
-});
-
-function selectFile(file) {
-  selectedFile = file;
-  document.getElementById('fileIcon').textContent = fileIcon(file.name);
-  document.getElementById('fileName').textContent = file.name;
-  document.getElementById('fileSize').textContent = formatSize(file.size);
-  filePreview.classList.add('show');
-  // 重置状态
-  document.getElementById('uploadStatus').style.display = 'none';
-  document.getElementById('progressWrap').classList.remove('show');
-}
-
-function cancelFile() {
-  selectedFile = null;
-  filePreview.classList.remove('show');
-}
-
-// 确认上传
-function confirmUpload() {
-  if (!selectedFile) return;
-  upload(selectedFile);
-}
-
-function upload(file) {
-  const btn = document.getElementById('confirmBtn');
-  const progressWrap = document.getElementById('progressWrap');
-  const progressFill = document.getElementById('progressFill');
-  const progressText = document.getElementById('progressText');
-  const uploadStatus = document.getElementById('uploadStatus');
-
-  btn.disabled = true;
-  btn.textContent = '上传中...';
-  uploadStatus.style.display = 'none';
-  progressFill.style.width = '0%';
-  progressText.textContent = '0%';
-  progressWrap.classList.add('show');
-
-  const fd = new FormData();
-  fd.append('file', file);
-
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', API + '/api/upload');
-
-  xhr.upload.addEventListener('progress', e => {
-    if (e.lengthComputable) {
-      const pct = Math.round((e.loaded / e.total) * 100);
-      progressFill.style.width = pct + '%';
-      progressText.textContent = pct + '%';
-    }
-  });
-
-  xhr.onload = () => {
-    btn.disabled = false;
-    btn.textContent = '确认上传';
-    if (xhr.status >= 200 && xhr.status < 300) {
-      const data = JSON.parse(xhr.responseText);
-      progressFill.style.width = '100%';
-      progressText.textContent = '100%';
-      uploadStatus.textContent = `✅ ${data.filename} — ${data.chunks} 个文本块已入库`;
-      uploadStatus.className = 'upload-status success';
-      docs.push({ name: data.filename, chunks: data.chunks, size: file.size });
-      renderDocs();
-      selectedFile = null;
-      filePreview.classList.remove('show');
-    } else {
-      uploadStatus.textContent = '❌ 上传失败：' + xhr.statusText;
-      uploadStatus.className = 'upload-status error';
-    }
-  };
-
-  xhr.onerror = () => {
-    btn.disabled = false;
-    btn.textContent = '确认上传';
-    uploadStatus.textContent = '❌ 上传失败：网络错误';
-    uploadStatus.className = 'upload-status error';
-  };
-
-  xhr.send(fd);
-}
-
-function renderDocs() {
-  const el = document.getElementById('docList');
-  el.innerHTML = docs.map(d => `<div class="doc-item"><span class="name">📎 ${d.name}</span><span class="chunks">${formatSize(d.size)} · ${d.chunks} 块</span></div>`).join('');
-}
-
-// Query
-async function ask() {
-  const q = document.getElementById('questionInput').value.trim();
-  if (!q) return;
-  const btn = document.getElementById('askBtn');
-  const loading = document.getElementById('loading');
-  const answerCard = document.getElementById('answerCard');
-  btn.disabled = true;
-  loading.classList.add('show');
-  answerCard.style.display = 'none';
-  try {
-    const res = await fetch(API + '/api/query', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: q, top_k: 5 }),
-    });
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    document.getElementById('answerText').textContent = data.answer;
-    const sourcesArea = document.getElementById('sourcesArea');
-    sourcesArea.innerHTML = '<span>来源：</span>' + (data.sources.length ? data.sources.map(s => `<span class="tag">📎 ${s}</span>`).join('') : '<span class="tag">无</span>');
-    answerCard.style.display = 'block';
-  } catch (e) {
-    document.getElementById('answerText').textContent = '请求失败：' + e.message;
-    document.getElementById('sourcesArea').innerHTML = '';
-    answerCard.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-    loading.classList.remove('show');
+// Login
+function doLogin() {
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value.trim();
+  if(user && pass) {
+    document.getElementById('sidebar').style.display = 'block';
+    nav('dashboard');
+    loadDashboard();
+  } else {
+    alert('请输入用户名和密码');
   }
 }
+
+function logout() {
+  document.getElementById('sidebar').style.display = 'none';
+  nav('login');
+  clearChat();
+}
+
+// Dashboard
+async function loadDashboard() {
+  try {
+    const docs = await fetch('/api/documents').then(r => r.json());
+    document.getElementById('stat-docs').textContent = docs.length;
+    document.getElementById('kb-total').textContent = Math.max(1, docs.length > 0 ? 1 : 0);
+    document.getElementById('stat-kb').textContent = Math.max(1, docs.length > 0 ? 1 : 0);
+    
+    // Hot KB list
+    if(docs.length === 0) {
+      document.getElementById('hot-kb-list').innerHTML = '<div class="text-muted" style="padding:20px;text-align:center;">暂无知识库</div>';
+    } else {
+      document.getElementById('hot-kb-list').innerHTML = '<div class="flex-between" style="padding:8px;border-bottom:1px solid #f5f5f5;"><span>📖 产品技术文档</span><span class="tag tag-blue">' + docs.length + ' 个</span></div>';
+    }
+  } catch(e) { console.error(e); }
+}
+
+// KB List - Load documents from backend
+async function loadKBDocs() {
+  if(!currentKbId) return;
+  try {
+    const docs = await fetch('/api/documents').then(r => r.json());
+    const tbody = document.getElementById('doc-table-body');
+    if(docs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">暂无文档，请上传</td></tr>';
+    } else {
+      tbody.innerHTML = docs.map(d => `
+        <tr>
+          <td>${d.filename}</td>
+          <td>--</td>
+          <td>${d.chunks}</td>
+          <td><span class="tag tag-green">已索引</span></td>
+          <td><button class="btn btn-sm btn-danger" onclick="deleteDoc('${d.filename}')">删除</button></td>
+        </tr>`).join('');
+    }
+    document.getElementById('kb-stat-docs').textContent = docs.length;
+    document.getElementById('kb-stat-chunks').textContent = docs.reduce((a,d)=>a+d.chunks,0);
+  } catch(e) { console.error(e); }
+}
+
+async function deleteDoc(filename) {
+  if(!confirm(`确认删除 "${filename}"？`)) return;
+  try {
+    await fetch(`/api/documents/${encodeURIComponent(filename)}`, {method:'DELETE'});
+    loadKBDocs();
+  } catch(e) { console.error(e); }
+}
+
+// Document Upload
+const uploadZone = document.getElementById('upload-zone');
+let selectedFile = null;
+
+uploadZone.onclick = () => document.getElementById('file-input').click();
+uploadZone.ondragover = e => { e.preventDefault(); uploadZone.style.borderColor = '#1890ff'; };
+uploadZone.ondragleave = () => uploadZone.style.borderColor = '#d9d9d9';
+uploadZone.ondrop = e => {
+  e.preventDefault();
+  uploadZone.style.borderColor = '#d9d9d9';
+  if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+};
+document.getElementById('file-input').onchange = e => {
+  if(e.target.files[0]) handleFile(e.target.files[0]);
+};
+
+function handleFile(file) {
+  selectedFile = file;
+  document.getElementById('selected-files').innerHTML = 
+    `<div style="padding:12px;background:#e6f7ff;border-radius:6px;display:flex;justify-content:space-between;align-items:center;">
+      <span>📎 ${file.name}</span>
+      <span class="text-muted">${(file.size/1024/1024).toFixed(2)} MB</span>
+    </div>`;
+  document.getElementById('upload-btn').disabled = false;
+  previewChunks();
+}
+
+function toggleChunkConfig(type) {
+  document.getElementById('chunk-config-fixed').style.display = type === 'fixed' ? 'block' : 'none';
+  document.getElementById('chunk-config-structural').style.display = type === 'structural' ? 'block' : 'none';
+}
+
+function previewChunks() {
+  if(!selectedFile) return;
+  document.getElementById('chunk-preview').innerHTML = 
+    '<div class="text-muted" style="text-align:center;padding:20px;">实际预览需要读取文件内容（P1 实现）</div>';
+}
+
+async function doUpload() {
+  if(!selectedFile) return;
+  document.getElementById('upload-progress').style.display = 'block';
+  document.getElementById('upload-result').style.display = 'none';
+  
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+  
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload');
+    xhr.upload.onprogress = e => {
+      if(e.lengthComputable) {
+        const pct = Math.round(e.loaded/e.total*100);
+        document.getElementById('upload-progress-bar').style.width = pct + '%';
+        document.getElementById('upload-progress-text').textContent = pct + '%';
+      }
+    };
+    xhr.onload = async () => {
+      if(xhr.status >= 200 && xhr.status < 300) {
+        const data = JSON.parse(xhr.responseText);
+        document.getElementById('upload-result').innerHTML = 
+          `<div style="padding:12px;background:#ecfdf5;border-radius:6px;color:#065f46;margin-top:12px;">
+            ✅ ${data.message}
+          </div>`;
+        document.getElementById('upload-result').style.display = 'block';
+        loadKBDocs();
+      } else {
+        alert('上传失败：' + xhr.statusText);
+      }
+    };
+    xhr.onerror = () => alert('网络错误');
+    xhr.send(formData);
+  } catch(e) { console.error(e); }
+}
+
+// QA Chat
+async function askQuestion() {
+  const input = document.getElementById('qa-input');
+  const question = input.value.trim();
+  if(!question) return;
+  
+  input.disabled = true;
+  document.getElementById('qa-send-btn').disabled = true;
+  
+  // Show user message
+  addMessage('user', question);
+  input.value = '';
+  
+  // Show loading
+  const loadingId = addMessage('loading', '思考中...');
+  
+  try {
+    const topK = parseInt(document.getElementById('qa-topk').value) || 5;
+    const res = await fetch('/api/query', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question, top_k: topK})
+    });
+    const data = await res.json();
+    
+    // Remove loading message
+    removeMessage(loadingId);
+    
+    // Show answer
+    if(data.sources && data.sources.length > 0) {
+      const sourcesHtml = data.sources.map(s => 
+        `<span class="source-tag">📎 ${s}</span>`).join(' ');
+      data.answer = `${data.answer}<div>${sourcesHtml}</div>`;
+    }
+    addMessage('assistant', data.answer);
+  } catch(e) {
+    removeMessage(loadingId);
+    addMessage('assistant', `❌ 请求失败：${e.message}`);
+  } finally {
+    input.disabled = false;
+    document.getElementById('qa-send-btn').disabled = false;
+    input.focus();
+  }
+}
+
+function addMessage(role, content) {
+  const id = 'msg-' + Date.now();
+  const messagesDiv = document.getElementById('chat-messages');
+  const emptyState = messagesDiv.querySelector('div[style*="text-align:center"]');
+  if(emptyState) emptyState.remove();
+  
+  const div = document.createElement('div');
+  div.className = `message ${role}`;
+  div.id = id;
+  
+  const avatar = role === 'user' ? '你' : (role === 'loading' ? '' : 'AI');
+  const bg = role === 'user' ? '#1890ff' : '#f5f5f5';
+  const color = role === 'user' ? '#fff' : '#333';
+  
+  let bubble = role === 'loading' ? '<div style="color:#999;">⏳ 思考中...</div>' : `<div>${content.replace(/\n/g, '<br>')}</div>`;
+  
+  if(role !== 'user' && role !== 'loading') {
+    bubble += `<div class="chat-actions">
+      <button class="feedback-btn" title="有帮助" onclick="this.style.opacity=this.style.opacity==='1'?'.4':'1'">👍</button>
+      <button class="feedback-btn" title="没帮助" onclick="this.style.opacity=this.style.opacity==='1'?'.4':'1'">👎</button>
+      <button class="feedback-btn" title="复制" onclick="navigator.clipboard.writeText('${escapeQuotes(content)}')">📋</button>
+    </div>`;
+  }
+  
+  div.innerHTML = `<div class="avatar" style="background:${bg};color:${color}">${avatar}</div><div class="bubble">${bubble}</div>`;
+  messagesDiv.appendChild(div);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  return id;
+}
+
+function removeMessage(id) {
+  const msg = document.getElementById(id);
+  if(msg) msg.remove();
+}
+
+function escapeQuotes(str) {
+  return str.replace(/'/g, "\\'").replace(/\n/g, '\\n');
+}
+
+function newChat() {
+  const chatList = document.getElementById('chat-list');
+  chatList.innerHTML = `<div class="chat-item active"><div class="title">新对话</div><div class="meta">刚刚</div></div>`;
+  document.getElementById('chat-messages').innerHTML = `
+    <div style="text-align:center;padding:60px 20px;color:#999;">
+      <div style="font-size:48px;margin-bottom:16px;">💬</div>
+      <div style="font-size:16px;">输入问题开始对话</div>
+    </div>`;
+}
+
+function clearChat() {
+  newChat();
+}
+
+// Modals
+function showModal(name) { document.getElementById('modal-'+name).style.display = 'flex'; document.getElementById('modal-overlay').style.display = 'flex'; }
+function hideModal() { document.getElementById('modal-overlay').style.display = 'none'; document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+
+function createKB() {
+  const name = document.getElementById('new-kb-name').value.trim();
+  if(!name) { alert('请输入知识库名称'); return; }
+  hideModal();
+  alert('知识库 "'+name+'" 已创建（Mock，P1 实现）');
+}
+
+function createUser() {
+  const username = document.getElementById('new-user-username').value.trim();
+  const name = document.getElementById('new-user-name').value.trim();
+  if(!username || !name) { alert('请填写完整信息'); return; }
+  hideModal();
+  alert('用户 "'+username+'" 已创建（Mock，P1 实现）');
+}
+
+function addDeptAccess() { hideModal(); alert('部门授权已添加（P1 实现）'); }
+function addUserAccess() { hideModal(); alert('用户授权已添加（P1 实现）'); }
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  loadDashboard();
+});
 </script>
 </body>
 </html>
