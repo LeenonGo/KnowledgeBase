@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知识库问答</title>
+<style>
+  :root { --bg: #f5f7fa; --card: #fff; --primary: #4f46e5; --primary-hover: #4338ca; --text: #1e293b; --muted: #64748b; --border: #e2e8f0; --success: #10b981; --radius: 12px; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .subtitle { color: var(--muted); margin-bottom: 32px; }
+
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 24px; margin-bottom: 20px; }
+  .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+  /* Upload */
+  .dropzone { border: 2px dashed var(--border); border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; transition: .2s; }
+  .dropzone:hover, .dropzone.dragover { border-color: var(--primary); background: #eef2ff; }
+  .dropzone .icon { font-size: 36px; margin-bottom: 8px; }
+  .dropzone p { color: var(--muted); font-size: 14px; }
+  .dropzone .formats { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  #fileInput { display: none; }
+
+  /* File preview */
+  .file-preview { display: none; margin-top: 16px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); }
+  .file-preview.show { display: block; }
+  .file-info { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .file-info .file-icon { font-size: 32px; }
+  .file-meta { flex: 1; }
+  .file-meta .file-name { font-weight: 600; font-size: 15px; word-break: break-all; }
+  .file-meta .file-size { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .file-actions { display: flex; gap: 10px; }
+  .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: .2s; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-secondary { background: #fff; color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: #f1f5f9; }
+
+  /* Progress bar */
+  .progress-wrap { display: none; margin-top: 16px; }
+  .progress-wrap.show { display: block; }
+  .progress-bar-bg { width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; width: 0%; background: var(--primary); border-radius: 4px; transition: width .3s; }
+  .progress-text { font-size: 13px; color: var(--muted); margin-top: 6px; text-align: right; }
+
+  .upload-status { margin-top: 12px; font-size: 14px; padding: 10px 14px; border-radius: 8px; display: none; }
+  .upload-status.success { display: block; background: #ecfdf5; color: #065f46; }
+  .upload-status.error { display: block; background: #fef2f2; color: #991b1b; }
+
+  /* Query */
+  .query-box { display: flex; gap: 10px; }
+  .query-box input { flex: 1; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; outline: none; transition: .2s; }
+  .query-box input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
+  .query-box button { padding: 12px 24px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: .2s; white-space: nowrap; }
+  .query-box button:hover { background: var(--primary-hover); }
+  .query-box button:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Answer */
+  .answer-card { display: none; }
+  .answer-card .label { font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; letter-spacing: .5px; }
+  .answer-card .answer-text { line-height: 1.7; font-size: 15px; white-space: pre-wrap; }
+  .answer-card .sources { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .answer-card .sources span { font-size: 12px; color: var(--muted); }
+  .answer-card .sources .tag { display: inline-block; background: #f1f5f9; padding: 3px 10px; border-radius: 20px; font-size: 12px; margin-left: 8px; }
+
+  .loading { display: none; text-align: center; padding: 20px; color: var(--muted); }
+  .loading.show { display: block; }
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Doc list */
+  .doc-list { margin-top: 12px; }
+  .doc-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f8fafc; border-radius: 6px; margin-bottom: 6px; font-size: 14px; }
+  .doc-item .name { flex: 1; }
+  .doc-item .chunks { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📚 知识库问答</h1>
+  <p class="subtitle">上传文档，然后向它提问</p>
+
+  <!-- Upload -->
+  <div class="card">
+    <h2>📄 上传文档</h2>
+    <div class="dropzone" id="dropzone">
+      <div class="icon">📂</div>
+      <p>点击或拖拽文件到这里</p>
+      <div class="formats">支持 TXT、Markdown、PDF、Word (docx)</div>
+    </div>
+    <input type="file" id="fileInput" accept=".txt,.md,.pdf,.docx">
+
+    <!-- 文件信息预览 -->
+    <div class="file-preview" id="filePreview">
+      <div class="file-info">
+        <span class="file-icon" id="fileIcon">📄</span>
+        <div class="file-meta">
+          <div class="file-name" id="fileName"></div>
+          <div class="file-size" id="fileSize"></div>
+        </div>
+      </div>
+      <div class="file-actions">
+        <button class="btn btn-primary" id="confirmBtn" onclick="confirmUpload()">确认上传</button>
+        <button class="btn btn-secondary" onclick="cancelFile()">取消</button>
+      </div>
+    </div>
+
+    <!-- 上传进度 -->
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-text" id="progressText">0%</div>
+    </div>
+
+    <div class="upload-status" id="uploadStatus"></div>
+    <div class="doc-list" id="docList"></div>
+  </div>
+
+  <!-- Query -->
+  <div class="card">
+    <h2>💬 提问</h2>
+    <div class="query-box">
+      <input type="text" id="questionInput" placeholder="输入你的问题..." onkeydown="if(event.key==='Enter')ask()">
+      <button id="askBtn" onclick="ask()">提问</button>
+    </div>
+    <div class="loading" id="loading"><span class="spinner"></span>思考中...</div>
+    <div class="answer-card" id="answerCard">
+      <div class="label">回答</div>
+      <div class="answer-text" id="answerText"></div>
+      <div class="sources" id="sourcesArea">
+        <span>来源：</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+const docs = [];
+let selectedFile = null;
+
+// 格式化文件大小
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// 根据扩展名返回图标
+function fileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = { pdf: '📕', docx: '📘', md: '📝', txt: '📄' };
+  return map[ext] || '📄';
+}
+
+// Upload - 选文件
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const filePreview = document.getElementById('filePreview');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) selectFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) selectFile(fileInput.files[0]);
+  fileInput.value = '';
+});
+
+function selectFile(file) {
+  selectedFile = file;
+  document.getElementById('fileIcon').textContent = fileIcon(file.name);
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileSize').textContent = formatSize(file.size);
+  filePreview.classList.add('show');
+  // 重置状态
+  document.getElementById('uploadStatus').style.display = 'none';
+  document.getElementById('progressWrap').classList.remove('show');
+}
+
+function cancelFile() {
+  selectedFile = null;
+  filePreview.classList.remove('show');
+}
+
+// 确认上传
+function confirmUpload() {
+  if (!selectedFile) return;
+  upload(selectedFile);
+}
+
+function upload(file) {
+  const btn = document.getElementById('confirmBtn');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  const progressText = document.getElementById('progressText');
+  const uploadStatus = document.getElementById('uploadStatus');
+
+  btn.disabled = true;
+  btn.textContent = '上传中...';
+  uploadStatus.style.display = 'none';
+  progressFill.style.width = '0%';
+  progressText.textContent = '0%';
+  progressWrap.classList.add('show');
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', API + '/api/upload');
+
+  xhr.upload.addEventListener('progress', e => {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 100);
+      progressFill.style.width = pct + '%';
+      progressText.textContent = pct + '%';
+    }
+  });
+
+  xhr.onload = () => {
+    btn.disabled = false;
+    btn.textContent = '确认上传';
+    if (xhr.status >= 200 && xhr.status < 300) {
+      const data = JSON.parse(xhr.responseText);
+      progressFill.style.width = '100%';
+      progressText.textContent = '100%';
+      uploadStatus.textContent = `✅ ${data.filename} — ${data.chunks} 个文本块已入库`;
+      uploadStatus.className = 'upload-status success';
+      docs.push({ name: data.filename, chunks: data.chunks, size: file.size });
+      renderDocs();
+      selectedFile = null;
+      filePreview.classList.remove('show');
+    } else {
+      uploadStatus.textContent = '❌ 上传失败：' + xhr.statusText;
+      uploadStatus.className = 'upload-status error';
+    }
+  };
+
+  xhr.onerror = () => {
+    btn.disabled = false;
+    btn.textContent = '确认上传';
+    uploadStatus.textContent = '❌ 上传失败：网络错误';
+    uploadStatus.className = 'upload-status error';
+  };
+
+  xhr.send(fd);
+}
+
+function renderDocs() {
+  const el = document.getElementById('docList');
+  el.innerHTML = docs.map(d => `<div class="doc-item"><span class="name">📎 ${d.name}</span><span class="chunks">${formatSize(d.size)} · ${d.chunks} 块</span></div>`).join('');
+}
+
+// Query
+async function ask() {
+  const q = document.getElementById('questionInput').value.trim();
+  if (!q) return;
+  const btn = document.getElementById('askBtn');
+  const loading = document.getElementById('loading');
+  const answerCard = document.getElementById('answerCard');
+  btn.disabled = true;
+  loading.classList.add('show');
+  answerCard.style.display = 'none';
+  try {
+    const res = await fetch(API + '/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, top_k: 5 }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    document.getElementById('answerText').textContent = data.answer;
+    const sourcesArea = document.getElementById('sourcesArea');
+    sourcesArea.innerHTML = '<span>来源：</span>' + (data.sources.length ? data.sources.map(s => `<span class="tag">📎 ${s}</span>`).join('') : '<span class="tag">无</span>');
+    answerCard.style.display = 'block';
+  } catch (e) {
+    document.getElementById('answerText').textContent = '请求失败：' + e.message;
+    document.getElementById('sourcesArea').innerHTML = '';
+    answerCard.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    loading.classList.remove('show');
+  }
+}
+</script>
+</body>
+</html>
