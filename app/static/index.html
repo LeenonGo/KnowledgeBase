@@ -642,6 +642,7 @@ table tr:hover td{background:#fafafa}
   <div class="tabs">
     <div class="tab active" onclick="switchTab(this,'config-tab-general')">通用设置</div>
     <div class="tab" onclick="switchTab(this,'config-tab-model')">模型配置</div>
+    <div class="tab" onclick="switchTab(this,'config-tab-prompt')">Prompt 管理</div>
     <div class="tab" onclick="switchTab(this,'config-tab-retrieval')">检索策略</div>
     <div class="tab" onclick="switchTab(this,'config-tab-cache')">缓存设置</div>
   </div>
@@ -731,6 +732,56 @@ table tr:hover td{background:#fafafa}
     </div>
 
     <button class="btn btn-primary mt-16" onclick="saveModelConfig()" style="width:100%;justify-content:center;height:40px;font-size:15px;">💾 保存配置</button>
+  </div>
+  
+  <div id="config-tab-prompt" style="display:none;">
+    <div class="card">
+      <div class="flex-between mb-16">
+        <h3>📝 Prompt 模板管理</h3>
+        <div class="flex gap-8">
+          <select class="select" id="prompt-selector" onchange="loadPromptEditor()">
+            <option value="qa">问答主 Prompt</option>
+            <option value="rewrite">查询改写 Prompt</option>
+            <option value="refuse">拒答话术</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="prompt-qa-panel">
+        <div class="form-group">
+          <label>系统 Prompt（System）</label>
+          <textarea class="input" id="prompt-qa-system" rows="10" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+          <div class="text-muted">可用变量: {context} {question} {history}</div>
+        </div>
+        <div class="form-group">
+          <label>用户 Prompt 模板（User）</label>
+          <textarea class="input" id="prompt-qa-user" rows="8" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+          <div class="text-muted">变量: {context}=检索内容 {question}=用户问题 {history}=多轮上下文</div>
+        </div>
+      </div>
+
+      <div id="prompt-rewrite-panel" style="display:none;">
+        <div class="form-group">
+          <label>系统 Prompt</label>
+          <textarea class="input" id="prompt-rewrite-system" rows="8" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+        </div>
+        <div class="form-group">
+          <label>用户 Prompt 模板</label>
+          <textarea class="input" id="prompt-rewrite-user" rows="5" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+          <div class="text-muted">变量: {history}=对话历史 {question}=当前问题</div>
+        </div>
+      </div>
+
+      <div id="prompt-refuse-panel" style="display:none;">
+        <div class="form-group">
+          <label>拒答话术</label>
+          <textarea class="input" id="prompt-refuse-answer" rows="6" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+          <div class="text-muted">当检索结果不足时，返回给用户的拒答内容</div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary mt-16" onclick="savePrompts()" style="width:100%;justify-content:center;height:40px;">💾 保存 Prompt</button>
+    </div>
   </div>
   <div id="config-tab-retrieval" style="display:none;">
     <div class="card">
@@ -1394,6 +1445,62 @@ function addDeptAccess() { hideModal(); alert('部门授权已添加（P1 实现
 function addUserAccess() { hideModal(); alert('用户授权已添加（P1 实现）'); }
 
 
+
+// ─── Prompt Management ──────────────────────────
+let promptsCache = {};
+
+async function loadPrompts() {
+  try {
+    promptsCache = await fetch('/api/config/prompts').then(r => r.json());
+    loadPromptEditor();
+  } catch(e) { console.error('Load prompts error:', e); }
+}
+
+function loadPromptEditor() {
+  const type = document.getElementById('prompt-selector').value;
+  document.getElementById('prompt-qa-panel').style.display = type === 'qa' ? 'block' : 'none';
+  document.getElementById('prompt-rewrite-panel').style.display = type === 'rewrite' ? 'block' : 'none';
+  document.getElementById('prompt-refuse-panel').style.display = type === 'refuse' ? 'block' : 'none';
+
+  const p = promptsCache[type] || {};
+  if(type === 'qa') {
+    document.getElementById('prompt-qa-system').value = p.system || '';
+    document.getElementById('prompt-qa-user').value = p.user || '';
+  } else if(type === 'rewrite') {
+    document.getElementById('prompt-rewrite-system').value = p.system || '';
+    document.getElementById('prompt-rewrite-user').value = p.user || '';
+  } else if(type === 'refuse') {
+    document.getElementById('prompt-refuse-answer').value = p.answer || '';
+  }
+}
+
+async function savePrompts() {
+  // Collect all prompt data from inputs
+  promptsCache.qa = promptsCache.qa || {};
+  promptsCache.qa.system = document.getElementById('prompt-qa-system').value;
+  promptsCache.qa.user = document.getElementById('prompt-qa-user').value;
+  promptsCache.qa.name = '问答主 Prompt';
+
+  promptsCache.rewrite = promptsCache.rewrite || {};
+  promptsCache.rewrite.system = document.getElementById('prompt-rewrite-system').value;
+  promptsCache.rewrite.user = document.getElementById('prompt-rewrite-user').value;
+  promptsCache.rewrite.name = '查询改写 Prompt';
+
+  promptsCache.refuse = promptsCache.refuse || {};
+  promptsCache.refuse.answer = document.getElementById('prompt-refuse-answer').value;
+  promptsCache.refuse.name = '拒答话术';
+
+  try {
+    const res = await fetch('/api/config/prompts', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(promptsCache)
+    });
+    if(res.ok) { alert('✅ Prompt 已保存！'); }
+    else { alert('保存失败'); }
+  } catch(e) { alert('保存失败: '+e.message); }
+}
+
 // ─── Chunk Viewer ───────────────────────────────
 let chunkData = [];
 let currentChunkId = null;
@@ -1660,6 +1767,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadDepts();
   loadUsers();
   loadModelConfig();
+  loadPrompts();
 });
 </script>
 </body>

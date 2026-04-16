@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.splitter import load_and_split
 from app.core.vectorstore import add_documents, query, list_documents, delete_document, delete_kb_documents
-from app.core.llm import generate_answer
+from app.core.llm import generate_answer, get_refuse_answer
 from app.core.embedding import embed_texts
 from app.models.schema import QueryRequest, QueryResponse, UploadResponse, DocumentInfo
 from app.models.models import Department, User, KnowledgeBase
@@ -66,7 +66,7 @@ async def remove_document(filename: str, kb_id: str = None):
 async def query_knowledge_base(req: QueryRequest):
     docs = query(req.question, top_k=req.top_k, kb_id=req.kb_id)
     if not docs:
-        return QueryResponse(question=req.question, answer="知识库中暂无相关内容，请先上传文档。", sources=[])
+        return QueryResponse(question=req.question, answer=get_refuse_answer(), sources=[])
     context = "\n\n".join(f"[来源: {d['source']}]\n{d['text']}" for d in docs)
     sources = list(set(d["source"] for d in docs))
     answer = generate_answer(req.question, context)
@@ -299,3 +299,26 @@ async def delete_chunk(chunk_id: str):
 
     _collection.delete(ids=[chunk_id])
     return {"message": "分块已删除"}
+
+
+# ─── Prompt 管理 ─────────────────────────────────
+
+PROMPTS_PATH = Path(__file__).parent.parent.parent / "config" / "prompts.json"
+
+
+@router.get("/config/prompts")
+async def get_prompts():
+    """获取所有 Prompt 模板"""
+    if PROMPTS_PATH.exists():
+        with open(PROMPTS_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+@router.post("/config/prompts")
+async def save_prompts(data: dict):
+    """保存 Prompt 模板"""
+    PROMPTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(PROMPTS_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return {"message": "Prompt 已保存"}
