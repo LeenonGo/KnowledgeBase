@@ -733,9 +733,6 @@ table tr:hover td{background:#fafafa}
   </div>
 </div>
 
-</div><!-- end main-area -->
-
-
 <!-- ==================== 分块查看/编辑 ==================== -->
 <div id="chunk-viewer" class="screen">
   <div class="screen-title">
@@ -743,7 +740,6 @@ table tr:hover td{background:#fafafa}
     📝 分块查看 — <span id="chunk-viewer-filename">文档</span>
     <span class="badge" id="chunk-viewer-count">0 块</span>
   </div>
-
   <div class="card">
     <div class="flex-between mb-16">
       <div class="flex gap-12">
@@ -759,12 +755,18 @@ table tr:hover td{background:#fafafa}
         <button class="btn" onclick="collapseAll()">全部折叠</button>
       </div>
     </div>
-
     <div id="chunk-list">
       <div class="text-muted" style="text-align:center;padding:40px;">加载中...</div>
     </div>
   </div>
 </div>
+
+</div><!-- end main-area -->
+
+
+<!-- ============= Modals ============= -->
+
+<div id="modal-overlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this)hideModal()">
 
 <!-- Chunk Edit Modal -->
 <div id="modal-chunk-edit" class="modal" style="display:none;width:700px;">
@@ -786,8 +788,7 @@ table tr:hover td{background:#fafafa}
   </div>
 </div>
 
-<!-- ============= Modals ============= -->
-<div id="modal-overlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this)hideModal()">
+
 
 <!-- Create KB Modal -->
 <div id="modal-create-kb" class="modal" style="display:none;">
@@ -1371,15 +1372,10 @@ function editChunk(id) {
   document.getElementById('chunk-edit-index').textContent = '#'+chunk.index;
   document.getElementById('chunk-edit-text').value = chunk.text;
   document.getElementById('chunk-edit-charcount').textContent = chunk.char_count;
-  document.getElementById('modal-overlay').style.display = 'flex';
-  document.getElementById('modal-chunk-edit').style.display = 'block';
+  showModal('chunk-edit');
 }
 
-function hideChunkEdit() {
-  document.getElementById('modal-overlay').style.display = 'none';
-  document.getElementById('modal-chunk-edit').style.display = 'none';
-  currentChunkId = null;
-}
+function hideChunkEdit() { hideModal(); currentChunkId = null; }
 
 async function saveChunkEdit() {
   const text = document.getElementById('chunk-edit-text').value.trim();
