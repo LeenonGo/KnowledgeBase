@@ -67,7 +67,20 @@ async def query_knowledge_base(req: QueryRequest):
     docs = query(req.question, top_k=req.top_k, kb_id=req.kb_id)
     if not docs:
         return QueryResponse(question=req.question, answer=get_refuse_answer(), sources=[])
-    context = "\n\n".join(f"[来源: {d['source']}]\n{d['text']}" for d in docs)
+    # 限制上下文总长度，避免 LLM 响应过慢
+    MAX_CONTEXT_CHARS = 3000
+    context_parts = []
+    total_chars = 0
+    for d in docs:
+        part = f'[来源: {d["source"]}]\n{d["text"]}'
+        if total_chars + len(part) > MAX_CONTEXT_CHARS:
+            remaining = MAX_CONTEXT_CHARS - total_chars
+            if remaining > 100:
+                context_parts.append(part[:remaining] + "...")
+            break
+        context_parts.append(part)
+        total_chars += len(part)
+    context = "\n\n".join(context_parts)
     sources = list(set(d["source"] for d in docs))
     answer = generate_answer(req.question, context)
     return QueryResponse(question=req.question, answer=answer, sources=sources)
