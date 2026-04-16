@@ -1242,18 +1242,29 @@ async function askQuestion() {
   if(!question) return;
   input.disabled = true;
   document.getElementById('qa-send-btn').disabled = true;
+  document.getElementById('qa-send-btn').textContent = '思考中...';
   addMessage('user', question);
   input.value = '';
-  const loadingId = addMessage('loading', '思考中...');
+  const loadingId = addMessage('loading', '正在检索知识库并生成回答，请稍候...');
   try {
     const topK = parseInt(document.getElementById('qa-topk').value) || 5;
     const body = {question, top_k: topK};
     if(currentKbId) body.kb_id = currentKbId;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000); // 60s 超时
     const res = await fetch('/api/query', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: controller.signal
     });
+    clearTimeout(timeout);
+
+    if(!res.ok) {
+      const errData = await res.json().catch(()=>({}));
+      throw new Error(errData.detail || '服务器错误 ('+res.status+')');
+    }
     const data = await res.json();
     removeMessage(loadingId);
     let answer = data.answer || '未获取到回答';
@@ -1264,10 +1275,15 @@ async function askQuestion() {
     addMessage('assistant', answer);
   } catch(e) {
     removeMessage(loadingId);
-    addMessage('assistant', '❌ 请求失败：'+e.message);
+    if(e.name === 'AbortError') {
+      addMessage('assistant', '❌ 请求超时（60秒），请检查网络或稍后重试。');
+    } else {
+      addMessage('assistant', '❌ 请求失败：'+e.message);
+    }
   } finally {
     input.disabled = false;
     document.getElementById('qa-send-btn').disabled = false;
+    document.getElementById('qa-send-btn').textContent = '发送';
     input.focus();
   }
 }
