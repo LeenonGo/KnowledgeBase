@@ -69,7 +69,7 @@ python -m app.main
 | 知识库详情 | 文档管理（上传/删除/查看分块）、权限设置、模型配置、统计分析 |
 | 文档上传 | 三步向导（选文件→配策略→上传结果），支持自定义分块参数，完成后可跳转查看分块 |
 | 分块查看/编辑 | 搜索/排序/折叠/编辑/删除单个分块 |
-| 智能问答 | 多会话管理、引用标注、点赞/点踩反馈、60s 超时保护 |
+| 智能问答 | 多会话管理、预设问题、Markdown 渲染、引用标注、点赞/点踩反馈、60s 超时保护 |
 | 用户管理 | CRUD、批量导入 |
 | 部门管理 | 树形部门结构 |
 | 权限管理 | 角色定义、知识库授权矩阵 |
@@ -86,7 +86,7 @@ python -m app.main
 | POST | `/api/upload` | 上传文档（form: file, kb_id, chunk_size, chunk_overlap） |
 | GET | `/api/documents?kb_id=xxx` | 获取文档列表 |
 | DELETE | `/api/documents/{filename}?kb_id=xxx` | 删除文档 |
-| POST | `/api/query` | 语义问答（body: question, top_k, kb_id） |
+| POST | `/api/query` | 语义问答（body: question, top_k, kb_id），上下文自动限制 3000 字符 |
 | POST | `/api/reindex?kb_id=xxx` | 重建向量索引 |
 
 #### 分块管理
@@ -136,6 +136,14 @@ python -m app.main
 | `refuse` | 检索不足时拒答话术 | 无 |
 
 模板存储于 `config/prompts.json`，修改后立即生效。
+
+### 智能问答特性
+
+- **预设问题**：空对话状态下显示快捷提问按钮，点击即问
+- **Markdown 渲染**：LLM 返回的 Markdown 格式自动解析（加粗、列表、代码块、标题等）
+- **上下文长度控制**：传给 LLM 的上下文自动限制 3000 字符，避免响应过慢
+- **引用标注**：回答中的 `[来源: 文档名]` 自动渲染为蓝色标签
+- **超时保护**：60 秒超时，超时后提示用户
 
 ## 项目结构
 
@@ -220,8 +228,9 @@ knowledge-base/
 - [x] 文档分块查看/编辑（搜索/排序/编辑/删除）
 - [x] 文本分块（参数可配置：chunk_size, chunk_overlap）
 - [x] Embedding 向量化（支持多提供商，动态配置）
-- [x] 语义检索 + LLM 问答（60s 超时保护）
+- [x] 语义检索 + LLM 问答（60s 超时保护 + 上下文长度限制）
 - [x] Prompt 管理（问答/改写/拒答，界面可编辑）
+- [x] 智能问答增强（预设问题、Markdown 渲染）
 - [x] 模型配置持久化（支持 DashScope / Ollama / OpenAI / 自定义）
 - [x] 索引重建（换模型后一键重建）
 - [x] 前端 SPA（12+ 页面）
