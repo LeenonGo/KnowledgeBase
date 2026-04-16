@@ -361,9 +361,11 @@ table tr:hover td{background:#fafafa}
   <div class="steps">
     <div class="step active" id="step-1"><div class="number">1</div><div class="label">选择文件</div></div>
     <div class="step" id="step-2"><div class="number">2</div><div class="label">配置分块策略</div></div>
-    <div class="step" id="step-3"><div class="number">3</div><div class="label">确认上传</div></div>
+    <div class="step" id="step-3"><div class="number">3</div><div class="label">上传结果</div></div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+  <!-- Step 1: 选择文件 -->
+  <div id="upload-step-1">
     <div class="card">
       <h3 class="mb-16">选择文件</h3>
       <div class="upload-zone" id="upload-zone">
@@ -373,7 +375,14 @@ table tr:hover td{background:#fafafa}
       </div>
       <input type="file" id="file-input" style="display:none;" accept=".pdf,.docx,.doc,.md,.txt">
       <div id="selected-files" style="margin-top:16px;"></div>
+      <div style="margin-top:20px;text-align:right;">
+        <button class="btn btn-primary" id="step1-next" onclick="goUploadStep(2)" disabled>下一步 →</button>
+      </div>
     </div>
+  </div>
+
+  <!-- Step 2: 配置分块策略 -->
+  <div id="upload-step-2" style="display:none;">
     <div class="card">
       <h3 class="mb-16">分块策略配置</h3>
       <div class="form-group">
@@ -399,16 +408,32 @@ table tr:hover td{background:#fafafa}
         <div class="text-muted">基于标题层级切分，保留 heading_path 元数据</div>
       </div>
       <div class="divider"></div>
-      <h3 class="mb-16">预览</h3>
-      <div class="chunk-preview" id="chunk-preview">
-        <div class="text-muted" style="text-align:center;padding:20px;">上传文件后可预览分块效果</div>
+      <h3 class="mb-16">已选择文件</h3>
+      <div id="step2-file-info" style="padding:12px;background:#f8fafc;border-radius:6px;font-size:13px;"></div>
+      <div style="margin-top:20px;display:flex;justify-content:space-between;">
+        <button class="btn" onclick="goUploadStep(1)">← 上一步</button>
+        <button class="btn btn-primary" onclick="doUpload()">🚀 开始上传</button>
       </div>
-      <button class="btn btn-primary mt-16" style="width:100%;justify-content:center;" id="upload-btn" onclick="doUpload()" disabled>确认上传并索引</button>
-      <div id="upload-progress" style="display:none;margin-top:16px;">
+    </div>
+  </div>
+
+  <!-- Step 3: 上传结果 -->
+  <div id="upload-step-3" style="display:none;">
+    <div class="card">
+      <div id="upload-progress" style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+          <div class="spinner" style="display:inline-block;width:24px;height:24px;border:3px solid #e2e8f0;border-top-color:#1890ff;border-radius:50%;animation:spin .6s linear infinite;" id="upload-spinner"></div>
+          <span style="font-size:15px;font-weight:500;" id="upload-status-text">正在上传并处理...</span>
+        </div>
         <div class="progress"><div class="progress-bar" id="upload-progress-bar" style="width:0%"></div></div>
         <div class="text-muted" style="text-align:right;margin-top:6px;" id="upload-progress-text">0%</div>
       </div>
-      <div id="upload-result" style="margin-top:12px;display:none;"></div>
+      <div id="upload-result" style="display:none;"></div>
+      <div id="upload-actions" style="display:none;margin-top:20px;display:flex;gap:12px;">
+        <button class="btn btn-primary" onclick="viewLastUploadChunks()">📝 查看分块</button>
+        <button class="btn" onclick="goUploadStep(1)">📂 继续上传</button>
+        <button class="btn" onclick="nav('kb-detail')">← 返回文档管理</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1102,7 +1127,7 @@ function handleFile(file) {
     '<div style="padding:12px;background:#e6f7ff;border-radius:6px;display:flex;justify-content:space-between;align-items:center;">'
     + '<span>📎 '+file.name+'</span>'
     + '<span class="text-muted">'+(file.size/1024/1024).toFixed(2)+' MB</span></div>';
-  document.getElementById('upload-btn').disabled = false;
+  document.getElementById('step1-next').disabled = false;
 }
 
 function toggleChunkConfig(type) {
@@ -1110,14 +1135,45 @@ function toggleChunkConfig(type) {
   document.getElementById('chunk-config-structural').style.display = type === 'structural' ? 'block' : 'none';
 }
 
+let lastUploadedFile = null;
+
+function goUploadStep(step) {
+  // 隐藏所有步骤内容
+  document.getElementById('upload-step-1').style.display = 'none';
+  document.getElementById('upload-step-2').style.display = 'none';
+  document.getElementById('upload-step-3').style.display = 'none';
+  // 更新步骤条
+  for(let i=1;i<=3;i++) {
+    const el = document.getElementById('step-'+i);
+    el.classList.remove('active','done');
+    if(i < step) el.classList.add('done');
+    if(i === step) el.classList.add('active');
+  }
+  // 显示当前步骤
+  document.getElementById('upload-step-'+step).style.display = 'block';
+  // Step 2 显示文件信息
+  if(step === 2 && selectedFile) {
+    document.getElementById('step2-file-info').innerHTML =
+      '<strong>📎 '+selectedFile.name+'</strong> <span class="text-muted">'+(selectedFile.size/1024/1024).toFixed(2)+' MB</span>';
+  }
+}
+
 async function doUpload() {
   if(!selectedFile) return;
-  const progressWrap = document.getElementById('upload-progress');
-  progressWrap.style.display = 'block';
+  goUploadStep(3);
+  document.getElementById('upload-progress').style.display = 'block';
   document.getElementById('upload-result').style.display = 'none';
+  document.getElementById('upload-actions').style.display = 'none';
+  document.getElementById('upload-spinner').style.display = 'inline-block';
+  document.getElementById('upload-status-text').textContent = '正在上传并处理...';
+  document.getElementById('upload-progress-bar').style.width = '0%';
+  document.getElementById('upload-progress-text').textContent = '0%';
+
+  lastUploadedFile = selectedFile.name;
   const fd = new FormData();
   fd.append('file', selectedFile);
   if(currentKbId) fd.append('kb_id', currentKbId);
+
   try {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/upload');
@@ -1131,15 +1187,41 @@ async function doUpload() {
     xhr.onload = () => {
       if(xhr.status >= 200 && xhr.status < 300) {
         const data = JSON.parse(xhr.responseText);
+        document.getElementById('upload-spinner').style.display = 'none';
+        document.getElementById('upload-status-text').textContent = '✅ 上传完成';
+        document.getElementById('upload-progress-bar').style.width = '100%';
+        document.getElementById('upload-progress-text').textContent = '100%';
         document.getElementById('upload-result').innerHTML =
-          '<div style="padding:12px;background:#ecfdf5;border-radius:6px;color:#065f46;">✅ '+data.message+'</div>';
+          '<div style="padding:16px;background:#ecfdf5;border-radius:8px;color:#065f46;font-size:15px;">'
+          +'<div style="font-weight:600;margin-bottom:8px;">✅ '+data.filename+'</div>'
+          +'<div>'+data.message+'</div></div>';
         document.getElementById('upload-result').style.display = 'block';
+        document.getElementById('upload-actions').style.display = 'flex';
+        selectedFile = null;
         loadKBDocs();
-      } else { alert('上传失败: '+xhr.statusText); }
+      } else {
+        document.getElementById('upload-spinner').style.display = 'none';
+        document.getElementById('upload-status-text').textContent = '❌ 上传失败';
+        document.getElementById('upload-result').innerHTML =
+          '<div style="padding:16px;background:#fff1f0;border-radius:8px;color:#cf1322;">上传失败: '+xhr.statusText+'</div>';
+        document.getElementById('upload-result').style.display = 'block';
+      }
     };
-    xhr.onerror = () => alert('网络错误');
+    xhr.onerror = () => {
+      document.getElementById('upload-spinner').style.display = 'none';
+      document.getElementById('upload-status-text').textContent = '❌ 网络错误';
+      document.getElementById('upload-result').innerHTML =
+        '<div style="padding:16px;background:#fff1f0;border-radius:8px;color:#cf1322;">网络错误，请重试</div>';
+      document.getElementById('upload-result').style.display = 'block';
+    };
     xhr.send(fd);
   } catch(e) { console.error(e); }
+}
+
+function viewLastUploadChunks() {
+  if(lastUploadedFile) {
+    viewChunks(lastUploadedFile);
+  }
 }
 
 // ─── QA Chat ────────────────────────────────────
