@@ -231,3 +231,69 @@ async def delete_knowledge_base(kb_id: str, db: Session = Depends(get_db)):
     db.commit()
     delete_kb_documents(kb_id)
     return {"message": "已删除"}
+
+
+# ─── 分块查看/编辑 ───────────────────────────────
+
+@router.get("/documents/{filename}/chunks")
+async def get_document_chunks(filename: str, kb_id: str = None):
+    """获取文档的所有分块"""
+    import chromadb
+    from app.core.vectorstore import _client, _collection
+
+    if kb_id:
+        results = _collection.get(where={"$and": [{"source": filename}, {"kb_id": kb_id}]})
+    else:
+        results = _collection.get(where={"source": filename})
+
+    chunks = []
+    for i in range(len(results["ids"])):
+        meta = results["metadatas"][i] if results["metadatas"] else {}
+        chunks.append({
+            "id": results["ids"][i],
+            "index": i + 1,
+            "text": results["documents"][i],
+            "char_count": len(results["documents"][i]),
+            "source": meta.get("source", filename),
+            "kb_id": meta.get("kb_id", ""),
+        })
+    return {"filename": filename, "total": len(chunks), "chunks": chunks}
+
+
+@router.put("/chunks/{chunk_id}")
+async def update_chunk(chunk_id: str, data: dict):
+    """编辑单个分块内容"""
+    from app.core.vectorstore import _collection, embed_texts
+
+    new_text = data.get("text", "").strip()
+    if not new_text:
+        raise HTTPException(400, "分块内容不能为空")
+
+    # 获取旧数据
+    old = _collection.get(ids=[chunk_id])
+    if not old["ids"]:
+        raise HTTPException(404, "分块不存在")
+
+    # 重新向量化
+    new_embedding = embed_texts([new_text])[0]
+
+    _collection.update(
+        ids=[chunk_id],
+        documents=[new_text],
+        embeddings=[new_embedding],
+    )
+
+    return {"message": "分块已更新", "id": chunk_id, "char_count": len(new_text)}
+
+
+@router.delete("/chunks/{chunk_id}")
+async def delete_chunk(chunk_id: str):
+    """删除单个分块"""
+    from app.core.vectorstore import _collection
+
+    old = _collection.get(ids=[chunk_id])
+    if not old["ids"]:
+        raise HTTPException(404, "分块不存在")
+
+    _collection.delete(ids=[chunk_id])
+    return {"message": "分块已删除"}

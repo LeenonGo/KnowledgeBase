@@ -144,6 +144,18 @@ table tr:hover td{background:#fafafa}
 /* Upload file list */
 .file-list-item{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #f0f0f5;font-size:13px}
 .file-list-item:last-child{border-bottom:none}
+
+.chunk-card{border:1px solid #e8e8e8;border-radius:8px;margin-bottom:12px;transition:all .2s}
+.chunk-card:hover{border-color:#91d5ff;box-shadow:0 2px 8px rgba(24,144,255,.1)}
+.chunk-card.expanded{border-color:#1890ff}
+.chunk-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;cursor:pointer;background:#fafafa;border-radius:8px 8px 0 0}
+.chunk-header:hover{background:#f0f0f5}
+.chunk-body{padding:16px;font-size:13px;line-height:1.8;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto;border-top:1px solid #f0f0f0}
+.chunk-body.collapsed{display:none}
+.chunk-index{font-weight:600;color:#1890ff;font-size:14px}
+.chunk-meta{font-size:12px;color:#999}
+.chunk-actions{display:flex;gap:6px}
+
 /* Chunk preview */
 .chunk-preview{border:1px solid #f0f0f0;border-radius:6px;padding:12px;font-size:12px;max-height:200px;overflow-y:auto}
 .chunk-item{margin-bottom:8px;padding:8px;background:#f9f9f9;border-radius:4px}
@@ -723,6 +735,57 @@ table tr:hover td{background:#fafafa}
 
 </div><!-- end main-area -->
 
+
+<!-- ==================== 分块查看/编辑 ==================== -->
+<div id="chunk-viewer" class="screen">
+  <div class="screen-title">
+    <a onclick="nav('kb-detail')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
+    📝 分块查看 — <span id="chunk-viewer-filename">文档</span>
+    <span class="badge" id="chunk-viewer-count">0 块</span>
+  </div>
+
+  <div class="card">
+    <div class="flex-between mb-16">
+      <div class="flex gap-12">
+        <input class="input" placeholder="搜索分块内容..." style="width:300px;" id="chunk-search" oninput="filterChunks()">
+        <select class="select" id="chunk-sort" onchange="sortChunks()">
+          <option value="index">按顺序</option>
+          <option value="length-desc">长度 ↓</option>
+          <option value="length-asc">长度 ↑</option>
+        </select>
+      </div>
+      <div class="flex gap-8">
+        <button class="btn" onclick="expandAll()">全部展开</button>
+        <button class="btn" onclick="collapseAll()">全部折叠</button>
+      </div>
+    </div>
+
+    <div id="chunk-list">
+      <div class="text-muted" style="text-align:center;padding:40px;">加载中...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Chunk Edit Modal -->
+<div id="modal-chunk-edit" class="modal" style="display:none;width:700px;">
+  <div class="modal-header">
+    <span>编辑分块 <span id="chunk-edit-index"></span></span>
+    <button onclick="hideChunkEdit()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button>
+  </div>
+  <div class="modal-body">
+    <div class="form-group">
+      <label>分块内容</label>
+      <textarea class="input" id="chunk-edit-text" rows="12" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+      <div class="text-muted" style="margin-top:4px;">字数: <span id="chunk-edit-charcount">0</span></div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="hideChunkEdit()">取消</button>
+    <button class="btn btn-danger" onclick="deleteCurrentChunk()">删除此分块</button>
+    <button class="btn btn-primary" onclick="saveChunkEdit()">保存</button>
+  </div>
+</div>
+
 <!-- ============= Modals ============= -->
 <div id="modal-overlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this)hideModal()">
 
@@ -991,7 +1054,7 @@ async function loadKBDocs() {
       tbody.innerHTML = docs.map(d =>
         '<tr><td>📎 '+d.filename+'</td><td>-</td><td>'+d.chunks+'</td>'
         + '<td><span class="tag tag-green">已索引</span></td>'
-        + '<td><button class="btn btn-sm btn-danger" onclick="deleteDoc(\''+d.filename+'\')">删除</button></td></tr>'
+        + '<td class="flex gap-8"><button class="btn btn-sm" onclick="viewChunks(\''+d.filename+'\')">查看分块</button> <button class="btn btn-sm btn-danger" onclick="deleteDoc(\''+d.filename+'\')">删除</button></td></tr>'
       ).join('');
     }
     document.getElementById('kb-stat-docs').textContent = docs.length;
@@ -1219,6 +1282,151 @@ async function createDept() {
 function createRole() { hideModal(); alert('角色创建（P1 实现）'); }
 function addDeptAccess() { hideModal(); alert('部门授权已添加（P1 实现）'); }
 function addUserAccess() { hideModal(); alert('用户授权已添加（P1 实现）'); }
+
+
+// ─── Chunk Viewer ───────────────────────────────
+let chunkData = [];
+let currentChunkId = null;
+
+async function viewChunks(filename) {
+  document.getElementById('chunk-viewer-filename').textContent = filename;
+  nav('chunk-viewer');
+  try {
+    const url = currentKbId
+      ? '/api/documents/'+encodeURIComponent(filename)+'/chunks?kb_id='+currentKbId
+      : '/api/documents/'+encodeURIComponent(filename)+'/chunks';
+    const data = await fetch(url).then(r => r.json());
+    chunkData = data.chunks || [];
+    document.getElementById('chunk-viewer-count').textContent = data.total + ' 块';
+    renderChunks(chunkData);
+  } catch(e) {
+    document.getElementById('chunk-list').innerHTML = '<div class="text-muted" style="text-align:center;padding:40px;">加载失败: '+e.message+'</div>';
+  }
+}
+
+function renderChunks(chunks) {
+  const el = document.getElementById('chunk-list');
+  if(!chunks.length) {
+    el.innerHTML = '<div class="text-muted" style="text-align:center;padding:40px;">暂无分块</div>';
+    return;
+  }
+  el.innerHTML = chunks.map(c =>
+    '<div class="chunk-card" id="chunk-card-'+c.id+'">'
+    + '<div class="chunk-header" onclick="toggleChunk(\''+c.id+'\')">'
+    + '<div><span class="chunk-index">#'+c.index+'</span> <span class="chunk-meta">'+c.char_count+' 字</span></div>'
+    + '<div class="chunk-actions">'
+    + '<button class="btn btn-sm" onclick="event.stopPropagation();editChunk(\''+c.id+'\')">✏️ 编辑</button>'
+    + '<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteChunkDirect(\''+c.id+'\')">🗑️</button>'
+    + '</div>'
+    + '</div>'
+    + '<div class="chunk-body" id="chunk-body-'+c.id+'">'+escapeHtml(c.text)+'</div>'
+    + '</div>'
+  ).join('');
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleChunk(id) {
+  const body = document.getElementById('chunk-body-'+id);
+  const card = document.getElementById('chunk-card-'+id);
+  if(body.classList.contains('collapsed')) {
+    body.classList.remove('collapsed');
+    card.classList.add('expanded');
+  } else {
+    body.classList.add('collapsed');
+    card.classList.remove('expanded');
+  }
+}
+
+function expandAll() {
+  document.querySelectorAll('.chunk-body').forEach(b => b.classList.remove('collapsed'));
+  document.querySelectorAll('.chunk-card').forEach(c => c.classList.add('expanded'));
+}
+function collapseAll() {
+  document.querySelectorAll('.chunk-body').forEach(b => b.classList.add('collapsed'));
+  document.querySelectorAll('.chunk-card').forEach(c => c.classList.remove('expanded'));
+}
+
+function filterChunks() {
+  const q = document.getElementById('chunk-search').value.trim().toLowerCase();
+  if(!q) { renderChunks(chunkData); return; }
+  renderChunks(chunkData.filter(c => c.text.toLowerCase().includes(q)));
+}
+
+function sortChunks() {
+  const mode = document.getElementById('chunk-sort').value;
+  let sorted = [...chunkData];
+  if(mode === 'length-desc') sorted.sort((a,b) => b.char_count - a.char_count);
+  else if(mode === 'length-asc') sorted.sort((a,b) => a.char_count - b.char_count);
+  else sorted.sort((a,b) => a.index - b.index);
+  renderChunks(sorted);
+}
+
+function editChunk(id) {
+  currentChunkId = id;
+  const chunk = chunkData.find(c => c.id === id);
+  if(!chunk) return;
+  document.getElementById('chunk-edit-index').textContent = '#'+chunk.index;
+  document.getElementById('chunk-edit-text').value = chunk.text;
+  document.getElementById('chunk-edit-charcount').textContent = chunk.char_count;
+  document.getElementById('modal-overlay').style.display = 'flex';
+  document.getElementById('modal-chunk-edit').style.display = 'block';
+}
+
+function hideChunkEdit() {
+  document.getElementById('modal-overlay').style.display = 'none';
+  document.getElementById('modal-chunk-edit').style.display = 'none';
+  currentChunkId = null;
+}
+
+async function saveChunkEdit() {
+  const text = document.getElementById('chunk-edit-text').value.trim();
+  if(!text) { alert('内容不能为空'); return; }
+  try {
+    const res = await fetch('/api/chunks/'+currentChunkId, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text})
+    });
+    if(res.ok) {
+      const chunk = chunkData.find(c => c.id === currentChunkId);
+      if(chunk) { chunk.text = text; chunk.char_count = text.length; }
+      renderChunks(chunkData);
+      hideChunkEdit();
+    } else {
+      alert('保存失败');
+    }
+  } catch(e) { alert('保存失败: '+e.message); }
+}
+
+async function deleteChunkDirect(id) {
+  if(!confirm('确认删除此分块？')) return;
+  try {
+    await fetch('/api/chunks/'+id, {method:'DELETE'});
+    chunkData = chunkData.filter(c => c.id !== id);
+    chunkData.forEach((c,i) => c.index = i+1);
+    document.getElementById('chunk-viewer-count').textContent = chunkData.length + ' 块';
+    renderChunks(chunkData);
+  } catch(e) { alert('删除失败'); }
+}
+
+async function deleteCurrentChunk() {
+  if(!currentChunkId) return;
+  if(!confirm('确认删除此分块？')) return;
+  await deleteChunkDirect(currentChunkId);
+  hideChunkEdit();
+}
+
+// Update char count live
+const chunkEditText = document.getElementById('chunk-edit-text');
+if(chunkEditText) {
+  chunkEditText.addEventListener('input', function() {
+    document.getElementById('chunk-edit-charcount').textContent = this.value.length;
+  });
+}
+
 
 // ─── Model Config ───────────────────────────────
 const PROVIDER_PRESETS = {
