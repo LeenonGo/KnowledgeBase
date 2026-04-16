@@ -458,10 +458,14 @@ table tr:hover td{background:#fafafa}
     </div>
     <div class="chat-main">
       <div class="chat-messages" id="chat-messages">
-        <div style="text-align:center;padding:60px 20px;color:#999;">
+        <div style="text-align:center;padding:60px 20px;color:#999;" id="qa-empty-state">
           <div style="font-size:48px;margin-bottom:16px;">💬</div>
           <div style="font-size:16px;">输入问题开始对话</div>
           <div style="font-size:13px;margin-top:8px;">系统将从知识库中检索相关内容并生成回答</div>
+          <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px;align-items:center;">
+            <button class="btn" style="max-width:500px;width:100%;justify-content:flex-start;text-align:left;font-size:13px;padding:10px 16px;" onclick="askPreset(this)">📋 知识库系统有什么功能模块？</button>
+            <button class="btn" style="max-width:500px;width:100%;justify-content:flex-start;text-align:left;font-size:13px;padding:10px 16px;" onclick="askPreset(this)">📋 P1阶段将会更新什么模块？</button>
+          </div>
         </div>
       </div>
       <div class="chat-input-area">
@@ -1363,9 +1367,21 @@ function addMessage(role, content) {
   return id;
 }
 function removeMessage(id) { const el = document.getElementById(id); if(el) el.remove(); }
+function askPreset(btn) {
+  const q = btn.textContent.replace(/^📋\s*/, '');
+  document.getElementById('qa-input').value = q;
+  askQuestion();
+}
+
 function newChat() {
   document.getElementById('chat-list').innerHTML = '<div class="chat-item active"><div class="title">新对话</div><div class="meta">刚刚</div></div>';
-  document.getElementById('chat-messages').innerHTML = '<div style="text-align:center;padding:60px 20px;color:#999;"><div style="font-size:48px;">💬</div><div style="font-size:16px;margin-top:16px;">输入问题开始对话</div></div>';
+  document.getElementById('chat-messages').innerHTML = '<div style="text-align:center;padding:60px 20px;color:#999;" id="qa-empty-state">'
+    +'<div style="font-size:48px;margin-bottom:16px;">💬</div>'
+    +'<div style="font-size:16px;">输入问题开始对话</div>'
+    +'<div style="margin-top:24px;display:flex;flex-direction:column;gap:10px;align-items:center;">'
+    +'<button class="btn" style="max-width:500px;width:100%;justify-content:flex-start;text-align:left;font-size:13px;padding:10px 16px;" onclick="askPreset(this)">📋 知识库系统有什么功能模块？</button>'
+    +'<button class="btn" style="max-width:500px;width:100%;justify-content:flex-start;text-align:left;font-size:13px;padding:10px 16px;" onclick="askPreset(this)">📋 P1阶段将会更新什么模块？</button>'
+    +'</div></div>';
 }
 
 // ─── Modals ─────────────────────────────────────
