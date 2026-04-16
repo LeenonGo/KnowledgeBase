@@ -431,7 +431,7 @@ table tr:hover td{background:#fafafa}
       <div id="upload-result" style="display:none;"></div>
       <div id="upload-actions" style="display:none;margin-top:20px;display:flex;gap:12px;">
         <button class="btn btn-primary" onclick="viewLastUploadChunks()">📝 查看分块</button>
-        <button class="btn" onclick="goUploadStep(1)">📂 继续上传</button>
+        <button class="btn" onclick="resetUpload()">📂 继续上传</button>
         <button class="btn" onclick="nav('kb-detail')">← 返回文档管理</button>
       </div>
     </div>
@@ -1173,6 +1173,8 @@ async function doUpload() {
   const fd = new FormData();
   fd.append('file', selectedFile);
   if(currentKbId) fd.append('kb_id', currentKbId);
+  fd.append('chunk_size', document.getElementById('chunk-size').value || '512');
+  fd.append('chunk_overlap', document.getElementById('chunk-overlap').value || '64');
 
   try {
     const xhr = new XMLHttpRequest();
@@ -1216,6 +1218,15 @@ async function doUpload() {
     };
     xhr.send(fd);
   } catch(e) { console.error(e); }
+}
+
+function resetUpload() {
+  selectedFile = null;
+  lastUploadedFile = null;
+  document.getElementById('selected-files').innerHTML = '';
+  document.getElementById('step1-next').disabled = true;
+  document.getElementById('file-input').value = '';
+  goUploadStep(1);
 }
 
 function viewLastUploadChunks() {

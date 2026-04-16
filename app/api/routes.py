@@ -27,13 +27,15 @@ CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "models.json"
 async def upload_document(
     file: UploadFile = File(...),
     kb_id: str = Form(default="default"),
+    chunk_size: int = Form(default=512),
+    chunk_overlap: int = Form(default=64),
 ):
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     file_path = UPLOAD_DIR / file.filename
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
     try:
-        chunks = load_and_split(str(file_path))
+        chunks = load_and_split(str(file_path), chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         if not chunks:
             raise HTTPException(status_code=400, detail="文档内容为空或无法解析")
         count = add_documents(chunks, file.filename, kb_id=kb_id)
