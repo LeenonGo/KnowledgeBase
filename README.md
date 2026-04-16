@@ -1,12 +1,19 @@
-# 知识库问答平台 (Knowledge Base)
+# RAG 知识库管理系统
 
-基于 RAG 架构的智能知识库问答系统。
+基于 RAG（Retrieval-Augmented Generation）架构的企业级智能知识库管理与问答平台。
 
 ## 技术栈
 
-- **后端**: FastAPI
-- **向量数据库**: Chroma
-- **LLM / Embedding**: OpenAI 兼容接口，JSON 配置
+| 层 | 技术 |
+|---|---|
+| 后端 | FastAPI + Uvicorn |
+| 数据库 | MySQL 9.6（关系型）+ SQLite（备选） |
+| 向量数据库 | ChromaDB（持久化） |
+| ORM | SQLAlchemy |
+| 认证 | PyJWT + Werkzeug（密码哈希） |
+| LLM | OpenAI 兼容接口（支持 DashScope / Ollama / OpenAI / 自定义） |
+| Embedding | OpenAI 兼容接口（同上） |
+| 前端 | 纯 HTML + CSS + JavaScript（SPA 单页应用） |
 
 ## 快速开始
 
@@ -17,47 +24,202 @@ cd knowledge-base
 pip install -r requirements.txt
 ```
 
-### 2. 配置模型
+依赖列表：
+```
+fastapi, uvicorn, python-multipart, openai, chromadb,
+python-docx, PyMuPDF, sqlalchemy, pyjwt, werkzeug, pymysql, cryptography
+```
 
-编辑 `config/models.json`，填入你的 API Key 和模型信息。
+### 2. 配置数据库
 
-### 3. 启动服务
+默认连接 MySQL（地址 `172.26.32.1:3306`），可在 `app/core/database.py` 修改。
+
+初始化表和默认数据：
+```bash
+python scripts/init_db.py
+```
+
+### 3. 配置模型
+
+编辑 `config/models.json`，或启动后在 **系统配置 → 模型配置** 界面修改。
+
+支持的提供商：
+- **阿里云 DashScope**（云端，需 API Key）
+- **Ollama**（本地部署，无需 API Key）
+- **OpenAI**（需 API Key）
+- **自定义 API**（任意 OpenAI 兼容接口）
+
+### 4. 启动服务
 
 ```bash
-cd knowledge-base
 python -m app.main
 ```
 
-服务默认运行在 `http://localhost:8000`，API 文档：`http://localhost:8000/docs`
+服务默认运行在 `http://localhost:8000`
 
-## API
+## 功能概览
 
-### 上传文档
+### 前端界面（12 个页面）
+
+| 页面 | 功能 |
+|---|---|
+| 登录页 | 用户名密码登录 |
+| 仪表盘 | 统计卡片、问答趋势图表、待处理事项 |
+| 知识库列表 | 创建/搜索/筛选/删除知识库 |
+| 知识库详情 | 文档管理（上传/删除）、权限设置、模型配置、统计分析 |
+| 文档上传 | 拖拽上传、分块策略配置（固定长度/结构分析）、进度条 |
+| 智能问答 | 多会话管理、引用标注、点赞/点踩反馈 |
+| 用户管理 | CRUD、批量导入 |
+| 部门管理 | 树形部门结构 |
+| 权限管理 | 角色定义、知识库授权矩阵 |
+| 审计日志 | 操作记录筛选 |
+| 质量监控 | 差评率、无结果率、反馈审核 |
+| 系统配置 | 通用设置、模型配置（LLM/Embedding 分离）、检索策略、缓存设置 |
+
+### API 接口
+
+#### 文档管理
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/upload` | 上传文档到指定知识库（form: file, kb_id） |
+| GET | `/api/documents?kb_id=xxx` | 获取文档列表 |
+| DELETE | `/api/documents/{filename}?kb_id=xxx` | 删除文档 |
+| POST | `/api/query` | 语义问答（body: question, top_k, kb_id） |
+| POST | `/api/reindex?kb_id=xxx` | 重建向量索引 |
+
+#### 知识库管理
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/knowledge-bases` | 知识库列表 |
+| POST | `/api/knowledge-bases` | 创建知识库 |
+| DELETE | `/api/knowledge-bases/{id}` | 删除知识库（软删除+清除向量） |
+
+#### 用户与部门
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/users` | 用户列表 |
+| POST | `/api/users` | 创建用户 |
+| DELETE | `/api/users/{id}` | 禁用用户 |
+| GET | `/api/departments` | 部门列表 |
+| POST | `/api/departments` | 创建部门 |
+| DELETE | `/api/departments/{id}` | 删除部门 |
+
+#### 系统配置
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/config/models` | 获取模型配置 |
+| POST | `/api/config/models` | 保存模型配置 |
+
+## 项目结构
 
 ```
-POST /api/upload
-Content-Type: multipart/form-data
-
-file: <文件>
+knowledge-base/
+├── app/
+│   ├── main.py              # FastAPI 入口
+│   ├── api/
+│   │   └── routes.py        # API 路由（所有接口）
+│   ├── core/
+│   │   ├── config.py         # 配置加载
+│   │   ├── database.py       # 数据库连接（MySQL/SQLite）
+│   │   ├── embedding.py      # 向量化（支持多提供商）
+│   │   ├── llm.py            # LLM 调用（支持多提供商）
+│   │   ├── loader.py         # 文档加载（TXT/PDF/DOCX/MD）
+│   │   ├── splitter.py       # 文本分块
+│   │   └── vectorstore.py    # 向量存储（按知识库隔离）
+│   ├── models/
+│   │   ├── models.py         # SQLAlchemy ORM 模型
+│   │   └── schema.py         # Pydantic 请求/响应模型
+│   └── static/
+│       └── index.html        # 前端 SPA（12 个页面）
+├── config/
+│   ├── models.json           # 模型配置（含 API Key，已 gitignore）
+│   └── models.json.example   # 配置模板
+├── data/
+│   ├── chroma_db/            # ChromaDB 向量数据
+│   ├── uploads/              # 上传文件存储
+│   └── knowledge.db          # SQLite 备份数据库
+├── scripts/
+│   └── init_db.py            # 数据库初始化脚本
+├── venv/                     # Python 虚拟环境
+├── requirements.txt
+├── prototype.html            # UI 原型参考
+└── README.md
 ```
 
-支持格式：TXT、Markdown、PDF、Word (docx)
+## 数据库表（10 张）
 
-### 提问
+| 表名 | 用途 |
+|---|---|
+| `user` | 用户管理（角色: super_admin / kb_admin / user） |
+| `department` | 部门树（path 路径继承） |
+| `knowledge_base` | 知识库 |
+| `document` | 文档元数据（SHA-256 去重） |
+| `kb_department_access` | 知识库 × 部门授权 |
+| `kb_user_access` | 知识库 × 用户授权 |
+| `conversation` | 会话 |
+| `conversation_turn` | 对话轮次 |
+| `qa_feedback` | 用户反馈（点赞/点踩） |
+| `audit_log` | 审计日志 |
 
+默认部门结构：
 ```
-POST /api/query
-Content-Type: application/json
-
-{
-  "question": "你的问题",
-  "top_k": 5
-}
+🏢 总公司 (/总公司)
+  ├─ 📂 研发部 (/总公司/研发部)
+  └─ 📂 销售部 (/总公司/销售部)
 ```
 
-## 版本路线
+默认管理员：`admin` / `admin123`（隶属总公司，super_admin 角色）
 
-- [x] Phase 1: MVP — 核心问答验证
-- [ ] Phase 2: 基础版 — 知识库管理 + 权限
-- [ ] Phase 3: 系统配置 + 日志
-- [ ] Phase 4: Agent — Function Calling
+## 模型迁移
+
+更换 Embedding 模型后，所有文档需要重新向量化。操作步骤：
+
+1. **系统配置 → 模型配置**：修改 Embedding 提供商和模型名
+2. 点击 **保存配置**
+3. 点击 **重建全部索引**（或只重建指定知识库）
+
+系统会从向量库中取出原始文本，用新模型重新计算向量，不需要重新上传文件。
+
+## 分期规划
+
+### ✅ 第一期 P0 — 核心链路
+
+- [x] FastAPI 后端框架
+- [x] MySQL 数据库（10 张表）
+- [x] 用户与部门管理
+- [x] 知识库管理（CRUD + 文档隔离）
+- [x] 文档上传与解析（TXT/PDF/DOCX/MD）
+- [x] 文本分块与向量化
+- [x] 语义检索 + LLM 问答
+- [x] 模型配置持久化（支持 Ollama）
+- [x] 索引重建
+- [x] 前端 SPA（12 个页面）
+
+### 🔲 第二期 P1 — 质量提升
+
+- [ ] JWT 认证 + API 权限中间件
+- [ ] 混合检索（向量 + BM25 + RRF 融合）
+- [ ] Cross-Encoder 精排（BGE-Reranker-v2-m3）
+- [ ] 多轮会话 + 指代消解
+- [ ] 用户反馈机制
+- [ ] 审计日志持久化
+- [ ] 查询缓存（Redis）
+- [ ] 文档去重（SHA-256 + 版本管理）
+
+### 🔲 第三期 P2 — 规模化
+
+- [ ] SSO 单点登录
+- [ ] 向量数据库迁移（Milvus / Qdrant）
+- [ ] 异步任务队列（Celery）
+- [ ] 质量监控面板
+- [ ] 人工评估流程
+
+## 参考文档
+
+- `RAG知识库管理系统_PRD_v1.0.docx` — 产品需求文档
+- `RAG知识库管理系统_整体设计方案_v2.docx` — 技术设计方案
+- `prototype.html` — UI 原型参考
