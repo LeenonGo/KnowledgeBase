@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG 知识库管理系统 - 原型图</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #333; }
+.prototype-nav { position: fixed; top: 0; left: 0; width: 220px; height: 100vh; background: #001529; color: #fff; overflow-y: auto; z-index: 100; padding-top: 16px; }
+.prototype-nav h2 { padding: 16px 20px 12px; font-size: 15px; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.prototype-nav .nav-group { padding: 8px 0; }
+.prototype-nav .nav-group-title { padding: 8px 20px 4px; font-size: 11px; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 1px; }
+.prototype-nav a { display: block; padding: 8px 20px 8px 28px; color: rgba(255,255,255,0.75); text-decoration: none; font-size: 13px; transition: all 0.2s; border-left: 3px solid transparent; }
+.prototype-nav a:hover, .prototype-nav a.active { background: rgba(24,144,255,0.15); color: #fff; border-left-color: #1890ff; }
+.main-content { margin-left: 220px; padding: 24px; }
+.screen { display: none; animation: fadeIn 0.3s; }
+.screen.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.screen-title { font-size: 22px; font-weight: 600; margin-bottom: 20px; color: #1a1a1a; display: flex; align-items: center; gap: 12px; }
+.screen-title .badge { font-size: 12px; background: #e6f7ff; color: #1890ff; padding: 2px 10px; border-radius: 12px; }
+.card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 16px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.card-header h3 { font-size: 16px; font-weight: 600; }
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+.stat-card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.stat-card .label { font-size: 13px; color: #999; margin-bottom: 8px; }
+.stat-card .value { font-size: 28px; font-weight: 700; color: #1a1a1a; }
+.stat-card .trend { font-size: 12px; margin-top: 4px; }
+.stat-card .trend.up { color: #52c41a; }
+.stat-card .trend.down { color: #ff4d4f; }
+table { width: 100%; border-collapse: collapse; }
+table th { background: #fafafa; padding: 12px 16px; text-align: left; font-size: 13px; color: #666; border-bottom: 1px solid #f0f0f0; font-weight: 600; }
+table td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+table tr:hover td { background: #fafafa; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 6px; font-size: 13px; border: 1px solid #d9d9d9; background: #fff; cursor: pointer; transition: all 0.2s; color: #333; }
+.btn:hover { border-color: #1890ff; color: #1890ff; }
+.btn-primary { background: #1890ff; color: #fff; border-color: #1890ff; }
+.btn-primary:hover { background: #40a9ff; border-color: #40a9ff; color: #fff; }
+.btn-danger { color: #ff4d4f; border-color: #ff4d4f; }
+.btn-danger:hover { background: #ff4d4f; color: #fff; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.tag-green { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+.tag-blue { background: #e6f7ff; color: #1890ff; border: 1px solid #91d5ff; }
+.tag-orange { background: #fff7e6; color: #fa8c16; border: 1px solid #ffd591; }
+.tag-red { background: #fff1f0; color: #ff4d4f; border: 1px solid #ffa39e; }
+.tag-gray { background: #f5f5f5; color: #999; border: 1px solid #d9d9d9; }
+.tag-purple { background: #f9f0ff; color: #722ed1; border: 1px solid #d3adf7; }
+.input { padding: 7px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; outline: none; transition: border 0.2s; width: 100%; }
+.input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.15); }
+.select { padding: 7px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; outline: none; background: #fff; min-width: 160px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #333; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.divider { height: 1px; background: #f0f0f0; margin: 16px 0; }
+.flex { display: flex; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.mt-16 { margin-top: 16px; }
+.mb-16 { margin-bottom: 16px; }
+.text-muted { color: #999; font-size: 12px; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: #1890ff; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+/* Chat specific */
+.chat-container { display: flex; height: calc(100vh - 180px); background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.chat-sidebar { width: 260px; border-right: 1px solid #f0f0f0; display: flex; flex-direction: column; }
+.chat-sidebar-header { padding: 16px; border-bottom: 1px solid #f0f0f0; }
+.chat-list { flex: 1; overflow-y: auto; padding: 8px; }
+.chat-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; transition: background 0.2s; }
+.chat-item:hover { background: #f5f5f5; }
+.chat-item.active { background: #e6f7ff; }
+.chat-item .title { font-size: 13px; font-weight: 500; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-item .meta { font-size: 11px; color: #999; }
+.chat-main { flex: 1; display: flex; flex-direction: column; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 20px; }
+.message { margin-bottom: 20px; display: flex; gap: 12px; }
+.message.user { flex-direction: row-reverse; }
+.message .bubble { max-width: 70%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
+.message.assistant .bubble { background: #f5f5f5; border-bottom-left-radius: 4px; }
+.message.user .bubble { background: #1890ff; color: #fff; border-bottom-right-radius: 4px; }
+.message .source-tag { display: inline-block; font-size: 11px; background: #e6f7ff; color: #1890ff; padding: 2px 8px; border-radius: 4px; margin-top: 8px; cursor: pointer; border: 1px solid #91d5ff; }
+.message .source-tag:hover { background: #bae7ff; }
+.chat-input-area { padding: 16px 20px; border-top: 1px solid #f0f0f0; }
+.chat-input-row { display: flex; gap: 12px; align-items: flex-end; }
+.chat-input { flex: 1; padding: 10px 16px; border: 1px solid #d9d9d9; border-radius: 8px; font-size: 14px; resize: none; height: 44px; outline: none; font-family: inherit; }
+.chat-input:focus { border-color: #1890ff; }
+.chat-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.feedback-btn { background: none; border: none; cursor: pointer; font-size: 18px; opacity: 0.4; transition: opacity 0.2s; padding: 2px 6px; }
+.feedback-btn:hover { opacity: 1; }
+/* Upload area */
+.upload-zone { border: 2px dashed #d9d9d9; border-radius: 8px; padding: 40px; text-align: center; transition: all 0.2s; cursor: pointer; }
+.upload-zone:hover { border-color: #1890ff; background: #f0f9ff; }
+.upload-zone .icon { font-size: 48px; margin-bottom: 12px; }
+.upload-zone .text { font-size: 14px; color: #666; }
+.upload-zone .hint { font-size: 12px; color: #999; margin-top: 8px; }
+/* Tree */
+.tree-item { padding: 6px 0 6px 24px; position: relative; font-size: 13px; }
+.tree-item::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 1px; background: #e8e8e8; }
+.tree-item .node { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+.tree-item .node:hover { background: #f5f5f5; }
+.tree-item .node .icon { font-size: 14px; }
+.tree-item.root > .node { padding-left: 0; }
+/* Tabs */
+.tabs { display: flex; border-bottom: 1px solid #f0f0f0; margin-bottom: 16px; }
+.tab { padding: 10px 20px; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; color: #666; }
+.tab:hover { color: #1890ff; }
+.tab.active { color: #1890ff; border-bottom-color: #1890ff; font-weight: 500; }
+/* Steps */
+.steps { display: flex; margin-bottom: 24px; }
+.step { flex: 1; text-align: center; position: relative; padding-bottom: 16px; }
+.step::after { content: ''; position: absolute; left: 50%; right: -50%; top: 14px; height: 2px; background: #e8e8e8; }
+.step:last-child::after { display: none; }
+.step .number { width: 28px; height: 28px; border-radius: 50%; background: #e8e8e8; color: #999; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; margin-bottom: 8px; position: relative; z-index: 1; }
+.step.active .number { background: #1890ff; color: #fff; }
+.step.done .number { background: #52c41a; color: #fff; }
+.step .label { font-size: 12px; color: #999; }
+.step.active .label { color: #333; font-weight: 500; }
+/* Progress bar */
+.progress { height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden; }
+.progress-bar { height: 100%; background: #1890ff; border-radius: 4px; transition: width 0.3s; }
+/* Modal overlay */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; display: flex; align-items: center; justify-content: center; }
+.modal { background: #fff; border-radius: 8px; width: 560px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 24px rgba(0,0,0,0.15); }
+.modal-header { padding: 16px 24px; border-bottom: 1px solid #f0f0f0; font-size: 16px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+.modal-body { padding: 24px; }
+.modal-footer { padding: 12px 24px; border-top: 1px solid #f0f0f0; display: flex; justify-content: flex-end; gap: 8px; }
+/* Chart placeholder */
+.chart-placeholder { height: 200px; background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #1890ff; }
+.chart-bar { display: flex; align-items: flex-end; gap: 12px; height: 140px; margin-top: 12px; }
+.chart-bar .bar { width: 32px; border-radius: 4px 4px 0 0; background: #1890ff; transition: height 0.5s; position: relative; }
+.chart-bar .bar .bar-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #999; white-space: nowrap; }
+.chart-bar .bar .bar-value { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #666; font-weight: 600; }
+/* Pagination */
+.pagination { display: flex; justify-content: flex-end; gap: 4px; margin-top: 16px; }
+.page-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; cursor: pointer; background: #fff; }
+.page-btn.active { background: #1890ff; color: #fff; border-color: #1890ff; }
+.page-btn:hover { border-color: #1890ff; color: #1890ff; }
+/* Tooltip */
+.tooltip-wrap { position: relative; display: inline-block; }
+/* Login */
+.login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.login-box { background: #fff; border-radius: 12px; padding: 40px; width: 400px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+.login-box h1 { text-align: center; margin-bottom: 8px; font-size: 24px; color: #1a1a1a; }
+.login-box .subtitle { text-align: center; color: #999; margin-bottom: 32px; font-size: 14px; }
+/* Sidebar menu group */
+.side-section { padding: 12px 0; }
+.side-section-title { font-size: 11px; color: rgba(255,255,255,0.35); padding: 4px 20px 8px; text-transform: uppercase; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="prototype-nav">
+  <h2>📚 RAG 知识库系统</h2>
+  <div class="side-section">
+    <div class="side-section-title">概览</div>
+    <a href="#" class="active" onclick="showScreen('login')">🔐 登录页</a>
+    <a href="#" onclick="showScreen('dashboard')">📊 仪表盘</a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-title">知识库</div>
+    <a href="#" onclick="showScreen('kb-list')">📂 知识库列表</a>
+    <a href="#" onclick="showScreen('kb-detail')">📄 知识库详情</a>
+    <a href="#" onclick="showScreen('doc-upload')">⬆️ 文档上传</a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-title">问答</div>
+    <a href="#" onclick="showScreen('qa-chat')">💬 智能问答</a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-title">管理</div>
+    <a href="#" onclick="showScreen('user-mgmt')">👥 用户管理</a>
+    <a href="#" onclick="showScreen('dept-tree')">🏢 部门管理</a>
+    <a href="#" onclick="showScreen('perm-mgmt')">🔑 权限管理</a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-title">运维</div>
+    <a href="#" onclick="showScreen('audit-log')">📋 审计日志</a>
+    <a href="#" onclick="showScreen('quality')">📈 质量监控</a>
+    <a href="#" onclick="showScreen('sys-config')">⚙️ 系统配置</a>
+  </div>
+</nav>
+
+<!-- ==================== 1. 登录页 ==================== -->
+<div class="main-content">
+<div id="login" class="screen active">
+<div class="login-page">
+  <div class="login-box">
+    <h1>📚 RAG 知识库</h1>
+    <p class="subtitle">企业智能知识管理平台</p>
+    <div class="form-group">
+      <label>用户名</label>
+      <input class="input" type="text" placeholder="请输入用户名" value="admin">
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <input class="input" type="password" placeholder="请输入密码" value="••••••••">
+    </div>
+    <div class="flex-between mb-16">
+      <label style="font-size:13px;color:#666;"><input type="checkbox" checked> 记住登录</label>
+      <a href="#" style="font-size:13px;color:#1890ff;">忘记密码？</a>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;height:40px;font-size:15px;" onclick="showScreen('dashboard')">登 录</button>
+    <p style="text-align:center;margin-top:16px;font-size:12px;color:#ccc;">SSO 单点登录（P2 开放）</p>
+  </div>
+</div>
+</div>
+
+<!-- ==================== 2. 仪表盘 ==================== -->
+<div id="dashboard" class="screen">
+  <div class="screen-title">仪表盘 <span class="badge">管理员视图</span></div>
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="label">知识库数量</div>
+      <div class="value">12</div>
+      <div class="trend up">↑ 3 本月新增</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">文档总数</div>
+      <div class="value">1,847</div>
+      <div class="trend up">↑ 156 本月新增</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">今日问答次数</div>
+      <div class="value">328</div>
+      <div class="trend up">↑ 12% vs 昨日</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">问答准确率</div>
+      <div class="value">92.3%</div>
+      <div class="trend up">↑ 1.2% 本周</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+    <div class="card">
+      <div class="card-header">
+        <h3>📈 近 7 天问答趋势</h3>
+      </div>
+      <div class="chart-bar" style="justify-content:center;">
+        <div class="bar" style="height:60px;background:#91caff;"><span class="bar-value">186</span><span class="bar-label">周一</span></div>
+        <div class="bar" style="height:80px;background:#91caff;"><span class="bar-value">245</span><span class="bar-label">周二</span></div>
+        <div class="bar" style="height:100px;background:#91caff;"><span class="bar-value">312</span><span class="bar-label">周三</span></div>
+        <div class="bar" style="height:90px;background:#91caff;"><span class="bar-value">287</span><span class="bar-label">周四</span></div>
+        <div class="bar" style="height:110px;background:#91caff;"><span class="bar-value">345</span><span class="bar-label">周五</span></div>
+        <div class="bar" style="height:50px;background:#91caff;"><span class="bar-value">152</span><span class="bar-label">周六</span></div>
+        <div class="bar" style="height:70px;background:#1890ff;"><span class="bar-value">218</span><span class="bar-label">周日</span></div>
+      </div>
+      <div style="height:30px;"></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h3>🔥 热门知识库</h3>
+      </div>
+      <div style="font-size:13px;">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;"><span>📖 产品技术文档</span><span class="tag tag-blue">1,247 次</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;"><span>📖 公司制度规范</span><span class="tag tag-blue">863 次</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;"><span>📖 API 接口文档</span><span class="tag tag-blue">621 次</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;"><span>📖 新员工入职指南</span><span class="tag tag-blue">445 次</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;"><span>📖 项目复盘文档</span><span class="tag tag-blue">298 次</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>⚠️ 待处理事项</h3>
+    </div>
+    <table>
+      <tr><th>类型</th><th>描述</th><th>数量</th><th>操作</th></tr>
+      <tr><td><span class="tag tag-red">点踩反馈</span></td><td>待审核的用户差评反馈</td><td>23</td><td><button class="btn btn-sm btn-primary">去处理</button></td></tr>
+      <tr><td><span class="tag tag-orange">解析失败</span></td><td>文档解析失败，需人工处理</td><td>5</td><td><button class="btn btn-sm btn-primary">去处理</button></td></tr>
+      <tr><td><span class="tag tag-purple">低置信度</span></td><td>置信度低于 0.5 的问答记录</td><td>47</td><td><button class="btn btn-sm">查看</button></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== 3. 知识库列表 ==================== -->
+<div id="kb-list" class="screen">
+  <div class="screen-title flex-between" style="display:flex;justify-content:space-between;">
+    <span>知识库管理</span>
+    <button class="btn btn-primary" onclick="showModal('create-kb')">＋ 创建知识库</button>
+  </div>
+
+  <div class="card">
+    <div class="flex-between mb-16" style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="flex gap-12">
+        <input class="input" placeholder="搜索知识库名称..." style="width:280px;">
+        <select class="select"><option>全部状态</option><option>活跃</option><option>归档</option></select>
+      </div>
+      <div class="text-muted">共 12 个知识库</div>
+    </div>
+    <table>
+      <tr>
+        <th>知识库名称</th><th>文档数</th><th>Chunks</th><th>Embedding 模型</th><th>权限范围</th><th>状态</th><th>更新时间</th><th>操作</th>
+      </tr>
+      <tr>
+        <td><strong>📖 产品技术文档</strong><br><span class="text-muted">产品架构、设计文档、技术规范</span></td>
+        <td>342</td><td>8,560</td><td><span class="tag tag-blue">BGE-M3</span></td>
+        <td><span class="tag tag-green">技术中心</span> <span class="tag tag-green">研发中心</span></td>
+        <td><span class="tag tag-green">活跃</span></td>
+        <td>2026-04-12</td>
+        <td><button class="btn btn-sm" onclick="showScreen('kb-detail')">管理</button> <button class="btn btn-sm">设置</button></td>
+      </tr>
+      <tr>
+        <td><strong>📖 公司制度规范</strong><br><span class="text-muted">人事制度、财务制度、行政规范</span></td>
+        <td>156</td><td>3,210</td><td><span class="tag tag-blue">BGE-M3</span></td>
+        <td><span class="tag tag-green">全部部门</span></td>
+        <td><span class="tag tag-green">活跃</span></td>
+        <td>2026-04-10</td>
+        <td><button class="btn btn-sm">管理</button> <button class="btn btn-sm">设置</button></td>
+      </tr>
+      <tr>
+        <td><strong>📖 API 接口文档</strong><br><span class="text-muted">内部 API 接口说明、SDK 文档</span></td>
+        <td>89</td><td>4,320</td><td><span class="tag tag-blue">BGE-M3</span></td>
+        <td><span class="tag tag-green">研发中心</span></td>
+        <td><span class="tag tag-green">活跃</span></td>
+        <td>2026-04-11</td>
+        <td><button class="btn btn-sm">管理</button> <button class="btn btn-sm">设置</button></td>
+      </tr>
+      <tr>
+        <td><strong>📖 2025 项目复盘</strong><br><span class="text-muted">各项目组复盘总结</span></td>
+        <td>24</td><td>680</td><td><span class="tag tag-blue">BGE-M3</span></td>
+        <td><span class="tag tag-orange">管理中心</span></td>
+        <td><span class="tag tag-gray">归档</span></td>
+        <td>2026-03-15</td>
+        <td><button class="btn btn-sm">管理</button> <button class="btn btn-sm">设置</button></td>
+      </tr>
+    </table>
+    <div class="pagination">
+      <div class="page-btn active">1</div>
+      <div class="page-btn">2</div>
+      <div class="page-btn">›</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 4. 知识库详情 ==================== -->
+<div id="kb-detail" class="screen">
+  <div class="screen-title">
+    <a href="#" onclick="showScreen('kb-list')" style="color:#1890ff;font-size:16px;margin-right:8px;">←</a>
+    📖 产品技术文档 <span class="tag tag-green">活跃</span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'kb-tab-docs')">文档管理</div>
+    <div class="tab" onclick="switchTab(this,'kb-tab-perm')">权限设置</div>
+    <div class="tab" onclick="switchTab(this,'kb-tab-settings')">知识库设置</div>
+    <div class="tab" onclick="switchTab(this,'kb-tab-stats')">统计分析</div>
+  </div>
+
+  <div id="kb-tab-docs">
+    <div class="card">
+      <div class="flex-between mb-16" style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="flex gap-12">
+          <input class="input" placeholder="搜索文档..." style="width:240px;">
+          <select class="select"><option>全部类型</option><option>PDF</option><option>Word</option><option>Markdown</option><option>Excel</option></select>
+          <select class="select"><option>全部状态</option><option>已索引</option><option>索引中</option><option>失败</option></select>
+        </div>
+        <button class="btn btn-primary" onclick="showScreen('doc-upload')">⬆️ 上传文档</button>
+      </div>
+      <table>
+        <tr><th>文档名称</th><th>类型</th><th>大小</th><th>Chunks</th><th>状态</th><th>上传者</th><th>更新时间</th><th>操作</th></tr>
+        <tr>
+          <td>📐 系统架构设计文档 v2.1.docx</td><td>Word</td><td>2.3 MB</td><td>128</td>
+          <td><span class="tag tag-green">已索引</span></td><td>张工</td><td>2026-04-12</td>
+          <td><button class="btn btn-sm">预览</button> <button class="btn btn-sm">重索引</button> <button class="btn btn-sm btn-danger">删除</button></td>
+        </tr>
+        <tr>
+          <td>📐 API 接口规范 v3.0.pdf</td><td>PDF</td><td>5.1 MB</td><td>256</td>
+          <td><span class="tag tag-green">已索引</span></td><td>李工</td><td>2026-04-11</td>
+          <td><button class="btn btn-sm">预览</button> <button class="btn btn-sm">重索引</button> <button class="btn btn-sm btn-danger">删除</button></td>
+        </tr>
+        <tr>
+          <td>📐 数据库设计规范.md</td><td>Markdown</td><td>0.8 MB</td><td>64</td>
+          <td><span class="tag tag-blue">索引中</span></td><td>王工</td><td>2026-04-13</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;"><div class="progress" style="width:80px;"><div class="progress-bar" style="width:65%;"></div></div><span class="text-muted">65%</span></div>
+          </td>
+        </tr>
+        <tr>
+          <td>📐 性能测试报告.xlsx</td><td>Excel</td><td>1.2 MB</td><td>42</td>
+          <td><span class="tag tag-red">解析失败</span></td><td>赵工</td><td>2026-04-10</td>
+          <td><button class="btn btn-sm">重试</button> <button class="btn btn-sm">查看原因</button></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div id="kb-tab-perm" style="display:none;">
+    <div class="card">
+      <div class="card-header"><h3>部门授权</h3><button class="btn btn-primary btn-sm" onclick="showModal('add-dept-access')">＋ 添加部门</button></div>
+      <table>
+        <tr><th>部门</th><th>角色</th><th>授权方式</th><th>操作者</th><th>操作时间</th><th>操作</th></tr>
+        <tr><td>🏢 技术中心</td><td><span class="tag tag-blue">admin</span></td><td>直接授权</td><td>admin</td><td>2026-04-01</td><td><button class="btn btn-sm btn-danger">撤销</button></td></tr>
+        <tr><td>🏢 研发中心 <span class="text-muted">（继承自技术中心）</span></td><td><span class="tag tag-green">viewer</span></td><td>继承</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td>🏢 测试中心 <span class="text-muted">（继承自技术中心）</span></td><td><span class="tag tag-green">viewer</span></td><td>继承</td><td>—</td><td>—</td><td>—</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>用户授权</h3><button class="btn btn-primary btn-sm" onclick="showModal('add-user-access')">＋ 添加用户</button></div>
+      <table>
+        <tr><th>用户</th><th>所属部门</th><th>角色</th><th>操作者</th><th>操作时间</th><th>操作</th></tr>
+        <tr><td>👤 陈明（产品部）</td><td>产品中心</td><td><span class="tag tag-green">viewer</span></td><td>admin</td><td>2026-04-05</td><td><button class="btn btn-sm btn-danger">撤销</button></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div id="kb-tab-settings" style="display:none;">
+    <div class="card">
+      <h3 class="mb-16">知识库基本信息</h3>
+      <div class="form-row">
+        <div class="form-group"><label>知识库名称</label><input class="input" value="产品技术文档"></div>
+        <div class="form-group"><label>状态</label><select class="select" style="width:100%;"><option>活跃</option><option>归档</option><option>维护</option></select></div>
+      </div>
+      <div class="form-group"><label>描述</label><textarea class="input" rows="3" style="resize:vertical;">产品架构、设计文档、技术规范等</textarea></div>
+      <div class="divider"></div>
+      <h3 class="mb-16">模型配置</h3>
+      <div class="form-row">
+        <div class="form-group"><label>Embedding 模型</label><select class="select" style="width:100%;"><option>BGE-M3</option><option>text-embedding-3-large</option><option>Jina Embeddings v3</option></select></div>
+        <div class="form-group"><label>LLM 模型</label><select class="select" style="width:100%;"><option>GPT-4o</option><option>Claude 3.5 Sonnet</option><option>Qwen-72B</option><option>DeepSeek-V3</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Temperature</label><input class="input" type="number" value="0.3" step="0.1" min="0" max="2"></div>
+        <div class="form-group"><label>Reranker 模型</label><select class="select" style="width:100%;"><option>bge-reranker-v2-m3</option><option>Cohere Rerank</option></select></div>
+      </div>
+      <button class="btn btn-primary mt-16">保存设置</button>
+    </div>
+  </div>
+
+  <div id="kb-tab-stats" style="display:none;">
+    <div class="stats-row">
+      <div class="stat-card"><div class="label">总文档数</div><div class="value">342</div></div>
+      <div class="stat-card"><div class="label">总 Chunks</div><div class="value">8,560</div></div>
+      <div class="stat-card"><div class="label">本周问答</div><div class="value">1,247</div></div>
+      <div class="stat-card"><div class="label">平均延迟</div><div class="value">2.3s</div></div>
+    </div>
+    <div class="card">
+      <h3 class="mb-16">📊 高频引用文档 Top 5</h3>
+      <table>
+        <tr><th>#</th><th>文档名</th><th>引用次数</th><th>占比</th></tr>
+        <tr><td>1</td><td>系统架构设计文档 v2.1</td><td>342</td><td>27.4%</td></tr>
+        <tr><td>2</td><td>API 接口规范 v3.0</td><td>287</td><td>23.0%</td></tr>
+        <tr><td>3</td><td>数据库设计规范</td><td>156</td><td>12.5%</td></tr>
+        <tr><td>4</td><td>部署运维手册</td><td>98</td><td>7.9%</td></tr>
+        <tr><td>5</td><td>编码规范</td><td>76</td><td>6.1%</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 5. 文档上传 ==================== -->
+<div id="doc-upload" class="screen">
+  <div class="screen-title">
+    <a href="#" onclick="showScreen('kb-detail')" style="color:#1890ff;font-size:16px;margin-right:8px;">←</a>
+    上传文档 → 产品技术文档
+  </div>
+
+  <div class="steps">
+    <div class="step done"><div class="number">✓</div><div class="label">选择文件</div></div>
+    <div class="step active"><div class="number">2</div><div class="label">配置分块策略</div></div>
+    <div class="step"><div class="number">3</div><div class="label">确认上传</div></div>
+    <div class="step"><div class="number">4</div><div class="label">索引入库</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div class="card">
+      <h3 class="mb-16">已选择文件</h3>
+      <div style="border:1px solid #f0f0f0;border-radius:6px;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #f0f0f5;font-size:13px;">
+          <span>📐 微服务架构设计 v3.0.docx <span class="text-muted">（2.8 MB）</span></span>
+          <span class="tag tag-blue">新文件</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #f0f0f5;font-size:13px;">
+          <span>📐 数据库设计规范.md <span class="text-muted">（0.8 MB）</span></span>
+          <span class="tag tag-orange">同名已存在（将创建新版本）</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;font-size:13px;">
+          <span>📐 API 接口规范 v3.0.pdf <span class="text-muted">（5.1 MB）</span></span>
+          <span class="tag tag-red">内容重复（已存在于本知识库）</span>
+        </div>
+      </div>
+      <div class="upload-zone mt-16">
+        <div class="icon">📁</div>
+        <div class="text">拖拽文件到此处，或点击选择文件</div>
+        <div class="hint">支持 PDF、Word、Markdown、TXT、Excel · 单文件 ≤ 50MB</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="mb-16">分块策略配置</h3>
+      <div class="form-group">
+        <label>分块策略</label>
+        <select class="select" style="width:100%;" onchange="toggleChunkConfig(this.value)">
+          <option value="fixed">固定长度 + Overlap（推荐）</option>
+          <option value="structural">结构分析分块</option>
+          <option value="semantic">语义分块（P1）</option>
+        </select>
+      </div>
+
+      <div id="chunk-config-fixed">
+        <div class="form-row">
+          <div class="form-group"><label>Chunk 大小（tokens）</label><input class="input" type="number" value="512"></div>
+          <div class="form-group"><label>Overlap（tokens）</label><input class="input" type="number" value="64"></div>
+        </div>
+        <div class="text-muted">默认 512 tokens / 64 tokens overlap，适用于大多数文档</div>
+      </div>
+
+      <div id="chunk-config-structural" style="display:none;">
+        <div class="form-row">
+          <div class="form-group"><label>最大 Chunk 大小（tokens）</label><input class="input" type="number" value="1024"></div>
+          <div class="form-group"><label>切分层级</label><select class="select" style="width:100%;"><option>H2 及以上</option><option>H3 及以上</option></select></div>
+        </div>
+        <div class="text-muted">基于标题层级切分，保留 heading_path 元数据</div>
+      </div>
+
+      <div class="divider"></div>
+      <h3 class="mb-16">预览</h3>
+      <div style="border:1px solid #f0f0f0;border-radius:6px;padding:12px;font-size:12px;max-height:200px;overflow-y:auto;">
+        <div style="margin-bottom:8px;padding:8px;background:#f9f9f9;border-radius:4px;">
+          <strong>Chunk #1</strong> <span class="text-muted">（128 tokens）</span><br>
+          <span style="color:#666;">系统架构采用微服务架构模式，核心服务包括用户服务、订单服务、支付服务...</span>
+        </div>
+        <div style="margin-bottom:8px;padding:8px;background:#f9f9f9;border-radius:4px;">
+          <strong>Chunk #2</strong> <span class="text-muted">（142 tokens）</span><br>
+          <span style="color:#666;">...支付服务通过事件驱动架构与其他服务解耦。消息队列采用 Kafka...</span>
+        </div>
+        <div style="padding:8px;background:#f9f9f9;border-radius:4px;">
+          <strong>Chunk #3</strong> <span class="text-muted">（136 tokens）</span><br>
+          <span style="color:#666;">...数据库设计采用读写分离策略。主库负责写入，从库提供读取服务...</span>
+        </div>
+      </div>
+      <button class="btn btn-primary mt-16" style="width:100%;justify-content:center;">确认上传并索引</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 6. 智能问答 ==================== -->
+<div id="qa-chat" class="screen">
+  <div class="screen-title">💬 智能问答</div>
+  <div class="chat-container">
+    <div class="chat-sidebar">
+      <div class="chat-sidebar-header">
+        <button class="btn btn-primary" style="width:100%;justify-content:center;">＋ 新对话</button>
+      </div>
+      <div class="chat-list">
+        <div class="chat-item active">
+          <div class="title">微服务部署方案咨询</div>
+          <div class="meta">3 轮对话 · 10 分钟前</div>
+        </div>
+        <div class="chat-item">
+          <div class="title">数据库读写分离配置</div>
+          <div class="meta">5 轮对话 · 1 小时前</div>
+        </div>
+        <div class="chat-item">
+          <div class="title">API 鉴权机制说明</div>
+          <div class="meta">2 轮对话 · 今天</div>
+        </div>
+        <div class="chat-item">
+          <div class="title">员工年假制度查询</div>
+          <div class="meta">4 轮对话 · 昨天</div>
+        </div>
+      </div>
+      <div style="padding:12px;border-top:1px solid #f0f0f0;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:12px;">知识库范围</label>
+          <select class="select" style="width:100%;font-size:12px;">
+            <option>📖 产品技术文档</option>
+            <option>📖 公司制度规范</option>
+            <option>全部知识库</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="chat-main">
+      <div class="chat-messages">
+        <!-- User message 1 -->
+        <div class="message user">
+          <div class="avatar">你</div>
+          <div class="bubble">微服务之间的服务发现机制是怎么设计的？</div>
+        </div>
+        <!-- Assistant message 1 -->
+        <div class="message assistant">
+          <div class="avatar" style="background:#52c41a;">AI</div>
+          <div>
+            <div class="bubble">
+              根据《系统架构设计文档 v2.1》，服务发现机制采用以下方案：<br><br>
+              <strong>1. 注册中心</strong>：使用 Nacos 作为服务注册与发现中心，所有微服务启动时自动注册。<br><br>
+              <strong>2. 健康检查</strong>：服务每 5 秒发送心跳，Nacos 超过 15 秒未收到心跳则标记为不健康。<br><br>
+              <strong>3. 负载均衡</strong>：客户端负载均衡，采用加权轮询策略。
+              <div style="margin-top:10px;">
+                <span class="source-tag" onclick="alert('展开查看原始chunk内容')">📎 来源: 系统架构设计文档 v2.1, 第23块</span>
+                <span class="source-tag" onclick="alert('展开查看原始chunk内容')">📎 来源: 微服务架构设计 v3.0, 第8块</span>
+              </div>
+            </div>
+            <div class="chat-actions">
+              <button class="feedback-btn" title="有帮助">👍</button>
+              <button class="feedback-btn" title="没帮助">👎</button>
+              <button class="feedback-btn" title="复制">📋</button>
+            </div>
+          </div>
+        </div>
+        <!-- User message 2 (follow-up with anaphora) -->
+        <div class="message user">
+          <div class="avatar">你</div>
+          <div class="bubble">那它的容灾机制呢？</div>
+        </div>
+        <!-- Assistant message 2 -->
+        <div class="message assistant">
+          <div class="avatar" style="background:#52c41a;">AI</div>
+          <div>
+            <div class="bubble">
+              <span style="background:#fff7e6;padding:2px 6px;border-radius:3px;font-size:12px;color:#fa8c16;">🔄 已自动改写查询："Nacos 服务发现的容灾机制是什么？"</span><br><br>
+              根据文档，Nacos 容灾机制包括：<br><br>
+              <strong>1. 集群部署</strong>：Nacos 采用 3 节点集群，Raft 协议保证一致性。<br>
+              <strong>2. 本地缓存</strong>：客户端本地缓存服务列表，即使 Nacos 短暂不可用也能正常调用。<br>
+              <strong>3. 多可用区</strong>：生产环境部署在 2 个可用区，任一 AZ 故障不影响服务发现。
+              <div style="margin-top:10px;">
+                <span class="source-tag">📎 来源: 系统架构设计文档 v2.1, 第25块</span>
+              </div>
+            </div>
+            <div class="chat-actions">
+              <button class="feedback-btn">👍</button>
+              <button class="feedback-btn">👎</button>
+              <button class="feedback-btn">📋</button>
+            </div>
+          </div>
+        </div>
+        <!-- User message 3 (rejected query) -->
+        <div class="message user">
+          <div class="avatar">你</div>
+          <div class="bubble">你们公司春节放几天假？</div>
+        </div>
+        <!-- Assistant rejection -->
+        <div class="message assistant">
+          <div class="avatar" style="background:#52c41a;">AI</div>
+          <div>
+            <div class="bubble" style="border:1px solid #ffd591;background:#fffbe6;">
+              ⚠️ 抱歉，我在当前知识库中未找到与您问题相关的信息。<br><br>
+              <span style="font-size:12px;color:#666;">您可以尝试：<br>
+              1. 换个方式提问<br>
+              2. 确认相关文档已上传至知识库<br>
+              3. 切换到「公司制度规范」知识库试试</span>
+            </div>
+            <div class="chat-actions">
+              <span class="text-muted" style="font-size:11px;">置信度: 0.12 · 检索结果不足，已触发拒答</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <div class="chat-input-row">
+          <textarea class="chat-input" placeholder="输入问题，Enter 发送..." rows="1"></textarea>
+          <button class="btn btn-primary" style="height:44px;">发送</button>
+        </div>
+        <div class="chat-actions" style="margin-top:6px;">
+          <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;">
+            <input type="checkbox"> 流式输出
+          </label>
+          <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;">
+            <input type="checkbox"> 显示检索过程
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 7. 用户管理 ==================== -->
+<div id="user-mgmt" class="screen">
+  <div class="screen-title flex-between" style="display:flex;justify-content:space-between;">
+    <span>👥 用户管理</span>
+    <div class="flex gap-8">
+      <button class="btn">📥 批量导入</button>
+      <button class="btn btn-primary">＋ 创建用户</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="flex-between mb-16" style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="flex gap-12">
+        <input class="input" placeholder="搜索用户名/姓名..." style="width:240px;">
+        <select class="select"><option>全部部门</option><option>技术中心</option><option>研发中心</option><option>产品中心</option></select>
+        <select class="select"><option>全部状态</option><option>启用</option><option>禁用</option></select>
+        <select class="select"><option>全部角色</option><option>super_admin</option><option>kb_admin</option><option>user</option></select>
+      </div>
+    </div>
+    <table>
+      <tr><th>用户</th><th>用户名</th><th>部门</th><th>岗位</th><th>系统角色</th><th>状态</th><th>最后登录</th><th>操作</th></tr>
+      <tr>
+        <td><div class="flex gap-8" style="align-items:center;"><div class="avatar" style="background:#1890ff;">管</div><span>系统管理员</span></div></td>
+        <td>admin</td><td>技术中心</td><td>IT 负责人</td>
+        <td><span class="tag tag-purple">super_admin</span></td>
+        <td><span class="tag tag-green">启用</span></td>
+        <td>2026-04-13 10:32</td>
+        <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm">角色</button></td>
+      </tr>
+      <tr>
+        <td><div class="flex gap-8" style="align-items:center;"><div class="avatar" style="background:#52c41a;">张</div><span>张工</span></div></td>
+        <td>zhangsan</td><td>研发中心</td><td>高级工程师</td>
+        <td><span class="tag tag-blue">kb_admin</span></td>
+        <td><span class="tag tag-green">启用</span></td>
+        <td>2026-04-13 09:15</td>
+        <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm">角色</button></td>
+      </tr>
+      <tr>
+        <td><div class="flex gap-8" style="align-items:center;"><div class="avatar" style="background:#fa8c16;">李</div><span>李工</span></div></td>
+        <td>lisi</td><td>研发中心</td><td>工程师</td>
+        <td><span class="tag tag-green">user</span></td>
+        <td><span class="tag tag-green">启用</span></td>
+        <td>2026-04-12 16:48</td>
+        <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm">角色</button></td>
+      </tr>
+      <tr>
+        <td><div class="flex gap-8" style="align-items:center;"><div class="avatar" style="background:#999;">王</div><span>王明</span></div></td>
+        <td>wangming</td><td>产品中心</td><td>产品经理</td>
+        <td><span class="tag tag-green">user</span></td>
+        <td><span class="tag tag-gray">禁用</span></td>
+        <td>2026-03-20 11:00</td>
+        <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm">角色</button></td>
+      </tr>
+    </table>
+    <div class="pagination">
+      <div class="page-btn active">1</div><div class="page-btn">2</div><div class="page-btn">3</div><div class="page-btn">›</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 8. 部门管理 ==================== -->
+<div id="dept-tree" class="screen">
+  <div class="screen-title flex-between" style="display:flex;justify-content:space-between;">
+    <span>🏢 部门管理</span>
+    <button class="btn btn-primary">＋ 添加部门</button>
+  </div>
+  <div class="card">
+    <div class="tree-item root">
+      <div class="node"><span class="icon">🏢</span> <strong>总公司</strong> <span class="text-muted">（/总公司 · 32 人）</span></div>
+    </div>
+    <div class="tree-item" style="padding-left:48px;">
+      <div class="node"><span class="icon">🏢</span> 技术中心 <span class="text-muted">（/总公司/技术中心 · 12 人）</span></div>
+    </div>
+    <div class="tree-item" style="padding-left:72px;">
+      <div class="node"><span class="icon">🏢</span> 研发部 <span class="text-muted">（/总公司/技术中心/研发部 · 8 人）</span></div>
+    </div>
+    <div class="tree-item" style="padding-left:72px;">
+      <div class="node"><span class="icon">🏢</span> 测试部 <span class="text-muted">（/总公司/技术中心/测试部 · 4 人）</span></div>
+    </div>
+    <div class="tree-item" style="padding-left:48px;">
+      <div class="node"><span class="icon">🏢</span> 产品中心 <span class="text-muted">（/总公司/产品中心 · 6 人）</span></div>
+    </div>
+    <div class="tree-item" style="padding-left:48px;">
+      <div class="node"><span class="icon">🏢</span> 管理中心 <span class="text-muted">（/总公司/管理中心 · 10 人）</span></div>
+    </div>
+    <div class="tree-item" style="padding-left:72px;">
+      <div class="node"><span class="icon">🏢</span> 人力资源部 <span class="text-muted">（/总公司/管理中心/人力资源部 · 3 人）</span></div>
+    </div>
+    <div class="tree-item" style="padding-left:72px;">
+      <div class="node"><span class="icon">🏢</span> 财务部 <span class="text-muted">（/总公司/管理中心/财务部 · 4 人）</span></div>
+    </div>
+    <div class="tree-item" style="padding-left:72px;">
+      <div class="node"><span class="icon">🏢</span> 行政部 <span class="text-muted">（/总公司/管理中心/行政部 · 3 人）</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 9. 权限管理 ==================== -->
+<div id="perm-mgmt" class="screen">
+  <div class="screen-title">🔑 权限管理</div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'perm-roles')">角色管理</div>
+    <div class="tab" onclick="switchTab(this,'perm-kb-access')">知识库授权总览</div>
+  </div>
+  <div id="perm-roles">
+    <div class="card">
+      <div class="card-header"><h3>系统角色</h3></div>
+      <table>
+        <tr><th>角色</th><th>标识</th><th>说明</th><th>权限项</th><th>用户数</th><th>操作</th></tr>
+        <tr>
+          <td><span class="tag tag-purple">super_admin</span></td><td>super_admin</td>
+          <td>超级管理员，拥有全部权限</td>
+          <td>user.manage · role.manage · kb.* · doc.* · model.config · system.config · audit.view</td>
+          <td>1</td>
+          <td><button class="btn btn-sm">查看</button></td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">kb_admin</span></td><td>kb_admin</td>
+          <td>知识库管理员</td>
+          <td>kb.create · kb.manage.* · doc.upload · doc.delete · audit.view</td>
+          <td>3</td>
+          <td><button class="btn btn-sm">查看</button> <button class="btn btn-sm">编辑</button></td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-green">user</span></td><td>user</td>
+          <td>普通用户，可检索和问答</td>
+          <td>qa.ask · qa.search · qa.history</td>
+          <td>28</td>
+          <td><button class="btn btn-sm">查看</button></td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-orange">auditor</span></td><td>auditor</td>
+          <td>审计员，只读审计日志</td>
+          <td>audit.view</td>
+          <td>2</td>
+          <td><button class="btn btn-sm">查看</button></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+  <div id="perm-kb-access" style="display:none;">
+    <div class="card">
+      <div class="card-header"><h3>知识库授权矩阵</h3></div>
+      <table>
+        <tr><th>知识库</th><th>技术中心</th><th>研发中心</th><th>产品中心</th><th>管理中心</th><th>用户: 陈明</th></tr>
+        <tr><td>📖 产品技术文档</td><td><span class="tag tag-blue">admin</span></td><td><span class="tag tag-green">viewer</span><span class="text-muted"> 继承</span></td><td>—</td><td>—</td><td><span class="tag tag-green">viewer</span></td></tr>
+        <tr><td>📖 公司制度规范</td><td>—</td><td>—</td><td>—</td><td><span class="tag tag-blue">admin</span></td><td>—</td></tr>
+        <tr><td>📖 API 接口文档</td><td><span class="tag tag-blue">admin</span></td><td><span class="tag tag-green">viewer</span><span class="text-muted"> 继承</span></td><td>—</td><td>—</td><td>—</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 10. 审计日志 ==================== -->
+<div id="audit-log" class="screen">
+  <div class="screen-title flex-between" style="display:flex;justify-content:space-between;">
+    <span>📋 审计日志</span>
+    <button class="btn">📥 导出日志</button>
+  </div>
+  <div class="card">
+    <div class="flex gap-12 mb-16" style="flex-wrap:wrap;">
+      <input class="input" placeholder="搜索用户/操作..." style="width:200px;">
+      <select class="select"><option>全部操作类型</option><option>登录/登出</option><option>文档上传</option><option>文档删除</option><option>权限变更</option><option>检索问答</option><option>配置变更</option></select>
+      <select class="select"><option>全部知识库</option><option>产品技术文档</option><option>公司制度规范</option></select>
+      <input type="date" class="input" style="width:150px;" value="2026-04-01">
+      <span style="align-self:center;color:#999;">至</span>
+      <input type="date" class="input" style="width:150px;" value="2026-04-13">
+      <button class="btn btn-primary">查询</button>
+    </div>
+    <table>
+      <tr><th>时间</th><th>用户</th><th>操作类型</th><th>资源</th><th>详情</th><th>IP</th></tr>
+      <tr>
+        <td>2026-04-13 10:32:15</td><td>admin</td>
+        <td><span class="tag tag-blue">检索问答</span></td>
+        <td>产品技术文档</td>
+        <td>问题："微服务部署方案" · 检索 5 chunks · GPT-4o · 3.2s</td>
+        <td>192.168.1.100</td>
+      </tr>
+      <tr>
+        <td>2026-04-13 10:28:03</td><td>zhangsan</td>
+        <td><span class="tag tag-green">文档上传</span></td>
+        <td>产品技术文档</td>
+        <td>上传 "数据库设计规范.md" · 0.8MB · 64 chunks</td>
+        <td>192.168.1.105</td>
+      </tr>
+      <tr>
+        <td>2026-04-13 09:45:22</td><td>admin</td>
+        <td><span class="tag tag-purple">权限变更</span></td>
+        <td>产品技术文档</td>
+        <td>授权 陈明 viewer 访问产品技术文档</td>
+        <td>192.168.1.100</td>
+      </tr>
+      <tr>
+        <td>2026-04-13 09:15:00</td><td>zhangsan</td>
+        <td><span class="tag tag-orange">登录</span></td>
+        <td>—</td>
+        <td>登录成功 · Chrome/120 · Windows</td>
+        <td>192.168.1.105</td>
+      </tr>
+      <tr>
+        <td>2026-04-12 17:30:18</td><td>lisi</td>
+        <td><span class="tag tag-red">文档删除</span></td>
+        <td>产品技术文档</td>
+        <td>删除 "旧版接口文档 v1.0.pdf"（软删除）</td>
+        <td>192.168.1.112</td>
+      </tr>
+    </table>
+    <div class="pagination">
+      <div class="page-btn active">1</div><div class="page-btn">2</div><div class="page-btn">3</div><div class="page-btn">4</div><div class="page-btn">5</div><div class="page-btn">›</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 11. 质量监控 ==================== -->
+<div id="quality" class="screen">
+  <div class="screen-title">📈 质量监控</div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="label">差评率</div>
+      <div class="value" style="color:#52c41a;">3.2%</div>
+      <div class="trend up">↓ 0.8% 本周</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">无结果率</div>
+      <div class="value" style="color:#fa8c16;">11.5%</div>
+      <div class="trend up">↓ 2.1% 本周</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">幻觉率（抽样）</div>
+      <div class="value" style="color:#52c41a;">1.8%</div>
+      <div class="trend up">↓ 0.5% 本月</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">人工评估准确率</div>
+      <div class="value">92.3%</div>
+      <div class="trend up">↑ 1.2% 本月</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div class="card">
+      <div class="card-header"><h3>📊 差评反馈趋势</h3></div>
+      <div class="chart-bar" style="justify-content:center;">
+        <div class="bar" style="height:80px;background:#ff7875;"><span class="bar-value">5.1%</span><span class="bar-label">W1</span></div>
+        <div class="bar" style="height:65px;background:#ff7875;"><span class="bar-value">4.2%</span><span class="bar-label">W2</span></div>
+        <div class="bar" style="height:50px;background:#ffc069;"><span class="bar-value">3.8%</span><span class="bar-label">W3</span></div>
+        <div class="bar" style="height:40px;background:#52c41a;"><span class="bar-value">3.2%</span><span class="bar-label">W4</span></div>
+      </div>
+      <div style="height:30px;"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>🔍 差评原因分布</h3></div>
+      <div style="font-size:13px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;">
+          <span>信息不准确</span>
+          <div class="flex gap-8" style="align-items:center;">
+            <div class="progress" style="width:120px;"><div class="progress-bar" style="width:45%;background:#ff7875;"></div></div>
+            <span class="text-muted">45%</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;">
+          <span>未找到相关信息</span>
+          <div class="flex gap-8" style="align-items:center;">
+            <div class="progress" style="width:120px;"><div class="progress-bar" style="width:30%;background:#ffc069;"></div></div>
+            <span class="text-muted">30%</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;">
+          <span>回答不完整</span>
+          <div class="flex gap-8" style="align-items:center;">
+            <div class="progress" style="width:120px;"><div class="progress-bar" style="width:18%;background:#87e8de;"></div></div>
+            <span class="text-muted">18%</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;">
+          <span>其他</span>
+          <div class="flex gap-8" style="align-items:center;">
+            <div class="progress" style="width:120px;"><div class="progress-bar" style="width:7%;background:#bfbfbf;"></div></div>
+            <span class="text-muted">7%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>👎 待审核差评</h3>
+      <button class="btn btn-sm">开始人工评估</button>
+    </div>
+    <table>
+      <tr><th>时间</th><th>用户</th><th>问题</th><th>知识库</th><th>差评原因</th><th>置信度</th><th>操作</th></tr>
+      <tr>
+        <td>2026-04-13 10:22</td><td>lisi</td>
+        <td>微服务超时时间配置在哪？</td><td>产品技术文档</td>
+        <td><span class="tag tag-orange">信息不准确</span></td>
+        <td>0.72</td>
+        <td><button class="btn btn-sm btn-primary">审核</button></td>
+      </tr>
+      <tr>
+        <td>2026-04-13 09:58</td><td>chenming</td>
+        <td>报销流程是什么？</td><td>公司制度规范</td>
+        <td><span class="tag tag-red">未找到</span></td>
+        <td>0.15</td>
+        <td><button class="btn btn-sm btn-primary">审核</button></td>
+      </tr>
+      <tr>
+        <td>2026-04-12 16:30</td><td>zhangsan</td>
+        <td>Kafka 消费者组如何配置？</td><td>产品技术文档</td>
+        <td><span class="tag tag-orange">信息不准确</span></td>
+        <td>0.68</td>
+        <td><button class="btn btn-sm btn-primary">审核</button></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- ==================== 12. 系统配置 ==================== -->
+<div id="sys-config" class="screen">
+  <div class="screen-title">⚙️ 系统配置</div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'cfg-general')">通用配置</div>
+    <div class="tab" onclick="switchTab(this,'cfg-model')">模型配置</div>
+    <div class="tab" onclick="switchTab(this,'cfg-retrieval')">检索配置</div>
+    <div class="tab" onclick="switchTab(this,'cfg-cache')">缓存配置</div>
+  </div>
+
+  <div id="cfg-general">
+    <div class="card">
+      <h3 class="mb-16">基础设置</h3>
+      <div class="form-row">
+        <div class="form-group"><label>系统名称</label><input class="input" value="RAG 知识库管理系统"></div>
+        <div class="form-group"><label>单文件大小限制</label><input class="input" value="50" style="width:80px;display:inline;"> MB</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>支持的文件类型</label><input class="input" value="pdf, docx, md, txt, xlsx, pptx, html" disabled></div>
+        <div class="form-group"><label>JWT 过期时间</label><input class="input" value="24" style="width:80px;display:inline;"> 小时</div>
+      </div>
+      <button class="btn btn-primary mt-16">保存</button>
+    </div>
+  </div>
+
+  <div id="cfg-model" style="display:none;">
+    <div class="card">
+      <h3 class="mb-16">默认模型配置</h3>
+      <div class="form-row">
+        <div class="form-group"><label>默认 Embedding 模型</label>
+          <select class="select" style="width:100%;"><option>BGE-M3</option><option>text-embedding-3-large</option><option>Jina Embeddings v3</option></select>
+        </div>
+        <div class="form-group"><label>默认 LLM 模型</label>
+          <select class="select" style="width:100%;"><option>GPT-4o</option><option>Claude 3.5 Sonnet</option><option>Qwen-72B</option><option>DeepSeek-V3</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Reranker 模型</label>
+          <select class="select" style="width:100%;"><option>bge-reranker-v2-m3</option><option>Cohere Rerank</option></select>
+        </div>
+        <div class="form-group"><label>Temperature</label><input class="input" type="number" value="0.3" step="0.1"></div>
+      </div>
+      <button class="btn btn-primary mt-16">保存</button>
+    </div>
+  </div>
+
+  <div id="cfg-retrieval" style="display:none;">
+    <div class="card">
+      <h3 class="mb-16">检索参数</h3>
+      <div class="form-row">
+        <div class="form-group"><label>top-K（初始检索）</label><input class="input" type="number" value="20"></div>
+        <div class="form-group"><label>top-50（RRF 融合后）</label><input class="input" type="number" value="50"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>top-N（精排后送入 LLM）</label><input class="input" type="number" value="5"></div>
+        <div class="form-group"><label>拒答阈值</label><input class="input" type="number" value="0.3" step="0.05"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>RRF 平滑常数 k</label><input class="input" type="number" value="60"></div>
+        <div class="form-group"><label>多轮上下文轮数</label><input class="input" type="number" value="10"></div>
+      </div>
+      <button class="btn btn-primary mt-16">保存</button>
+    </div>
+  </div>
+
+  <div id="cfg-cache" style="display:none;">
+    <div class="card">
+      <h3 class="mb-16">缓存策略</h3>
+      <div class="form-row">
+        <div class="form-group"><label>查询缓存过期时间</label><input class="input" value="24" style="width:80px;display:inline;"> 小时</div>
+        <div class="form-group"><label>Embedding 缓存过期时间</label><input class="input" value="7" style="width:80px;display:inline;"> 天</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>会话超时时间</label><input class="input" value="30" style="width:80px;display:inline;"> 分钟</div>
+        <div class="form-group"><label>Redis 地址</label><input class="input" value="redis://127.0.0.1:6379/0"></div>
+      </div>
+      <button class="btn btn-primary mt-16">保存</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- end main-content -->
+
+<!-- ==================== Modals ==================== -->
+<div id="modal-overlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this)hideModal()">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<script>
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.prototype-nav a').forEach(a => a.classList.remove('active'));
+  document.querySelectorAll('.prototype-nav a').forEach(a => {
+    if (a.getAttribute('onclick') && a.getAttribute('onclick').includes(id)) a.classList.add('active');
+  });
+  window.scrollTo(0, 0);
+}
+
+function switchTab(el, targetId) {
+  el.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const parent = el.closest('.screen') || el.closest('#kb-detail');
+  if (!parent) return;
+  // Hide all sibling tab contents
+  let sibling = targetId;
+  const ids = ['kb-tab-docs','kb-tab-perm','kb-tab-settings','kb-tab-stats','perm-roles','perm-kb-access','cfg-general','cfg-model','cfg-retrieval','cfg-cache'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  document.getElementById(targetId).style.display = 'block';
+}
+
+function toggleChunkConfig(val) {
+  document.getElementById('chunk-config-fixed').style.display = val === 'fixed' ? 'block' : 'none';
+  document.getElementById('chunk-config-structural').style.display = val === 'structural' ? 'block' : 'none';
+}
+
+function showModal(type) {
+  const overlay = document.getElementById('modal-overlay');
+  const content = document.getElementById('modal-content');
+  if (type === 'create-kb') {
+    content.innerHTML = `
+      <div class="modal-header"><span>创建知识库</span><span style="cursor:pointer;" onclick="hideModal()">✕</span></div>
+      <div class="modal-body">
+        <div class="form-group"><label>知识库名称</label><input class="input" placeholder="请输入知识库名称"></div>
+        <div class="form-group"><label>描述</label><textarea class="input" rows="3" placeholder="请描述知识库用途" style="resize:vertical;"></textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label>Embedding 模型</label><select class="select" style="width:100%;"><option>BGE-M3</option><option>text-embedding-3-large</option></select></div>
+          <div class="form-group"><label>LLM 模型</label><select class="select" style="width:100%;"><option>GPT-4o</option><option>Claude 3.5 Sonnet</option></select></div>
+        </div>
+        <div class="form-group"><label>初始管理员</label><select class="select" style="width:100%;"><option>admin（系统管理员）</option><option>zhangsan（张工）</option></select></div>
+      </div>
+      <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="hideModal()">创建</button></div>`;
+  } else if (type === 'add-dept-access') {
+    content.innerHTML = `
+      <div class="modal-header"><span>添加部门授权</span><span style="cursor:pointer;" onclick="hideModal()">✕</span></div>
+      <div class="modal-body">
+        <div class="form-group"><label>选择部门</label><select class="select" style="width:100%;"><option>产品中心</option><option>管理中心</option><option>行政部</option></select></div>
+        <div class="form-group"><label>角色</label><select class="select" style="width:100%;"><option>viewer（访问者）</option><option>editor（编辑者）</option><option>admin（管理员）</option></select></div>
+        <label style="font-size:13px;color:#666;"><input type="checkbox" checked> 包含下级部门（继承）</label>
+      </div>
+      <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="hideModal()">确认</button></div>`;
+  } else if (type === 'add-user-access') {
+    content.innerHTML = `
+      <div class="modal-header"><span>添加用户授权</span><span style="cursor:pointer;" onclick="hideModal()">✕</span></div>
+      <div class="modal-body">
+        <div class="form-group"><label>搜索用户</label><input class="input" placeholder="输入用户名或姓名搜索"></div>
+        <div class="form-group"><label>角色</label><select class="select" style="width:100%;"><option>viewer（访问者）</option><option>editor（编辑者）</option><option>admin（管理员）</option></select></div>
+      </div>
+      <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="hideModal()">确认</button></div>`;
+  }
+  overlay.style.display = 'flex';
+}
+
+function hideModal() {
+  document.getElementById('modal-overlay').style.display = 'none';
+}
+</script>
+</body>
+</html>
