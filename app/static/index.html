@@ -393,21 +393,13 @@ table tr:hover td{background:#fafafa}
           <option value="structural">结构分析分块</option>
         </select>
       </div>
-      <!-- 固定长度配置 -->
-      <div id="chunk-config-fixed" style="display:none;">
+      <!-- 固定/语义共用参数 -->
+      <div id="chunk-config-size">
         <div class="form-row">
           <div class="form-group"><label>Chunk 大小（字符数）</label><input class="input" type="number" value="512" id="chunk-size"></div>
           <div class="form-group"><label>Overlap（字符数）</label><input class="input" type="number" value="64" id="chunk-overlap"></div>
         </div>
-        <div class="text-muted">按固定字符数硬切，支持重叠</div>
-      </div>
-      <!-- 语义分块配置 -->
-      <div id="chunk-config-semantic">
-        <div class="form-row">
-          <div class="form-group"><label>Chunk 大小（字符数）</label><input class="input" type="number" value="512" id="chunk-size"></div>
-          <div class="form-group"><label>Overlap（字符数）</label><input class="input" type="number" value="64" id="chunk-overlap"></div>
-        </div>
-        <div class="text-muted">按句子边界拆分，保证语义完整，块间按完整句子重叠</div>
+        <div id="chunk-config-hint" class="text-muted">按句子边界拆分，保证语义完整，块间按完整句子重叠</div>
       </div>
       <!-- 结构分析配置 -->
       <div id="chunk-config-structural" style="display:none;">
@@ -1196,9 +1188,12 @@ function handleFile(file) {
 }
 
 function toggleChunkConfig(type) {
-  document.getElementById('chunk-config-fixed').style.display = type === 'fixed' ? 'block' : 'none';
-  document.getElementById('chunk-config-semantic').style.display = type === 'semantic' ? 'block' : 'none';
+  const showSize = type !== 'structural';
+  document.getElementById('chunk-config-size').style.display = showSize ? 'block' : 'none';
   document.getElementById('chunk-config-structural').style.display = type === 'structural' ? 'block' : 'none';
+  const hint = document.getElementById('chunk-config-hint');
+  if(type === 'fixed') hint.textContent = '按固定字符数硬切，支持重叠';
+  else if(type === 'semantic') hint.textContent = '按句子边界拆分，保证语义完整，块间按完整句子重叠';
 }
 
 let lastUploadedFile = null;
@@ -1299,6 +1294,11 @@ function resetUpload() {
   document.getElementById('selected-files').innerHTML = '';
   document.getElementById('step1-next').disabled = true;
   document.getElementById('file-input').value = '';
+  document.getElementById('upload-result').innerHTML = '';
+  document.getElementById('upload-result').style.display = 'none';
+  document.getElementById('upload-actions').style.display = 'none';
+  document.getElementById('upload-progress-bar').style.width = '0%';
+  document.getElementById('upload-progress-text').textContent = '0%';
   goUploadStep(1);
 }
 
