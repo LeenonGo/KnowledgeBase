@@ -387,25 +387,35 @@ table tr:hover td{background:#fafafa}
       <h3 class="mb-16">分块策略配置</h3>
       <div class="form-group">
         <label>分块策略</label>
-        <select class="select" style="width:100%;" onchange="toggleChunkConfig(this.value)">
-          <option value="fixed">固定长度 + Overlap（推荐）</option>
+        <select class="select" style="width:100%;" id="chunk-strategy" onchange="toggleChunkConfig(this.value)">
+          <option value="fixed">固定长度 + Overlap</option>
+          <option value="semantic" selected>语义分块（推荐）</option>
           <option value="structural">结构分析分块</option>
-          <option value="semantic">语义分块（P1）</option>
         </select>
       </div>
-      <div id="chunk-config-fixed">
+      <!-- 固定长度配置 -->
+      <div id="chunk-config-fixed" style="display:none;">
         <div class="form-row">
-          <div class="form-group"><label>Chunk 大小（tokens）</label><input class="input" type="number" value="512" id="chunk-size"></div>
-          <div class="form-group"><label>Overlap（tokens）</label><input class="input" type="number" value="64" id="chunk-overlap"></div>
+          <div class="form-group"><label>Chunk 大小（字符数）</label><input class="input" type="number" value="512" id="chunk-size"></div>
+          <div class="form-group"><label>Overlap（字符数）</label><input class="input" type="number" value="64" id="chunk-overlap"></div>
         </div>
-        <div class="text-muted">默认 512 tokens / 64 tokens overlap</div>
+        <div class="text-muted">按固定字符数硬切，支持重叠</div>
       </div>
+      <!-- 语义分块配置 -->
+      <div id="chunk-config-semantic">
+        <div class="form-row">
+          <div class="form-group"><label>Chunk 大小（字符数）</label><input class="input" type="number" value="512" id="chunk-size"></div>
+          <div class="form-group"><label>Overlap（字符数）</label><input class="input" type="number" value="64" id="chunk-overlap"></div>
+        </div>
+        <div class="text-muted">按句子边界拆分，保证语义完整，块间按完整句子重叠</div>
+      </div>
+      <!-- 结构分析配置 -->
       <div id="chunk-config-structural" style="display:none;">
         <div class="form-row">
-          <div class="form-group"><label>最大 Chunk 大小（tokens）</label><input class="input" type="number" value="1024"></div>
-          <div class="form-group"><label>切分层级</label><select class="select" style="width:100%;"><option>H2 及以上</option><option>H3 及以上</option></select></div>
+          <div class="form-group"><label>最大 Chunk 大小（字符数）</label><input class="input" type="number" value="1024" id="structural-chunk-size"></div>
+          <div class="form-group"><label>切分层级</label><select class="select" style="width:100%;" id="structural-heading-level"><option value="2">H2 及以上</option><option value="3">H3 及以上</option></select></div>
         </div>
-        <div class="text-muted">基于标题层级切分，保留 heading_path 元数据</div>
+        <div class="text-muted">基于 Markdown 标题层级切分，超长段落自动二次拆分</div>
       </div>
       <div class="divider"></div>
       <h3 class="mb-16">已选择文件</h3>
@@ -1187,6 +1197,7 @@ function handleFile(file) {
 
 function toggleChunkConfig(type) {
   document.getElementById('chunk-config-fixed').style.display = type === 'fixed' ? 'block' : 'none';
+  document.getElementById('chunk-config-semantic').style.display = type === 'semantic' ? 'block' : 'none';
   document.getElementById('chunk-config-structural').style.display = type === 'structural' ? 'block' : 'none';
 }
 
@@ -1228,8 +1239,15 @@ async function doUpload() {
   const fd = new FormData();
   fd.append('file', selectedFile);
   if(currentKbId) fd.append('kb_id', currentKbId);
-  fd.append('chunk_size', document.getElementById('chunk-size').value || '512');
-  fd.append('chunk_overlap', document.getElementById('chunk-overlap').value || '64');
+  const strategy = document.getElementById('chunk-strategy').value || 'semantic';
+  fd.append('chunk_strategy', strategy);
+  if(strategy === 'structural') {
+    fd.append('chunk_size', document.getElementById('structural-chunk-size').value || '1024');
+    fd.append('heading_level', document.getElementById('structural-heading-level').value || '2');
+  } else {
+    fd.append('chunk_size', document.getElementById('chunk-size').value || '512');
+    fd.append('chunk_overlap', document.getElementById('chunk-overlap').value || '64');
+  }
 
   try {
     const xhr = new XMLHttpRequest();
