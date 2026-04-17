@@ -178,18 +178,19 @@ table tr:hover td{background:#fafafa}
   </div>
   <div class="side-section">
     <div class="side-section-title">管理</div>
-    <a onclick="nav('user-mgmt')">👥 用户管理</a>
-    <a onclick="nav('dept-tree')">🏢 部门管理</a>
-    <a onclick="nav('perm-mgmt')">🔑 权限管理</a>
+    <a onclick="nav('user-mgmt')" id="menu-users">👥 用户管理</a>
+    <a onclick="nav('dept-tree')" id="menu-depts">🏢 部门管理</a>
+    <a onclick="nav('perm-mgmt')" id="menu-perms">🔑 权限管理</a>
   </div>
   <div class="side-section">
     <div class="side-section-title">运维</div>
     <a onclick="nav('audit-log')">📋 审计日志</a>
-    <a onclick="nav('quality')">📈 质量监控</a>
-    <a onclick="nav('sys-config')">⚙️ 系统配置</a>
+    <a onclick="nav('quality')" id="menu-quality">📈 质量监控</a>
+    <a onclick="nav('sys-config')" id="menu-config">⚙️ 系统配置</a>
   </div>
   <div style="padding:12px 20px;border-top:1px solid rgba(255,255,255,.1);margin-top:auto;position:absolute;bottom:0;width:100%;">
-    <a onclick="logout()" style="padding:0;border:none;color:rgba(255,255,255,.5);font-size:12px;">🚪 退出登录</a>
+    <div style="padding:8px 20px;font-size:12px;color:rgba(255,255,255,.45);border-top:1px solid rgba(255,255,255,.1);margin-top:8px;">👤 <span id="current-user"></span></div>
+    <a onclick="logout()" style="padding:0 20px;border:none;color:rgba(255,255,255,.5);font-size:12px;cursor:pointer;">🚪 退出登录</a>
   </div>
 </nav>
 
@@ -282,7 +283,7 @@ table tr:hover td{background:#fafafa}
     <div class="tab active" onclick="switchTab(this,'kb-tab-docs')">文档管理</div>
     <div class="tab" onclick="switchTab(this,'kb-tab-perm')">权限设置</div>
     <div class="tab" onclick="switchTab(this,'kb-tab-settings')">知识库设置</div>
-    <div class="tab" onclick="switchTab(this,'kb-tab-stats')">统计分析</div>
+
   </div>
   <!-- KB Tab: Documents -->
   <div id="kb-tab-docs">
@@ -293,25 +294,31 @@ table tr:hover td{background:#fafafa}
           <select class="select"><option>全部类型</option><option>PDF</option><option>Word</option><option>Markdown</option><option>TXT</option></select>
           <select class="select"><option>全部状态</option><option>已索引</option><option>索引中</option><option>失败</option></select>
         </div>
-        <button class="btn btn-primary" onclick="nav('doc-upload')">⬆️ 上传文档</button>
+        <button class="btn btn-primary kb-edit-only" onclick="nav('doc-upload')">⬆️ 上传文档</button>
       </div>
       <table>
         <tr><th>文档名称</th><th>大小</th><th>Chunks</th><th>状态</th><th>操作</th></tr>
         <tbody id="doc-table-body"><tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">暂无文档</td></tr></tbody>
       </table>
     </div>
+    <div class="stats-row" style="margin-top:16px;">
+      <div class="stat-card"><div class="label">总文档数</div><div class="value" id="kb-stat-docs">0</div></div>
+      <div class="stat-card"><div class="label">总 Chunks</div><div class="value" id="kb-stat-chunks">0</div></div>
+      <div class="stat-card"><div class="label">授权部门数</div><div class="value" id="kb-stat-depts">0</div></div>
+      <div class="stat-card"><div class="label">创建时间</div><div class="value" id="kb-stat-created" style="font-size:14px;">--</div></div>
+    </div>
   </div>
   <!-- KB Tab: Permissions -->
   <div id="kb-tab-perm" style="display:none;">
     <div class="card">
-      <div class="card-header"><h3>部门授权</h3><button class="btn btn-primary btn-sm" onclick="showModal('add-dept-access')">＋ 添加部门</button></div>
-      <table><tr><th>部门</th><th>角色</th><th>授权方式</th><th>操作时间</th><th>操作</th></tr>
-        <tbody><tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">暂无部门授权（P1 实现）</td></tr></tbody></table>
+      <div class="card-header"><h3>部门授权</h3><button class="btn btn-primary btn-sm kb-admin-only" onclick="showAddDeptAccess()">＋ 添加部门</button></div>
+      <table><tr><th>部门</th><th>角色</th><th>操作</th></tr>
+        <tbody id="kb-dept-access-body"><tr><td colspan="3" style="text-align:center;padding:40px;color:#999;">加载中...</td></tr></tbody></table>
     </div>
     <div class="card">
-      <div class="card-header"><h3>用户授权</h3><button class="btn btn-primary btn-sm" onclick="showModal('add-user-access')">＋ 添加用户</button></div>
-      <table><tr><th>用户</th><th>所属部门</th><th>角色</th><th>操作时间</th><th>操作</th></tr>
-        <tbody><tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">暂无用户授权（P1 实现）</td></tr></tbody></table>
+      <div class="card-header"><h3>用户授权（覆盖部门权限）</h3><button class="btn btn-primary btn-sm kb-admin-only" onclick="showAddUserAccess()">＋ 添加用户</button></div>
+      <table><tr><th>用户</th><th>所属部门</th><th>个人角色</th><th>操作</th></tr>
+        <tbody id="kb-user-access-body"><tr><td colspan="4" style="text-align:center;padding:40px;color:#999;">加载中...</td></tr></tbody></table>
     </div>
   </div>
   <!-- KB Tab: Settings -->
@@ -320,34 +327,16 @@ table tr:hover td{background:#fafafa}
       <h3 class="mb-16">知识库基本信息</h3>
       <div class="form-row">
         <div class="form-group"><label>知识库名称</label><input class="input" id="kb-set-name" value=""></div>
-        <div class="form-group"><label>状态</label><select class="select" style="width:100%;"><option>活跃</option><option>归档</option><option>维护</option></select></div>
+        <div class="form-group"><label>状态</label><select class="select" style="width:100%;" id="kb-set-status"><option value="active">活跃</option><option value="archived">归档</option></select></div>
       </div>
       <div class="form-group"><label>描述</label><textarea class="input" rows="3" style="resize:vertical;" id="kb-set-desc"></textarea></div>
       <div class="divider"></div>
       <h3 class="mb-16">模型配置</h3>
       <div class="form-row">
-        <div class="form-group"><label>Embedding 模型</label><select class="select" style="width:100%;"><option>text-embedding-v3</option><option>BGE-M3</option><option>text-embedding-3-large</option></select></div>
-        <div class="form-group"><label>LLM 模型</label><select class="select" style="width:100%;"><option>qwen3.6-plus</option><option>GPT-4o</option><option>DeepSeek-V3</option></select></div>
+        <div class="form-group"><label>Embedding 模型</label><input class="input" id="kb-set-emb-model" placeholder="如 text-embedding-v3"></div>
+        <div class="form-group"><label>LLM 模型</label><input class="input" id="kb-set-llm-model" placeholder="如 qwen3.6-plus"></div>
       </div>
-      <div class="form-row">
-        <div class="form-group"><label>Temperature</label><input class="input" type="number" value="0.3" step="0.1" min="0" max="2"></div>
-        <div class="form-group"><label>Reranker 模型</label><select class="select" style="width:100%;"><option>bge-reranker-v2-m3</option><option>Cohere Rerank</option></select></div>
-      </div>
-      <button class="btn btn-primary mt-16">保存设置</button>
-    </div>
-  </div>
-  <!-- KB Tab: Stats -->
-  <div id="kb-tab-stats" style="display:none;">
-    <div class="stats-row">
-      <div class="stat-card"><div class="label">总文档数</div><div class="value" id="kb-stat-docs">0</div></div>
-      <div class="stat-card"><div class="label">总 Chunks</div><div class="value" id="kb-stat-chunks">0</div></div>
-      <div class="stat-card"><div class="label">本周问答</div><div class="value">--</div></div>
-      <div class="stat-card"><div class="label">平均延迟</div><div class="value">--</div></div>
-    </div>
-    <div class="card">
-      <h3 class="mb-16">📊 高频引用文档 Top 5</h3>
-      <table><tr><th>#</th><th>文档名</th><th>引用次数</th><th>占比</th></tr>
-        <tbody><tr><td colspan="4" style="text-align:center;padding:40px;color:#999;">暂无统计数据（P1 实现）</td></tr></tbody></table>
+      <button class="btn btn-primary mt-16 kb-admin-only" onclick="saveKBSettings()">保存设置</button>
     </div>
   </div>
 </div>
@@ -489,49 +478,34 @@ table tr:hover td{background:#fafafa}
   <div class="screen-title" style="justify-content:space-between;">
     <span>👥 用户管理</span>
     <div class="flex gap-8">
-      <button class="btn">📥 批量导入</button>
-      <button class="btn btn-primary" onclick="showModal('create-user')">＋ 创建用户</button>
+      <button class="btn btn-primary" onclick="showCreateUserModal()">＋ 创建用户</button>
     </div>
   </div>
   <div class="card">
     <div class="flex-between mb-16">
       <div class="flex gap-12">
-        <input class="input" placeholder="搜索用户名/姓名..." style="width:240px;">
-        <select class="select"><option>全部部门</option><option>技术中心</option><option>研发中心</option><option>产品中心</option></select>
-        <select class="select"><option>全部状态</option><option>启用</option><option>禁用</option></select>
-        <select class="select"><option>全部角色</option><option>super_admin</option><option>kb_admin</option><option>user</option></select>
+        <input class="input" placeholder="搜索用户名/姓名..." style="width:240px;" id="user-search" oninput="filterUsers()">
+        <select class="select" id="user-dept-filter" onchange="filterUsers()"><option value="">全部部门</option></select>
+        <select class="select" id="user-role-filter" onchange="filterUsers()">
+          <option value="">全部角色</option>
+          <option value="super_admin">super_admin</option>
+          <option value="kb_admin">kb_admin</option>
+          <option value="user">user</option>
+        </select>
+        <select class="select" id="user-status-filter" onchange="filterUsers()">
+          <option value="">全部状态</option>
+          <option value="active">启用</option>
+          <option value="disabled">禁用</option>
+        </select>
       </div>
+      <span class="text-muted" id="user-count"></span>
     </div>
     <table>
-      <tr><th>用户</th><th>用户名</th><th>部门</th><th>岗位</th><th>系统角色</th><th>状态</th><th>最后登录</th><th>操作</th></tr>
-      <tbody>
-        <tr>
-          <td><div class="flex gap-8" style="align-items:center;"><div class="avatar" style="background:#1890ff;">管</div><span>管理员</span></div></td>
-          <td>admin</td><td>技术中心</td><td>IT 负责人</td>
-          <td><span class="tag tag-purple">super_admin</span></td>
-          <td><span class="tag tag-green">启用</span></td>
-          <td>2026-04-13 10:32</td>
-          <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm">角色</button></td>
-        </tr>
-        <tr>
-          <td><div class="flex gap-8" style="align-items:center;"><div class="avatar" style="background:#52c41a;">张</div><span>张工</span></div></td>
-          <td>zhangsan</td><td>研发中心</td><td>高级工程师</td>
-          <td><span class="tag tag-blue">kb_admin</span></td>
-          <td><span class="tag tag-green">启用</span></td>
-          <td>2026-04-13 09:15</td>
-          <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm">角色</button></td>
-        </tr>
-        <tr>
-          <td><div class="flex gap-8" style="align-items:center;"><div class="avatar" style="background:#fa8c16;">李</div><span>李工</span></div></td>
-          <td>lisi</td><td>研发中心</td><td>工程师</td>
-          <td><span class="tag tag-green">user</span></td>
-          <td><span class="tag tag-green">启用</span></td>
-          <td>2026-04-12 16:20</td>
-          <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm">角色</button></td>
-        </tr>
+      <thead><tr><th>用户</th><th>用户名</th><th>部门</th><th>岗位</th><th>系统角色</th><th>状态</th><th>最后登录</th><th>操作</th></tr></thead>
+      <tbody id="user-table-body">
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:#999;">加载中...</td></tr>
       </tbody>
     </table>
-    <div class="pagination"><div class="page-btn active">1</div><div class="page-btn">2</div><div class="page-btn">›</div></div>
   </div>
 </div>
 
@@ -559,42 +533,38 @@ table tr:hover td{background:#fafafa}
 <div id="perm-mgmt" class="screen">
   <div class="screen-title">🔑 权限管理</div>
   <div class="tabs">
-    <div class="tab active" onclick="switchTab(this,'perm-tab-roles')">角色管理</div>
-    <div class="tab" onclick="switchTab(this,'perm-tab-access')">知识库授权矩阵</div>
+    <div class="tab active">角色权限</div>
   </div>
   <div id="perm-tab-roles">
     <div class="card">
-      <div class="card-header"><h3>系统角色定义</h3><button class="btn btn-primary btn-sm" onclick="showModal('create-role')">＋ 新建角色</button></div>
+      <h3 class="mb-16">系统角色权限说明</h3>
       <table>
-        <tr><th>角色名</th><th>描述</th><th>功能权限</th><th>优先级</th><th>操作</th></tr>
-        <tr>
-          <td><span class="tag tag-purple">super_admin</span></td>
-          <td>超级管理员，拥有系统全部权限</td>
-          <td>所有功能</td>
-          <td><span class="tag tag-red">最高</span></td>
-          <td><button class="btn btn-sm">编辑</button></td>
-        </tr>
-        <tr>
-          <td><span class="tag tag-blue">kb_admin</span></td>
-          <td>知识库管理员，管理特定知识库</td>
-          <td>文档上传、删除、检索、知识配置</td>
-          <td><span class="tag tag-orange">中等</span></td>
-          <td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm btn-danger">删除</button></td>
-        </tr>
-        <tr>
-          <td><span class="tag tag-green">user</span></td>
-          <td>普通用户，只能检索问答</td>
-          <td>检索、提问、查看回答</td>
-          <td><span class="tag tag-gray">最低</span></td>
-          <td><button class="btn btn-sm">编辑</button></td>
-        </tr>
+        <tr><th>功能</th><th><span class="tag tag-purple">super_admin</span></th><th><span class="tag tag-blue">kb_admin</span></th><th><span class="tag tag-green">user</span></th></tr>
+        <tr><td>仪表盘</td><td>✅</td><td>✅</td><td>✅</td></tr>
+        <tr><td>知识库管理（创建/删除）</td><td>✅</td><td>✅</td><td>❌</td></tr>
+        <tr><td>文档上传/删除</td><td>✅</td><td>✅</td><td>❌</td></tr>
+        <tr><td>智能问答</td><td>✅</td><td>✅</td><td>✅</td></tr>
+        <tr><td>用户管理</td><td>✅</td><td>❌</td><td>❌</td></tr>
+        <tr><td>部门管理</td><td>✅</td><td>❌</td><td>❌</td></tr>
+        <tr><td>权限管理</td><td>✅</td><td>❌</td><td>❌</td></tr>
+        <tr><td>审计日志</td><td>✅</td><td>❌</td><td>❌</td></tr>
+        <tr><td>系统配置</td><td>✅</td><td>❌</td><td>❌</td></tr>
       </table>
     </div>
-  </div>
-  <div id="perm-tab-access" style="display:none;">
     <div class="card">
-      <h3 class="mb-16">知识库权限配置（P1 实现）</h3>
-      <div class="text-muted" style="padding:40px;text-align:center;">暂无数据，待实现</div>
+      <h3 class="mb-16">各角色用户</h3>
+      <div class="flex gap-12 mb-16">
+        <select class="select" id="perm-role-filter" onchange="loadPermUsers()">
+          <option value="">全部角色</option>
+          <option value="super_admin">super_admin</option>
+          <option value="kb_admin">kb_admin</option>
+          <option value="user">user</option>
+        </select>
+      </div>
+      <table>
+        <thead><tr><th>用户名</th><th>姓名</th><th>部门</th><th>角色</th><th>状态</th></tr></thead>
+        <tbody id="perm-user-body"><tr><td colspan="5" style="text-align:center;padding:20px;color:#999;">加载中...</td></tr></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -605,18 +575,25 @@ table tr:hover td{background:#fafafa}
   <div class="card">
     <div class="flex-between mb-16">
       <div class="flex gap-12">
-        <input class="input" placeholder="搜索操作内容..." style="width:240px;">
-        <select class="select"><option>全部操作类型</option><option>登录</option><option>上传文档</option><option>删除文档</option><option>查询问题</option></select>
-        <select class="select"><option>全部用户</option></select>
-        <input class="input" type="date" style="width:180px;">
-        <input class="input" type="date" style="width:180px;">
-        <button class="btn btn-primary">筛选</button>
+        <select class="select" id="audit-action-filter">
+          <option value="">全部操作类型</option>
+          <option value="login">登录</option>
+          <option value="upload">上传文档</option>
+          <option value="delete_doc">删除文档</option>
+          <option value="query">查询问题</option>
+          <option value="create_kb">创建知识库</option>
+          <option value="delete_kb">删除知识库</option>
+          <option value="create_user">创建用户</option>
+          <option value="delete_user">删除用户</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadAuditLogs()">筛选</button>
       </div>
+      <span class="text-muted" id="audit-count"></span>
     </div>
     <table>
-      <tr><th>时间</th><th>用户</th><th>IP 地址</th><th>操作类型</th><th>详情</th><th>状态</th></tr>
-      <tbody>
-        <tr><td colspan="6" style="text-align:center;padding:40px;color:#999;">暂无数据（P1 实现）</td></tr>
+      <thead><tr><th>时间</th><th>用户</th><th>IP 地址</th><th>操作类型</th><th>资源</th><th>详情</th><th>状态</th></tr></thead>
+      <tbody id="audit-log-body">
+        <tr><td colspan="7" style="text-align:center;padding:40px;color:#999;">加载中...</td></tr>
       </tbody>
     </table>
   </div>
@@ -885,17 +862,26 @@ table tr:hover td{background:#fafafa}
 
 <!-- Create User Modal -->
 <div id="modal-create-user" class="modal" style="display:none;">
-  <div class="modal-header"><span>创建用户</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-header"><span id="user-modal-title">创建用户</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
   <div class="modal-body">
+    <input type="hidden" id="edit-user-id" value="">
     <div class="form-row">
       <div class="form-group"><label>用户名 *</label><input class="input" id="new-user-username" placeholder="请输入用户名"></div>
       <div class="form-group"><label>显示姓名 *</label><input class="input" id="new-user-name" placeholder="请输入姓名"></div>
     </div>
-    <div class="form-group"><label>邮箱</label><input class="input" type="email" id="new-user-email" placeholder="请输入邮箱"></div>
-    <div class="form-group"><label>所属部门</label><select class="select" style="width:100%" id="new-user-dept"></select></div>
-    <div class="form-group"><label>系统角色</label><select class="select" style="width:100%"><option>user</option><option>kb_admin</option></select></div>
+    <div class="form-group" id="password-field">
+      <label>密码</label><input class="input" type="password" id="new-user-password" placeholder="留空则默认 123456">
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>邮箱</label><input class="input" type="email" id="new-user-email" placeholder="请输入邮箱"></div>
+      <div class="form-group"><label>岗位</label><input class="input" id="new-user-position" placeholder="请输入岗位"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>所属部门</label><select class="select" style="width:100%" id="new-user-dept"></select></div>
+      <div class="form-group"><label>系统角色</label><select class="select" style="width:100%" id="new-user-role"><option value="user">user</option><option value="kb_admin">kb_admin</option><option value="super_admin">super_admin</option></select></div>
+    </div>
   </div>
-  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="createUser()">创建</button></div>
+  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" id="user-modal-btn" onclick="saveUser()">创建</button></div>
 </div>
 
 <!-- Add Dept Access Modal -->
@@ -903,19 +889,20 @@ table tr:hover td{background:#fafafa}
   <div class="modal-header"><span>添加部门授权</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
   <div class="modal-body">
     <div class="form-group"><label>选择部门</label><select class="select" style="width:100%" id="dept-access-dept"></select></div>
-    <div class="form-group"><label>角色</label><select class="select" style="width:100%"><option value="admin">管理员</option><option value="viewer">查看者</option></select></div>
+    <div class="form-group"><label>角色</label><select class="select" style="width:100%" id="dept-access-role"><option value="admin">管理员</option><option value="editor">编辑者</option><option value="viewer">查看者</option></select></div>
   </div>
   <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="addDeptAccess()">添加</button></div>
 </div>
 
 <!-- Add User Access Modal -->
-<div id="modal-add-user-access" class="modal" style="display:none;">
+<!-- Add KB User Access Modal -->
+<div id="modal-add-kb-user-access" class="modal" style="display:none;">
   <div class="modal-header"><span>添加用户授权</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
   <div class="modal-body">
-    <div class="form-group"><label>选择用户</label><select class="select" style="width:100%" id="user-access-user"></select></div>
-    <div class="form-group"><label>角色</label><select class="select" style="width:100%"><option value="admin">管理员</option><option value="viewer">查看者</option></select></div>
+    <div class="form-group"><label>选择用户</label><select class="select" style="width:100%" id="kb-user-select"></select></div>
+    <div class="form-group"><label>角色</label><select class="select" style="width:100%" id="kb-user-role"><option value="viewer">查看者</option><option value="editor">编辑者</option><option value="admin">管理员</option></select></div>
   </div>
-  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="addUserAccess()">添加</button></div>
+  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="addKBUserAccess()">添加</button></div>
 </div>
 
 
@@ -942,7 +929,54 @@ table tr:hover td{background:#fafafa}
 
 <!-- ============= JavaScript ============= -->
 <script>
+// ─── Token 管理 + 全局 fetch 拦截 ──────────────
+(function() {
+  const _origFetch = window.fetch;
+  window.fetch = function(url, opts) {
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    // 只拦截 /api/ 请求，登录接口除外
+    if(typeof url === 'string' && url.startsWith('/api/') && !url.startsWith('/api/login')) {
+      const token = localStorage.getItem('kb_token');
+      if(token) {
+        if(opts.headers instanceof Headers) {
+          opts.headers.set('Authorization', 'Bearer ' + token);
+        } else {
+          opts.headers['Authorization'] = 'Bearer ' + token;
+        }
+      }
+    }
+    // XMLHttpRequest 也要处理（上传用的 xhr）
+    return _origFetch.call(this, url, opts).then(res => {
+      if(res.status === 401 && !url.toString().includes('/api/login')) {
+        localStorage.removeItem('kb_token');
+        localStorage.removeItem('kb_user');
+        document.getElementById('sidebar').style.display = 'none';
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('login').style.display = 'flex';
+        document.getElementById('login').classList.add('active');
+      }
+      return res;
+    });
+  };
+  // 拦截 XMLHttpRequest（上传接口）
+  const _origOpen = XMLHttpRequest.prototype.open;
+  const _origSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    this._url = url;
+    return _origOpen.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.send = function(body) {
+    if(this._url && this._url.startsWith('/api/')) {
+      const token = localStorage.getItem('kb_token');
+      if(token) this.setRequestHeader('Authorization', 'Bearer ' + token);
+    }
+    return _origSend.apply(this, arguments);
+  };
+})();
+
 let currentKbId = null;
+let currentKbRole = null;
 let kbList = []; // 缓存知识库列表
 let deptList = []; // 缓存部门列表
 let userList = []; // 缓存用户列表
@@ -970,7 +1004,100 @@ function nav(screenName) {
   if(screenName === 'dashboard') loadDashboard();
   if(screenName === 'user-mgmt') loadUserList();
   if(screenName === 'dept-tree') loadDeptTree();
+  if(screenName === 'audit-log') loadAuditLogs();
 }
+
+// ─── 审计日志 ───────────────────────────────────
+async function loadAuditLogs() {
+  const action = document.getElementById('audit-action-filter').value;
+  let url = '/api/audit-logs?limit=50';
+  if(action) url += '&action=' + action;
+  try {
+    const logs = await fetch(url).then(r => r.json());
+    const tbody = document.getElementById('audit-log-body');
+    document.getElementById('audit-count').textContent = logs.length + ' 条记录';
+    if(!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#999;">暂无数据</td></tr>';
+      return;
+    }
+    const actionLabels = {login:'登录',upload:'上传',delete_doc:'删除文档',query:'查询',create_kb:'创建知识库',delete_kb:'删除知识库',create_user:'创建用户',delete_user:'删除用户',config_models:'配置模型',reindex:'重建索引',create_dept:'创建部门',delete_dept:'删除部门'};
+    tbody.innerHTML = logs.map(l => {
+      const time = l.created_at ? l.created_at.replace('T',' ').substring(0,19) : '';
+      const actionLabel = actionLabels[l.action] || l.action;
+      const statusTag = l.status === 'success' ? '<span class="tag tag-green">成功</span>' : '<span class="tag tag-red">失败</span>';
+      return '<tr><td>'+time+'</td><td>'+l.username+'</td><td>'+l.ip_address+'</td><td>'+actionLabel+'</td><td>'+l.resource+'</td><td>'+(l.detail||'')+'</td><td>'+statusTag+'</td></tr>';
+    }).join('');
+  } catch(e) {
+    console.error('加载审计日志失败', e);
+  }
+}
+
+// ─── 权限管理 ───────────────────────────────────
+async function loadPermUsers() {
+  const roleFilter = document.getElementById('perm-role-filter')?.value || '';
+  let users = userList.length ? userList : await loadUsers();
+  if(roleFilter) users = users.filter(u => u.role === roleFilter);
+  const tbody = document.getElementById('perm-user-body');
+  if(!users.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999;">暂无用户</td></tr>';
+    return;
+  }
+  const roleTag = r => r === 'super_admin' ? 'tag-purple' : r === 'kb_admin' ? 'tag-blue' : 'tag-green';
+  tbody.innerHTML = users.map(u =>
+    '<tr><td>'+u.username+'</td><td>'+u.display_name+'</td><td>'+(u.department_name||'-')+'</td>'
+    +'<td><span class="tag '+roleTag(u.role)+'">'+u.role+'</span></td>'
+    +'<td>'+(u.status==='active'?'<span class="tag tag-green">启用</span>':'<span class="tag tag-red">禁用</span>')+'</td></tr>'
+  ).join('');
+}
+
+async function loadPermMatrix() {
+  // 加载知识库列表到下拉
+  let kbs;
+  try { kbs = await fetch('/api/knowledge-bases').then(r => r.json()); } catch(e) { kbs = []; }
+  const sel = document.getElementById('perm-kb-select');
+  sel.innerHTML = '<option value="">选择知识库</option>' + kbs.map(k => '<option value="'+k.id+'">'+k.name+'</option>').join('');
+  // 加载部门和授权
+  let depts;
+  try { depts = await fetch('/api/departments').then(r => r.json()); } catch(e) { depts = []; }
+  let accesses;
+  try { accesses = await fetch('/api/kb-access').then(r => r.json()); } catch(e) { accesses = []; }
+  const tbody = document.getElementById('perm-matrix-body');
+  if(!depts.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:#999;">暂无部门</td></tr>';
+    return;
+  }
+  tbody.innerHTML = depts.map(d => {
+    const access = accesses.find(a => a.department_id === d.id);
+    const role = access ? access.role : '无权限';
+    const roleTag = role === 'admin' ? 'tag-red' : role === 'editor' ? 'tag-orange' : role === 'viewer' ? 'tag-blue' : 'tag-gray';
+    return '<tr><td>'+d.name+'</td><td><span class="tag '+roleTag+'">'+role+'</span></td>'
+      +'<td><select class="select" onchange="updateKBAccess(\''+d.id+'\',this.value)">'
+      +'<option value=""'+(role==='无权限'?' selected':'')+'>无权限</option>'
+      +'<option value="viewer"'+(role==='viewer'?' selected':'')+'>查看者</option>'
+      +'<option value="editor"'+(role==='editor'?' selected':'')+'>编辑者</option>'
+      +'<option value="admin"'+(role==='admin'?' selected':'')+'>管理员</option>'
+      +'</select></td></tr>';
+  }).join('');
+}
+
+async function updateKBAccess(deptId, role) {
+  const kbId = document.getElementById('perm-kb-select').value;
+  if(!kbId) { alert('请先选择知识库'); return; }
+  try {
+    if(role) {
+      await fetch('/api/kb-access', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({kb_id: kbId, department_id: deptId, role})
+      });
+    } else {
+      await fetch('/api/kb-access?kb_id='+kbId+'&department_id='+deptId, {method: 'DELETE'});
+    }
+    loadPermMatrix();
+  } catch(e) { alert('操作失败'); }
+}
+
+
 
 function switchTab(tab, tabId) {
   tab.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -983,21 +1110,65 @@ function switchTab(tab, tabId) {
   document.getElementById(tabId).style.display = 'block';
   // 加载配置
   if(tabId === 'config-tab-model') loadModelConfig();
+  // KB详情Tab数据加载
+  if(tabId === 'kb-tab-perm') { loadKBDeptAccess(); loadKBUserAccess(); }
+  if(tabId === 'kb-tab-settings') loadKBSettings();
+  // 权限管理Tab
+  if(tabId === 'perm-tab-roles') loadPermUsers();
 }
 
 // ─── Login ──────────────────────────────────────
-function doLogin() {
+async function doLogin() {
   const user = document.getElementById('login-user').value.trim();
   const pass = document.getElementById('login-pass').value.trim();
-  if(user && pass) {
-    document.getElementById('sidebar').style.display = 'block';
-    nav('dashboard');
-  } else {
-    alert('请输入用户名和密码');
+  if(!user || !pass) { alert('请输入用户名和密码'); return; }
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: user, password: pass}),
+    });
+    if(!res.ok) {
+      const err = await res.json();
+      alert(err.detail || '登录失败');
+      return;
+    }
+    const data = await res.json();
+    localStorage.setItem('kb_token', data.token);
+    localStorage.setItem('kb_user', JSON.stringify(data.user));
+    showApp();
+  } catch(e) {
+    alert('网络错误: ' + e.message);
+  }
+}
+
+function showApp() {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('sidebar').style.display = 'block';
+  const user = JSON.parse(localStorage.getItem('kb_user') || '{}');
+  const el = document.getElementById('current-user');
+  if(el) el.textContent = (user.display_name || user.username || '') + ' [' + (user.role || '') + ']';
+  applyRoleAccess(user.role);
+  nav('dashboard');
+}
+
+function applyRoleAccess(role) {
+  const isAdmin = role === 'super_admin';
+  const adminMenus = ['menu-users', 'menu-depts', 'menu-perms', 'menu-config', 'menu-quality'];
+  adminMenus.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = isAdmin ? 'block' : 'none';
+  });
+  // user 角色隐藏知识库管理按钮
+  if(role === 'user') {
+    document.querySelectorAll('.kb-admin-only').forEach(el => el.style.display = 'none');
   }
 }
 function logout() {
+  localStorage.removeItem('kb_token');
+  localStorage.removeItem('kb_user');
   document.getElementById('sidebar').style.display = 'none';
+  document.getElementById("login").style.display = "flex";
   nav('login');
 }
 
@@ -1055,10 +1226,10 @@ async function loadDeptTree() {
   card.innerHTML = html;
 }
 
-function fillDeptSelect(selectId) {
+function fillDeptSelect(selectId, selectedId) {
   const sel = document.getElementById(selectId);
   if(!sel) return;
-  sel.innerHTML = deptList.map(d => '<option value="'+d.id+'">'+d.name+'</option>').join('');
+  sel.innerHTML = '<option value="">-- 无 --</option>' + deptList.map(d => '<option value="'+d.id+'"'+(d.id===selectedId?' selected':'')+'>'+d.name+'</option>').join('');
 }
 
 // ─── Users API ──────────────────────────────────
@@ -1068,25 +1239,55 @@ async function loadUsers() {
   return userList;
 }
 
+let allUsers = [];
+
 async function loadUserList() {
-  const users = await loadUsers();
-  const tbody = document.querySelector('#user-mgmt tbody');
-  if(!users.length) {
+  allUsers = await loadUsers();
+  // 填充部门筛选下拉
+  await loadDepts();
+  const deptSel = document.getElementById('user-dept-filter');
+  if(deptSel) {
+    deptSel.innerHTML = '<option value="">全部部门</option>' + deptList.map(d => '<option value="'+d.id+'">'+d.name+'</option>').join('');
+  }
+  filterUsers();
+}
+
+function filterUsers() {
+  const keyword = (document.getElementById('user-search')?.value || '').trim().toLowerCase();
+  const roleFilter = document.getElementById('user-role-filter')?.value || '';
+  const statusFilter = document.getElementById('user-status-filter')?.value || '';
+  const deptFilter = document.getElementById('user-dept-filter')?.value || '';
+  let filtered = allUsers;
+  if(keyword) filtered = filtered.filter(u => u.username.toLowerCase().includes(keyword) || u.display_name.toLowerCase().includes(keyword));
+  if(roleFilter) filtered = filtered.filter(u => u.role === roleFilter);
+  if(statusFilter) filtered = filtered.filter(u => u.status === statusFilter);
+  if(deptFilter) filtered = filtered.filter(u => u.department_id === deptFilter);
+  const tbody = document.getElementById('user-table-body');
+  document.getElementById('user-count').textContent = filtered.length + ' 人';
+  if(!filtered.length) {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#999;">暂无用户</td></tr>';
     return;
   }
-  tbody.innerHTML = users.map(u =>
-    '<tr>'
-    + '<td><div class="flex gap-8" style="align-items:center;"><div class="avatar">'+(u.display_name[0])+'</div><span>'+u.display_name+'</span></div></td>'
-    + '<td>'+u.username+'</td>'
-    + '<td>'+(u.department_name||'-')+'</td>'
-    + '<td>'+(u.position||'-')+'</td>'
-    + '<td><span class="tag tag-'+(u.role==='super_admin'?'purple':u.role==='kb_admin'?'blue':'green')+'">'+u.role+'</span></td>'
-    + '<td><span class="tag tag-green">'+u.status+'</span></td>'
-    + '<td>-</td>'
-    + '<td><button class="btn btn-sm">编辑</button></td>'
-    + '</tr>'
-  ).join('');
+  const avatarColors = ['#1890ff','#52c41a','#fa8c16','#eb2f96','#722ed1','#13c2c2'];
+  tbody.innerHTML = filtered.map((u, i) => {
+    const color = avatarColors[i % avatarColors.length];
+    const roleTag = u.role === 'super_admin' ? 'tag-purple' : u.role === 'kb_admin' ? 'tag-blue' : 'tag-green';
+    const statusTag = u.status === 'active' ? 'tag-green' : 'tag-red';
+    const statusText = u.status === 'active' ? '启用' : '禁用';
+    return '<tr>'
+      + '<td><div class="flex gap-8" style="align-items:center;"><div class="avatar" style="background:'+color+';">'+u.display_name[0]+'</div><span>'+u.display_name+'</span></div></td>'
+      + '<td>'+u.username+'</td>'
+      + '<td>'+(u.department_name||'-')+'</td>'
+      + '<td>'+(u.position||'-')+'</td>'
+      + '<td><span class="tag '+roleTag+'">'+u.role+'</span></td>'
+      + '<td><span class="tag '+statusTag+'">'+statusText+'</span></td>'
+      + '<td>'+(u.last_login ? u.last_login.replace('T',' ').substring(0,16) : '-')+'</td>'
+      + '<td><button class="btn btn-sm" onclick="showEditUserModal(\''+u.id+'\')">编辑</button> '
+      + (u.status === 'active'
+        ? '<button class="btn btn-sm" style="color:#ff4d4f;" onclick="disableUser(\''+u.id+'\',\''+u.username+'\')">禁用</button>'
+        : '<button class="btn btn-sm" onclick="enableUser(\''+u.id+'\',\''+u.username+'\')">启用</button>')
+      + '</td></tr>';
+  }).join('');
 }
 
 function fillUserSelect(selectId) {
@@ -1105,23 +1306,37 @@ async function loadKBList() {
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#999;">暂无知识库，点击右上角创建</td></tr>';
       return;
     }
-    tbody.innerHTML = kbList.map(k =>
-      '<tr>'
-      + '<td><strong>📖 '+k.name+'</strong><br><span class="text-muted">'+(k.description||'')+'</span></td>'
-      + '<td>-</td><td>-</td>'
-      + '<td><span class="tag tag-blue">'+k.embedding_model+'</span></td>'
-      + '<td><span class="tag tag-gray">待配置</span></td>'
-      + '<td><span class="tag tag-green">'+k.status+'</span></td>'
-      + '<td><button class="btn btn-sm" onclick="openKBDetail(\''+k.id+'\',\''+k.name+'\')">管理</button>'
-      + ' <button class="btn btn-sm btn-danger" onclick="deleteKB(\''+k.id+'\')">删除</button></td>'
-      + '</tr>'
-    ).join('');
+    tbody.innerHTML = kbList.map(k => {
+      const roleTag = k.my_role === 'admin' ? '<span class="tag tag-purple">管理员</span>' : k.my_role === 'editor' ? '<span class="tag tag-blue">编辑者</span>' : '<span class="tag tag-gray">查看者</span>';
+      const delBtn = k.my_role === 'admin' ? ' <button class="btn btn-sm btn-danger" onclick="deleteKB(\''+k.id+'\')">删除</button>' : '';
+      return '<tr>'
+        + '<td><strong>📖 '+k.name+'</strong><br><span class="text-muted">'+(k.description||'')+'</span></td>'
+        + '<td>'+(k.doc_count||0)+'</td><td>'+(k.chunk_count||0)+'</td>'
+        + '<td><span class="tag tag-blue">'+k.embedding_model+'</span></td>'
+        + '<td>'+roleTag+'</td>'
+        + '<td><span class="tag tag-green">'+k.status+'</span></td>'
+        + '<td><button class="btn btn-sm" onclick="openKBDetail(\''+k.id+'\',\''+k.name+'\',\''+(k.my_role||'')+'\')">管理</button>'
+        + delBtn+'</td>'
+        + '</tr>';
+    }).join('');
   } catch(e) { console.error(e); }
 }
 
-function openKBDetail(kbId, kbName) {
+function openKBDetail(kbId, kbName, myRole) {
   currentKbId = kbId;
+  currentKbRole = myRole || null;
   document.getElementById('kb-detail-name').textContent = kbName;
+  // 根据权限显示/隐藏按钮
+  const canEdit = myRole === 'admin' || myRole === 'editor';
+  const canAdmin = myRole === 'admin';
+  document.querySelectorAll('.kb-edit-only').forEach(el => el.style.display = canEdit ? '' : 'none');
+  document.querySelectorAll('.kb-admin-only').forEach(el => el.style.display = canAdmin ? '' : 'none');
+  // 重置到文档管理tab
+  const tabs = document.querySelectorAll('#kb-detail-tabs .tab');
+  tabs.forEach((t, i) => { t.classList.toggle('active', i === 0); });
+  document.getElementById('kb-tab-docs').style.display = 'block';
+  document.getElementById('kb-tab-perm').style.display = 'none';
+  document.getElementById('kb-tab-settings').style.display = 'none';
   nav('kb-detail');
   loadKBDocs();
 }
@@ -1135,14 +1350,184 @@ async function loadKBDocs() {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">暂无文档，请上传</td></tr>';
     } else {
       tbody.innerHTML = docs.map(d =>
-        '<tr><td>📎 '+d.filename+'</td><td>-</td><td>'+d.chunks+'</td>'
+        '<tr><td>📎 '+d.filename+'</td><td>'+(d.size||'-')+'</td><td>'+d.chunks+'</td>'
         + '<td><span class="tag tag-green">已索引</span></td>'
-        + '<td class="flex gap-8"><button class="btn btn-sm" onclick="viewChunks(\''+d.filename+'\')">查看分块</button> <button class="btn btn-sm btn-danger" onclick="deleteDoc(\''+d.filename+'\')">删除</button></td></tr>'
+        + '<td class="flex gap-8"><button class="btn btn-sm" onclick="viewChunks(\''+d.filename+'\')">查看分块</button>' + (currentKbRole === 'admin' || currentKbRole === 'editor' ? ' <button class="btn btn-sm btn-danger" onclick="deleteDoc(\''+d.filename+'\')">删除</button>' : '') + '</td></tr>'
       ).join('');
     }
     document.getElementById('kb-stat-docs').textContent = docs.length;
     document.getElementById('kb-stat-chunks').textContent = docs.reduce((a,d)=>a+d.chunks,0);
   } catch(e) { console.error(e); }
+  // 加载部门授权数和创建时间
+  try {
+    const acc = await fetch('/api/kb-access?kb_id='+currentKbId).then(r => r.json());
+    document.getElementById('kb-stat-depts').textContent = acc.length;
+  } catch(e) {}
+  const kb = kbList.find(k => k.id === currentKbId);
+  if(kb) document.getElementById('kb-stat-created').textContent = (kb.created_at||'').substring(0,10);
+}
+
+// ─── KB 权限设置 ──────────────────────────────
+async function loadKBDeptAccess() {
+  console.log('[PERM] loadKBDeptAccess kb='+currentKbId);
+  if(!currentKbId) return;
+  let accesses, depts;
+  try { accesses = await fetch('/api/kb-access?kb_id='+currentKbId).then(r => { console.log('[PERM] fetch result kb='+currentKbId, r.status); return r.json(); }); } catch(e) { console.log('[PERM] fetch error', e); accesses = []; }
+  try { depts = await fetch('/api/departments').then(r => r.json()); } catch(e) { depts = []; }
+  console.log('[PERM] accesses:', JSON.stringify(accesses));
+  const tbody = document.getElementById('kb-dept-access-body');
+  if(!accesses.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:40px;color:#999;">暂无部门授权，点击上方添加</td></tr>';
+    return;
+  }
+  tbody.innerHTML = accesses.map(a => {
+    const dept = depts.find(d => d.id === a.department_id);
+    const name = dept ? dept.name : a.department_id;
+    const roleTag = a.role === 'admin' ? 'tag-purple' : a.role === 'editor' ? 'tag-blue' : 'tag-gray';
+    return '<tr><td>'+name+'</td><td><span class="tag '+roleTag+'">'+a.role+'</span></td>'
+      +'<td><button class="btn btn-sm kb-admin-only" style="color:#ff4d4f;" onclick="removeKBDeptAccess(\''+currentKbId+'\',\''+a.department_id+'\')">移除</button></td></tr>';
+  }).join('');
+}
+
+// ─── KB 用户授权 ──────────────────────────────
+async function loadKBUserAccess() {
+  if(!currentKbId) return;
+  let accesses;
+  try { accesses = await fetch('/api/kb-user-access?kb_id='+currentKbId).then(r => r.json()); } catch(e) { accesses = []; }
+  const tbody = document.getElementById('kb-user-access-body');
+  if(!accesses.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:#999;">暂无个人授权，点击上方添加</td></tr>';
+    return;
+  }
+  tbody.innerHTML = accesses.map(a => {
+    const roleTag = a.role === 'admin' ? 'tag-purple' : a.role === 'editor' ? 'tag-blue' : 'tag-gray';
+    return '<tr><td>'+a.display_name+' ('+a.username+')</td><td>'+(a.department_name||'-')+'</td>'
+      +'<td><select class="select" style="width:auto;" onchange="updateKBUserRole(\''+currentKbId+'\',\''+a.user_id+'\',this.value)">'
+      +'<option value="viewer"'+(a.role==='viewer'?' selected':'')+'>查看者</option>'
+      +'<option value="editor"'+(a.role==='editor'?' selected':'')+'>编辑者</option>'
+      +'<option value="admin"'+(a.role==='admin'?' selected':'')+'>管理员</option>'
+      +'</select></td>'
+      +'<td><button class="btn btn-sm kb-admin-only" style="color:#ff4d4f;" onclick="removeKBUserAccess(\''+currentKbId+'\',\''+a.user_id+'\')">移除</button></td></tr>';
+  }).join('');
+}
+
+async function showAddUserAccess() {
+  if(!currentKbId) return;
+  await loadUsers();
+  let existing;
+  try { existing = await fetch('/api/kb-user-access?kb_id='+currentKbId).then(r => r.json()); } catch(e) { existing = []; }
+  const existingIds = new Set(existing.map(a => a.user_id));
+  const available = userList.filter(u => u.status === 'active' && !existingIds.has(u.id));
+  if(!available.length) { alert('所有用户已授权'); return; }
+  document.getElementById('kb-user-select').innerHTML = available.map(u => '<option value="'+u.id+'">'+u.display_name+' ('+u.username+')</option>').join('');
+  showModal('add-kb-user-access');
+}
+
+async function addKBUserAccess() {
+  const userId = document.getElementById('kb-user-select').value;
+  const role = document.getElementById('kb-user-role').value;
+  const kbId = currentKbId;
+  if(!userId || !kbId) return;
+  try {
+    await fetch('/api/kb-user-access', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({kb_id: kbId, user_id: userId, role})
+    });
+    hideModal();
+    loadKBUserAccess();
+  } catch(e) { alert('操作失败'); }
+}
+
+async function updateKBUserRole(kbId, userId, role) {
+  try {
+    await fetch('/api/kb-user-access', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({kb_id: kbId, user_id: userId, role})
+    });
+  } catch(e) { alert('操作失败'); }
+}
+
+async function removeKBUserAccess(kbId, userId) {
+  try {
+    await fetch('/api/kb-user-access?kb_id='+kbId+'&user_id='+userId, {method: 'DELETE'});
+    loadKBUserAccess();
+  } catch(e) { alert('操作失败'); }
+}
+
+async function showAddDeptAccess() {
+  if(!currentKbId) return;
+  await loadDepts();
+  // 只显示还没授权的部门
+  let accesses;
+  try { accesses = await fetch('/api/kb-access?kb_id='+currentKbId).then(r => r.json()); } catch(e) { accesses = []; }
+  const existing = new Set(accesses.map(a => a.department_id));
+  const available = deptList.filter(d => !existing.has(d.id));
+  if(!available.length) { alert('所有部门已授权'); return; }
+  const sel = document.getElementById('dept-access-dept');
+  sel.innerHTML = available.map(d => '<option value="'+d.id+'">'+d.name+'</option>').join('');
+  showModal('add-dept-access');
+}
+
+async function addDeptAccess() {
+  const deptId = document.getElementById('dept-access-dept').value;
+  const role = document.getElementById('dept-access-role').value;
+  const kbId = currentKbId;
+  console.log('[PERM] addDeptAccess kb='+kbId);
+  if(!deptId || !kbId) return;
+  try {
+    await fetch('/api/kb-access', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({kb_id: kbId, department_id: deptId, role})
+    });
+    hideModal();
+    loadKBDeptAccess();
+  } catch(e) { alert('操作失败'); }
+}
+
+async function removeKBDeptAccess(kbId, deptId) {
+  console.log('[PERM] removeKBDeptAccess kb='+kbId+' dept='+deptId);
+  if(!kbId) return;
+  try {
+    const res = await fetch('/api/kb-access?kb_id='+kbId+'&department_id='+deptId, {method: 'DELETE'});
+    console.log('[PERM] delete result:', await res.text());
+    loadKBDeptAccess();
+  } catch(e) { alert('操作失败'); }
+}
+
+// ─── KB 设置 ──────────────────────────────────
+async function loadKBSettings() {
+  if(!currentKbId) return;
+  const kb = kbList.find(k => k.id === currentKbId);
+  if(!kb) return;
+  document.getElementById('kb-set-name').value = kb.name || '';
+  document.getElementById('kb-set-desc').value = kb.description || '';
+  document.getElementById('kb-set-status').value = kb.status || 'active';
+  document.getElementById('kb-set-emb-model').value = kb.embedding_model || '';
+  document.getElementById('kb-set-llm-model').value = kb.llm_model || '';
+}
+
+async function saveKBSettings() {
+  if(!currentKbId) return;
+  try {
+    await fetch('/api/knowledge-bases/' + currentKbId, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        name: document.getElementById('kb-set-name').value.trim(),
+        description: document.getElementById('kb-set-desc').value.trim(),
+        status: document.getElementById('kb-set-status').value,
+        embedding_model: document.getElementById('kb-set-emb-model').value.trim(),
+        llm_model: document.getElementById('kb-set-llm-model').value.trim(),
+      })
+    });
+    // 刷新KB列表缓存
+    kbList = await fetch('/api/knowledge-bases').then(r => r.json());
+    document.getElementById('kb-detail-name').textContent = document.getElementById('kb-set-name').value.trim();
+    alert('保存成功');
+  } catch(e) { alert('保存失败: ' + e.message); }
 }
 
 async function deleteKB(kbId) {
@@ -1439,8 +1824,8 @@ function showModal(name) {
   document.getElementById('modal-'+name).style.display = 'block';
   // 弹窗打开时填充下拉框
   if(name === 'create-kb') { loadDepts().then(()=>fillDeptSelect('new-kb-dept')); }
-  if(name === 'create-user') { loadDepts().then(()=>fillDeptSelect('new-user-dept')); }
-  if(name === 'add-dept-access') { loadDepts().then(()=>fillDeptSelect('dept-access-dept')); }
+  // create-user / edit-user 的部门填充由 showCreateUserModal / showEditUserModal 处理
+  // add-dept-access 的部门填充由 showAddDeptAccess 处理
   if(name === 'add-user-access') { loadUsers().then(()=>fillUserSelect('user-access-user')); }
   if(name === 'add-dept') { loadDepts().then(()=>fillDeptSelect('new-dept-parent')); }
 }
@@ -1466,25 +1851,111 @@ async function createKB() {
   } catch(e) { alert('创建失败'); }
 }
 
-async function createUser() {
-  const username = document.getElementById('new-user-username').value.trim();
+function showCreateUserModal() {
+  loadDepts().then(() => {
+    document.getElementById('user-modal-title').textContent = '创建用户';
+    document.getElementById('user-modal-btn').textContent = '创建';
+    document.getElementById('edit-user-id').value = '';
+    document.getElementById('new-user-username').value = '';
+    document.getElementById('new-user-username').disabled = false;
+    document.getElementById('new-user-name').value = '';
+    document.getElementById('new-user-password').value = '';
+    document.getElementById('new-user-email').value = '';
+    document.getElementById('new-user-position').value = '';
+    document.getElementById('new-user-role').value = 'user';
+    document.getElementById('password-field').style.display = 'block';
+    fillDeptSelect('new-user-dept');
+    showModal('create-user');
+  });
+}
+
+function showEditUserModal(userId) {
+  const u = allUsers.find(x => x.id === userId);
+  if(!u) return;
+  loadDepts().then(() => {
+    document.getElementById('user-modal-title').textContent = '编辑用户';
+    document.getElementById('user-modal-btn').textContent = '保存';
+    document.getElementById('edit-user-id').value = userId;
+    document.getElementById('new-user-username').value = u.username;
+    document.getElementById('new-user-username').disabled = true;
+    document.getElementById('new-user-name').value = u.display_name;
+    document.getElementById('new-user-password').value = '';
+    document.getElementById('new-user-email').value = u.email || '';
+    document.getElementById('new-user-position').value = u.position || '';
+    document.getElementById('new-user-role').value = u.role;
+    document.getElementById('password-field').style.display = 'none';
+    const sel = document.getElementById('new-user-dept');
+    sel.innerHTML = '<option value="">-- 无 --</option>' + deptList.map(d => '<option value="'+d.id+'">'+d.name+'</option>').join('');
+    sel.value = u.department_id || '';
+    showModal('create-user');
+  });
+}
+
+async function saveUser() {
+  const editId = document.getElementById('edit-user-id').value;
   const name = document.getElementById('new-user-name').value.trim();
-  if(!username || !name) { alert('请填写完整信息'); return; }
+  if(!name) { alert('请填写姓名'); return; }
   try {
-    await fetch('/api/users', {
+    if(editId) {
+      const res = await fetch('/api/users/' + editId, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          display_name: name,
+          email: document.getElementById('new-user-email').value.trim(),
+          position: document.getElementById('new-user-position').value.trim(),
+          department_id: document.getElementById('new-user-dept').value || null,
+          role: document.getElementById('new-user-role').value,
+        })
+      });
+      if(!res.ok) { const err = await res.json(); alert(err.detail || '保存失败'); return; }
+      hideModal();
+      loadUserList();
+      return;
+    }
+    const username = document.getElementById('new-user-username').value.trim();
+    if(!username) { alert('请填写用户名'); return; }
+    const res = await fetch('/api/users', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         username,
         display_name: name,
         email: document.getElementById('new-user-email').value.trim(),
-        department_id: document.getElementById('new-user-dept').value,
-        role: document.querySelector('#modal-create-user select:last-of-type').value
+        position: document.getElementById('new-user-position').value.trim(),
+        department_id: document.getElementById('new-user-dept').value || null,
+        role: document.getElementById('new-user-role').value,
+        password: document.getElementById('new-user-password').value || undefined,
       })
     });
+    if(!res.ok) {
+      const err = await res.json();
+      alert(err.detail || '创建失败');
+      return;
+    }
     hideModal();
     loadUserList();
-  } catch(e) { alert('创建失败'); }
+  } catch(e) { alert('操作失败: ' + e.message); }
+}
+
+async function disableUser(userId, username) {
+  
+  try {
+    await fetch('/api/users/' + userId, {method: 'DELETE'});
+    loadUserList();
+  } catch(e) { alert('操作失败'); }
+}
+
+async function enableUser(userId, username) {
+  
+  try {
+    await fetch('/api/users/' + userId, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({status: 'active'})
+    });
+    loadUserList();
+  } catch(e) { alert('操作失败'); }
 }
 
 async function createDept() {
@@ -1506,8 +1977,6 @@ async function createDept() {
 }
 
 function createRole() { hideModal(); alert('角色创建（P1 实现）'); }
-function addDeptAccess() { hideModal(); alert('部门授权已添加（P1 实现）'); }
-function addUserAccess() { hideModal(); alert('用户授权已添加（P1 实现）'); }
 
 
 

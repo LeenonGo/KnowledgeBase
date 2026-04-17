@@ -68,6 +68,20 @@ def list_documents(kb_id: str = None) -> list[dict]:
     return [{"filename": name, "chunks": count} for name, count in source_count.items()]
 
 
+def get_all_kb_stats() -> dict[str, dict]:
+    """一次查询返回所有知识库的文档数和分块数"""
+    results = _collection.get()
+    stats: dict[str, dict] = {}
+    for meta in results["metadatas"]:
+        kb_id = meta.get("kb_id", "default")
+        src = meta.get("source", "")
+        if kb_id not in stats:
+            stats[kb_id] = {"docs": set(), "chunks": 0}
+        stats[kb_id]["docs"].add(src)
+        stats[kb_id]["chunks"] += 1
+    return {k: {"doc_count": len(v["docs"]), "chunk_count": v["chunks"]} for k, v in stats.items()}
+
+
 def delete_document(filename: str, kb_id: str = None) -> int:
     """
     按来源文件名删除所有相关块。

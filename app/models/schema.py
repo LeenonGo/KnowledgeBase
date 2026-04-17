@@ -28,6 +28,7 @@ class DocumentInfo(BaseModel):
     """文档信息"""
     filename: str
     chunks: int
+    size: str = "-"
 
 
 class ModelConfig(BaseModel):

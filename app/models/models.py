@@ -1,7 +1,13 @@
 """SQLAlchemy ORM 模型 — 第一期 P0 核心表"""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# 时区：Asia/Shanghai (UTC+8)
+_CST = timezone(timedelta(hours=8))
+
+def _now():
+    return datetime.now(_CST)
 
 from sqlalchemy import (
     Column, String, Text, Integer, Float, Boolean, DateTime, ForeignKey, UniqueConstraint, Index
@@ -25,8 +31,8 @@ class Department(Base):
     parent_id = Column(String(32), ForeignKey("department.id"), nullable=True)
     description = Column(Text, default="")
     status = Column(String(16), default="active")  # active / disabled
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
 
     # 自引用关系
     children = relationship("Department", backref="parent", remote_side=[id])
@@ -47,8 +53,8 @@ class User(Base):
     role = Column(String(32), default="user", comment="super_admin / kb_admin / user")
     status = Column(String(16), default="active")  # active / disabled
     last_login = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
 
     department = relationship("Department", lazy="joined")
 
@@ -65,8 +71,8 @@ class KnowledgeBase(Base):
     owner_id = Column(String(32), ForeignKey("user.id"), nullable=True)
     status = Column(String(16), default="active")  # active / archived / deleted
     deleted_at = Column(DateTime, nullable=True, comment="软删除时间")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
 
     owner = relationship("User", lazy="joined")
 
@@ -88,8 +94,8 @@ class Document(Base):
     chunk_size = Column(Integer, default=512)
     chunk_overlap = Column(Integer, default=64)
     deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
 
     kb = relationship("KnowledgeBase", lazy="joined")
     uploader = relationship("User", lazy="joined")
@@ -109,7 +115,7 @@ class KBDepartmentAccess(Base):
     department_id = Column(String(32), ForeignKey("department.id"), nullable=False)
     role = Column(String(16), default="viewer", comment="admin / editor / viewer")
     created_by = Column(String(32), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
 
     __table_args__ = (
         UniqueConstraint("kb_id", "department_id", name="uq_kb_dept"),
@@ -125,7 +131,7 @@ class KBUserAccess(Base):
     user_id = Column(String(32), ForeignKey("user.id"), nullable=False)
     role = Column(String(16), default="viewer", comment="admin / editor / viewer")
     created_by = Column(String(32), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
 
     __table_args__ = (
         UniqueConstraint("kb_id", "user_id", name="uq_kb_user"),
@@ -140,8 +146,8 @@ class Conversation(Base):
     user_id = Column(String(32), ForeignKey("user.id"), nullable=False)
     title = Column(String(512), default="新对话")
     status = Column(String(16), default="active")  # active / closed
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
 
 
 # ─── 对话轮次 ─────────────────────────────────────
@@ -156,7 +162,7 @@ class ConversationTurn(Base):
     model = Column(String(128), default="")
     latency_ms = Column(Integer, default=0)
     confidence = Column(Float, default=0.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
 
     __table_args__ = (
         Index("ix_turn_conv", "conversation_id"),
@@ -172,7 +178,7 @@ class QAFeedback(Base):
     user_id = Column(String(32), ForeignKey("user.id"), nullable=False)
     rating = Column(String(16), nullable=False, comment="up / down")
     comment = Column(Text, default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
 
 
 # ─── 审计日志 ─────────────────────────────────────
@@ -187,7 +193,7 @@ class AuditLog(Base):
     detail = Column(Text, default="", comment="操作详情（脱敏）")
     ip_address = Column(String(64), default="")
     status = Column(String(16), default="success")  # success / failure
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
 
     __table_args__ = (
         Index("ix_audit_user", "user_id"),
