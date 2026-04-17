@@ -78,35 +78,37 @@ def log_audit(db: Session, user: dict | None, action: str, resource: str = "",
 
 
 # ─── 权限检查 ────────────────────────────────────
-ROLE_LEVELS = {"admin": 3, "editor": 2, "viewer": 1}
+# 角色权限：super_admin=全权 | kb_admin=部门KB管理 | user=部门KB只读
+
+def _get_user_dept_id(db: Session, user_id: str) -> str | None:
+    u = db.query(User.department_id).filter(User.id == user_id).first()
+    return u[0] if u else None
 
 
 def get_kb_role(db: Session, user: dict, kb_id: str) -> str | None:
-    """获取用户对某知识库的角色，返回 admin/editor/viewer 或 None"""
-    if user.get("role") == "super_admin":
+    """获取用户对某知识库的角色"""
+    role = user.get("role")
+    if role == "super_admin":
         return "admin"
-    from app.models.models import KBUserAccess, KBDepartmentAccess
-    # 个人授权优先
-    ua = db.query(KBUserAccess).filter(
-        KBUserAccess.kb_id == kb_id, KBUserAccess.user_id == user["sub"]
+    # 检查该用户的部门是否对该KB有授权
+    dept_id = _get_user_dept_id(db, user["sub"])
+    if not dept_id:
+        return None
+    from app.models.models import KBDepartmentAccess
+    da = db.query(KBDepartmentAccess).filter(
+        KBDepartmentAccess.kb_id == kb_id, KBDepartmentAccess.department_id == dept_id
     ).first()
-    if ua:
-        return ua.role
-    # 部门授权
-    db_user = db.query(User).filter(User.id == user["sub"]).first()
-    if db_user and db_user.department_id:
-        da = db.query(KBDepartmentAccess).filter(
-            KBDepartmentAccess.kb_id == kb_id, KBDepartmentAccess.department_id == db_user.department_id
-        ).first()
-        if da:
-            return da.role
-    return None
+    if not da:
+        return None
+    # kb_admin → admin, user → viewer
+    return "admin" if role == "kb_admin" else "viewer"
 
 
 def require_kb_access(db: Session, user: dict, kb_id: str, min_role: str = "viewer"):
     """检查用户对知识库的权限，不足则抛 403"""
     role = get_kb_role(db, user, kb_id)
-    if not role or ROLE_LEVELS.get(role, 0) < ROLE_LEVELS.get(min_role, 0):
+    levels = {"admin": 3, "editor": 2, "viewer": 1}
+    if not role or levels.get(role, 0) < levels.get(min_role, 0):
         raise HTTPException(status_code=403, detail="无权操作此知识库")
 
 
@@ -114,15 +116,12 @@ def get_accessible_kb_ids(db: Session, user: dict) -> list[str] | None:
     """返回用户可访问的 kb_id 列表，super_admin 返回 None（全部）"""
     if user.get("role") == "super_admin":
         return None
-    from app.models.models import KBUserAccess, KBDepartmentAccess
-    db_user = db.query(User).filter(User.id == user["sub"]).first()
-    ids = set()
-    for ua in db.query(KBUserAccess.kb_id).filter(KBUserAccess.user_id == user["sub"]).all():
-        ids.add(ua[0])
-    if db_user and db_user.department_id:
-        for da in db.query(KBDepartmentAccess.kb_id).filter(KBDepartmentAccess.department_id == db_user.department_id).all():
-            ids.add(da[0])
-    return list(ids)
+    from app.models.models import KBDepartmentAccess
+    dept_id = _get_user_dept_id(db, user["sub"])
+    if not dept_id:
+        return []
+    rows = db.query(KBDepartmentAccess.kb_id).filter(KBDepartmentAccess.department_id == dept_id).all()
+    return [r[0] for r in rows]
 
 
 # ─── 登录 ───────────────────────────────────────
@@ -231,12 +230,23 @@ async def upload_document(
     return UploadResponse(filename=file.filename, chunks=count, message=f"文档已处理，共 {count} 个文本块")
 
 
-@router.get("/documents", response_model=list[DocumentInfo])
-async def get_documents(kb_id: str = None, user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+@router.get("/documents")
+async def get_documents(kb_id: str = None, page: int = 1, page_size: int = 20, user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     q = db.query(Document).filter(Document.status != "deleted")
     if kb_id:
+        require_kb_access(db, user, kb_id, "viewer")
         q = q.filter(Document.kb_id == kb_id)
-    docs = q.all()
+    else:
+        # 无指定KB时，只显示有权限的文档
+        accessible_ids = get_accessible_kb_ids(db, user)
+        if accessible_ids is None:
+            pass  # super_admin 看全部
+        elif not accessible_ids:
+            return {"total": 0, "items": []}
+        else:
+            q = q.filter(Document.kb_id.in_(accessible_ids))
+    total = q.count()
+    docs = q.order_by(Document.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
     result = []
     for d in docs:
         size = d.file_size or 0
@@ -247,7 +257,7 @@ async def get_documents(kb_id: str = None, user: dict = Depends(get_current_user
         else:
             size_str = f"{size} B"
         result.append({"filename": d.filename, "chunks": d.chunk_count, "size": size_str})
-    return result
+    return {"total": total, "items": result}
 
 
 @router.delete("/documents/{filename:path}")
@@ -284,7 +294,25 @@ async def query_knowledge_base(
     user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    docs = query(req.question, top_k=req.top_k, kb_id=req.kb_id)
+    # 权限检查：限定只能搜索有权限的知识库
+    if req.kb_id:
+        require_kb_access(db, user, req.kb_id, "viewer")
+        docs = query(req.question, top_k=req.top_k, kb_id=req.kb_id)
+    else:
+        # 无指定KB时，只搜索有权限的KB
+        accessible_ids = get_accessible_kb_ids(db, user)
+        if accessible_ids is None:
+            docs = query(req.question, top_k=req.top_k)
+        elif not accessible_ids:
+            docs = []
+        else:
+            # 搜索所有有权限的KB，合并结果
+            all_docs = []
+            for kb_id in accessible_ids:
+                all_docs.extend(query(req.question, top_k=req.top_k, kb_id=kb_id))
+            # 按 distance 排序取 top_k
+            all_docs.sort(key=lambda x: x.get("distance", 0))
+            docs = all_docs[:req.top_k]
     if not docs:
         log_audit(db, user, "query", req.question[:100], "未命中", "success",
                   request.client.host if request.client else "")
@@ -411,15 +439,22 @@ async def delete_department(
 # ─── 用户 ───────────────────────────────────────
 
 @router.get("/users")
-async def get_users(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
-    users = db.query(User).all()
-    return [{
-        "id": u.id, "username": u.username, "display_name": u.display_name,
-        "email": u.email, "role": u.role, "department_id": u.department_id,
-        "department_name": u.department.name if u.department else "",
-        "position": u.position, "status": u.status,
-        "last_login": str(u.last_login) if u.last_login else None,
-    } for u in users]
+async def get_users(page: int = 1, page_size: int = 10, role: str = None, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    q = db.query(User)
+    if role:
+        q = q.filter(User.role == role)
+    total = q.count()
+    users = q.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "total": total,
+        "items": [{
+            "id": u.id, "username": u.username, "display_name": u.display_name,
+            "email": u.email, "role": u.role, "department_id": u.department_id,
+            "department_name": u.department.name if u.department else "",
+            "position": u.position, "status": u.status,
+            "last_login": str(u.last_login) if u.last_login else None,
+        } for u in users]
+    }
 
 
 @router.post("/users")
@@ -501,30 +536,28 @@ async def delete_user(
 # ─── 知识库 ─────────────────────────────────────
 
 @router.get("/knowledge-bases")
-async def get_knowledge_bases(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+async def get_knowledge_bases(page: int = 1, page_size: int = 10, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     accessible_ids = get_accessible_kb_ids(db, user)
     q = db.query(KnowledgeBase).filter(KnowledgeBase.status != "deleted")
     if accessible_ids is not None:
         if not accessible_ids:
-            return []
+            return {"total": 0, "items": []}
         q = q.filter(KnowledgeBase.id.in_(accessible_ids))
-    kbs = q.all()
-    # 从 Document 表统计各KB的文档数和分块数
+    total = q.count()
+    kbs = q.order_by(KnowledgeBase.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
     from sqlalchemy import func
     rows = db.query(Document.kb_id, func.count(Document.id), func.coalesce(func.sum(Document.chunk_count), 0)).filter(Document.status != "deleted").group_by(Document.kb_id).all()
     doc_stats = {r[0]: {"doc_count": r[1], "chunk_count": r[2]} for r in rows}
-    result = []
+    items = []
     for k in kbs:
-        role = get_kb_role(db, user, k.id)
         stats = doc_stats.get(k.id, {"doc_count": 0, "chunk_count": 0})
-        result.append({
+        items.append({
             "id": k.id, "name": k.name, "description": k.description,
             "embedding_model": k.embedding_model, "llm_model": k.llm_model,
             "status": k.status, "created_at": str(k.created_at),
-            "my_role": role,
             "doc_count": stats["doc_count"], "chunk_count": stats["chunk_count"],
         })
-    return result
+    return {"total": total, "items": items}
 
 
 @router.post("/knowledge-bases")
@@ -778,24 +811,22 @@ async def remove_kb_user_access(kb_id: str, user_id: str, db: Session = Depends(
 async def get_audit_logs(
     action: str = None,
     username: str = None,
-    limit: int = 50,
+    page: int = 1,
+    page_size: int = 20,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
     """查询审计日志"""
-    q = db.query(AuditLog).order_by(AuditLog.created_at.desc())
+    q = db.query(AuditLog)
     if action:
         q = q.filter(AuditLog.action == action)
     if username:
         q = q.filter(AuditLog.username == username)
-    logs = q.limit(limit).all()
-    return [{
-        "id": l.id,
-        "username": l.username,
-        "action": l.action,
-        "resource": l.resource,
-        "detail": l.detail,
-        "ip_address": l.ip_address,
-        "status": l.status,
+    total = q.count()
+    logs = q.order_by(AuditLog.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {"total": total, "items": [{
+        "id": l.id, "username": l.username, "action": l.action,
+        "resource": l.resource, "detail": l.detail,
+        "ip_address": l.ip_address, "status": l.status,
         "created_at": str(l.created_at),
-    } for l in logs]
+    } for l in logs]}
