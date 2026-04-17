@@ -13,8 +13,12 @@ DB_PATH = Path(__file__).parent.parent.parent / "data" / "chroma_db"
 _client = chromadb.PersistentClient(path=str(DB_PATH))
 _collection = _client.get_or_create_collection(
     name="knowledge_base",
-    metadata={"hnsw:space": "cosine"},
+    metadata={"hnsw:space": "cosine", "hnsw:ef": 200, "hnsw:M": 32},
 )
+# 迁移：已有集合补充 HNSW 参数（首次查询报 ef too small 时自动修复）
+_meta = _collection.metadata or {}
+if _meta.get("hnsw:ef") != 200 or _meta.get("hnsw:M") != 32:
+    _collection.modify(metadata={"hnsw:ef": 200, "hnsw:M": 32})
 
 
 def add_documents(chunks: list[str], filename: str, kb_id: str = "default") -> int:
