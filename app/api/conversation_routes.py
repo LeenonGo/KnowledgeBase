@@ -57,14 +57,23 @@ async def create_conversation(data: dict = None,
 @router.delete("/conversations/{conv_id}")
 async def delete_conversation(conv_id: str,
                               db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
-    """删除对话（软删除）"""
+    """删除对话（级联删除轮次和反馈）"""
     conv = db.query(Conversation).filter(
         Conversation.id == conv_id,
         Conversation.user_id == user["sub"],
     ).first()
     if not conv:
         raise HTTPException(404, "对话不存在")
-    conv.status = "closed"
+
+    # 级联删除：反馈 → 轮次 → 对话
+    turn_ids = [t.id for t in db.query(ConversationTurn.id).filter(
+        ConversationTurn.conversation_id == conv_id
+    ).all()]
+    if turn_ids:
+        db.query(QAFeedback).filter(QAFeedback.turn_id.in_(turn_ids)).delete(synchronize_session=False)
+        db.query(ConversationTurn).filter(ConversationTurn.conversation_id == conv_id).delete(synchronize_session=False)
+
+    db.delete(conv)
     db.commit()
     return {"message": "已删除"}
 

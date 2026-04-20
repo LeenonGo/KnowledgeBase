@@ -60,7 +60,7 @@ const PageQA = (() => {
       const topK = parseInt(document.getElementById('qa-topk').value) || 5;
       const useHybrid = document.getElementById('qa-hybrid')?.checked ?? true;
       const body = { question, top_k: topK, use_hybrid: useHybrid, conv_id: convId, use_reranker: true };
-      const kbId = PageKB.getCurrentKbId();
+      const kbId = document.getElementById('qa-kb-filter')?.value || '';
       if (kbId) body.kb_id = kbId;
 
       const startTime = Date.now();
@@ -172,6 +172,8 @@ const PageQA = (() => {
   }
 
   async function loadConversationList() {
+    // 加载知识库列表（下拉框）
+    loadKBFilter();
     try {
       const convs = await API.request('/api/conversations');
       const list = document.getElementById('chat-list');
@@ -182,11 +184,28 @@ const PageQA = (() => {
       list.innerHTML = convs.map(c => {
         const isActive = c.id === currentConvId;
         const time = c.updated_at ? c.updated_at.substring(5, 16).replace('T', ' ') : '';
-        return `<div class="chat-item${isActive ? ' active' : ''}" onclick="PageQA.loadConversation('${c.id}')">
-          <div class="title">${c.title || '新对话'}</div>
-          <div class="meta">${time}</div>
+        return `<div class="chat-item${isActive ? ' active' : ''}">
+          <div class="title" onclick="PageQA.loadConversation('${c.id}')">${c.title || '新对话'}</div>
+          <div class="flex-between" style="margin-top:2px;">
+            <span class="meta">${time}</span>
+            <span class="delete-btn" onclick="event.stopPropagation();PageQA.deleteConversation('${c.id}')" title="删除">🗑️</span>
+          </div>
         </div>`;
       }).join('');
+    } catch {}
+  }
+
+  async function loadKBFilter() {
+    const sel = document.getElementById('qa-kb-filter');
+    if (!sel || sel.options.length > 1) return; // 已加载
+    try {
+      const data = await API.request('/api/knowledge-bases?page=1&page_size=100');
+      (data.items || []).forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k.id;
+        opt.textContent = k.name;
+        sel.appendChild(opt);
+      });
     } catch {}
   }
 
@@ -215,7 +234,21 @@ const PageQA = (() => {
     }
   }
 
-  return { askQuestion, askPreset, newChat, feedback, loadConversationList, loadConversation };
+  async function deleteConversation(convId) {
+    if (!confirm('确认删除该对话？所有轮次和反馈将一并删除。')) return;
+    try {
+      await API.request(`/api/conversations/${convId}`, { method: 'DELETE' });
+      if (currentConvId === convId) {
+        newChat();
+      } else {
+        loadConversationList();
+      }
+    } catch (e) {
+      alert('删除失败: ' + e.message);
+    }
+  }
+
+  return { askQuestion, askPreset, newChat, feedback, loadConversationList, loadConversation, deleteConversation };
 })();
 
 Router.on('qa-chat', () => PageQA.loadConversationList());

@@ -153,3 +153,5 @@ table tr:hover td{background:#fafafa}
 .chunk-preview{border:1px solid #f0f0f0;border-radius:6px;padding:12px;font-size:12px;max-height:200px;overflow-y:auto}
 .chunk-item{margin-bottom:8px;padding:8px;background:#f9f9f9;border-radius:4px}
 .chunk-item:last-child{margin-bottom:0}
+.chat-item .delete-btn{opacity:0;cursor:pointer;font-size:12px;transition:opacity .2s}
+.chat-item:hover .delete-btn{opacity:1}
