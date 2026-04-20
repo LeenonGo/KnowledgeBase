@@ -2,7 +2,10 @@
 
 import hashlib
 import shutil
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
+
+_CST = timezone(timedelta(hours=8))
 
 from fastapi import APIRouter, HTTPException, Depends, Request, File, UploadFile, Form
 from sqlalchemy.orm import Session
@@ -43,17 +46,32 @@ async def upload_document(
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     file_path = UPLOAD_DIR / file.filename
 
-    # 先读取内容算 hash，用于去重
+    # 先读取内容算 hash
     content = await file.read()
     file_hash = hashlib.sha256(content).hexdigest()
 
-    # 检查同 KB 内是否已有同 hash 文件
-    existing = db.query(Document).filter(
-        Document.kb_id == kb_id, Document.file_hash == file_hash,
+    # 检查同 KB 内同名文件 → 版本替换
+    from app.core.vectorstore import delete_document
+    same_name = db.query(Document).filter(
+        Document.kb_id == kb_id, Document.filename == file.filename,
         Document.status != "deleted"
     ).first()
-    if existing:
-        raise HTTPException(400, f"文件已存在（同内容文件: {existing.filename}），无需重复上传")
+    if same_name:
+        if same_name.file_hash == file_hash:
+            raise HTTPException(400, "文件内容完全相同，无需重复上传")
+        # 内容不同 → 替换旧版本
+        delete_document(file.filename, kb_id=kb_id)
+        same_name.status = "deleted"
+        same_name.deleted_at = datetime.now(_CST)
+        db.commit()
+
+    # 检查同 KB 内是否有完全相同内容的其他文件
+    same_hash = db.query(Document).filter(
+        Document.kb_id == kb_id, Document.file_hash == file_hash,
+        Document.status != "deleted", Document.filename != file.filename,
+    ).first()
+    if same_hash:
+        raise HTTPException(400, f"内容相同的文件已存在: {same_hash.filename}")
 
     with open(file_path, "wb") as f:
         f.write(content)

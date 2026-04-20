@@ -1,4 +1,4 @@
-"""向量存储 — 基于 Chroma，按 metadata.kb_id 隔离"""
+"""向量存储 — ChromaDB + BM25 混合检索 + RRF 融合"""
 
 import uuid
 from pathlib import Path
@@ -15,10 +15,42 @@ _collection = _client.get_or_create_collection(
     name="knowledge_base",
     metadata={"hnsw:space": "cosine", "hnsw:ef": 200, "hnsw:M": 32},
 )
-# 确保 HNSW 参数正确
 _meta = _collection.metadata or {}
 if _meta.get("hnsw:ef") != 200 or _meta.get("hnsw:M") != 32:
     _collection.modify(metadata={"hnsw:ef": 200, "hnsw:M": 32})
+
+# ─── BM25 索引缓存 ──────────────────────────────
+from app.core.hybrid_search import BM25Index, rrf_fusion
+
+_bm25_index: BM25Index | None = None
+_bm25_dirty = True
+
+
+def _get_bm25_index(kb_id: str = None) -> BM25Index:
+    """获取 BM25 索引（懒构建，数据变更时标记 dirty）"""
+    global _bm25_index, _bm25_dirty
+    if _bm25_index is None or _bm25_dirty:
+        _bm25_index = BM25Index()
+        if kb_id:
+            results = _collection.get(where={"kb_id": kb_id})
+        else:
+            results = _collection.get()
+        docs = []
+        for i in range(len(results["ids"])):
+            meta = results["metadatas"][i] if results["metadatas"] else {}
+            docs.append({
+                "text": results["documents"][i],
+                "source": meta.get("source", ""),
+                "kb_id": meta.get("kb_id", ""),
+            })
+        _bm25_index.build(docs)
+        _bm25_dirty = False
+    return _bm25_index
+
+
+def _mark_dirty():
+    global _bm25_dirty
+    _bm25_dirty = True
 
 
 def add_documents(chunks: list[str], filename: str, kb_id: str = "default") -> int:
@@ -36,6 +68,7 @@ def add_documents(chunks: list[str], filename: str, kb_id: str = "default") -> i
         embeddings=embeddings,
         metadatas=metadatas,
     )
+    _mark_dirty()
     return len(chunks)
 
 
@@ -77,6 +110,7 @@ def delete_document(filename: str, kb_id: str = None) -> int:
     ids = results["ids"]
     if ids:
         _collection.delete(ids=ids)
+        _mark_dirty()
     return len(ids)
 
 
@@ -86,30 +120,76 @@ def delete_kb_documents(kb_id: str) -> int:
     ids = results["ids"]
     if ids:
         _collection.delete(ids=ids)
+        _mark_dirty()
     return len(ids)
 
 
-def query(question: str, top_k: int = 5, kb_id: str = None) -> list[dict]:
-    """语义检索，支持按知识库过滤"""
+def query(
+    question: str,
+    top_k: int = 5,
+    kb_id: str = None,
+    use_hybrid: bool = True,
+    use_reranker: bool = False,
+) -> list[dict]:
+    """
+    语义检索，支持混合检索（向量 + BM25 + RRF）。
+    """
     embedding = embed_texts([question])[0]
 
-    kwargs = {
+    # 向量检索
+    vec_kwargs = {
         "query_embeddings": [embedding],
-        "n_results": top_k,
+        "n_results": max(top_k * 2, 10),  # 多取一些用于融合
     }
     if kb_id:
-        kwargs["where"] = {"kb_id": kb_id}
+        vec_kwargs["where"] = {"kb_id": kb_id}
 
-    results = _collection.query(**kwargs)
-
-    docs = []
-    for i in range(len(results["documents"][0])):
-        docs.append({
-            "text": results["documents"][0][i],
-            "source": results["metadatas"][0][i]["source"],
-            "distance": results["distances"][0][i],
+    vec_results_raw = _collection.query(**vec_kwargs)
+    vector_results = []
+    for i in range(len(vec_results_raw["documents"][0])):
+        vector_results.append({
+            "text": vec_results_raw["documents"][0][i],
+            "source": vec_results_raw["metadatas"][0][i]["source"],
+            "distance": vec_results_raw["distances"][0][i],
         })
-    return docs
+
+    if not use_hybrid:
+        return vector_results[:top_k]
+
+    # BM25 检索
+    bm25_idx = _get_bm25_index(kb_id)
+    bm25_results = bm25_idx.search(question, top_k=top_k * 2)
+
+    # RRF 融合
+    fused = rrf_fusion(vector_results, bm25_results, k=60, top_k=top_k)
+
+    # 精排（可选）
+    if use_reranker:
+        fused = _rerank(question, fused, top_k)
+
+    return fused
+
+
+def _rerank(question: str, docs: list[dict], top_k: int) -> list[dict]:
+    """
+    轻量精排 — 用向量余弦相似度作为 reranker。
+    （生产环境可替换为 Cross-Encoder 如 bge-reranker-v2-m3）
+    """
+    if not docs:
+        return docs
+
+    query_emb = embed_texts([question])[0]
+    doc_texts = [d["text"] for d in docs]
+    doc_embs = embed_texts(doc_texts)
+
+    scored = []
+    for i, doc in enumerate(docs):
+        # 余弦相似度（Chroma 已归一化向量，直接点积）
+        sim = sum(a * b for a, b in zip(query_emb, doc_embs[i]))
+        scored.append((sim, doc))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [{**doc, "rerank_score": sim} for sim, doc in scored[:top_k]]
 
 
 def get_chunks(filename: str, kb_id: str = None) -> list[dict]:
@@ -139,6 +219,7 @@ def update_chunk(chunk_id: str, new_text: str) -> dict:
         raise ValueError("分块不存在")
     new_embedding = embed_texts([new_text])[0]
     _collection.update(ids=[chunk_id], documents=[new_text], embeddings=[new_embedding])
+    _mark_dirty()
     return {"id": chunk_id, "char_count": len(new_text)}
 
 
@@ -148,6 +229,7 @@ def delete_chunk(chunk_id: str) -> bool:
     if not old["ids"]:
         return False
     _collection.delete(ids=[chunk_id])
+    _mark_dirty()
     return True
 
 
@@ -163,4 +245,5 @@ def reindex_kb(kb_id: str = None) -> int:
 
     new_embeddings = embed_texts(results["documents"])
     _collection.update(ids=results["ids"], embeddings=new_embeddings)
+    _mark_dirty()
     return len(results["ids"])

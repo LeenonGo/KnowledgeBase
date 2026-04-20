@@ -8,6 +8,8 @@ class QueryRequest(BaseModel):
     question: str
     top_k: int = 5
     kb_id: str | None = None
+    use_hybrid: bool = True
+    use_reranker: bool = False
 
 
 class QueryResponse(BaseModel):
