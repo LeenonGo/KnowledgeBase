@@ -1,6 +1,6 @@
 """SQLAlchemy ORM 模型 — 第一期 P0 核心表"""
 
-import uuid
+import nanoid
 from datetime import datetime, timezone, timedelta
 
 # 时区：Asia/Shanghai (UTC+8)
@@ -18,7 +18,7 @@ from app.core.database import Base
 
 
 def gen_id():
-    return str(uuid.uuid4())[:8]
+    return nanoid.generate(size=21)
 
 
 # ─── 部门 ─────────────────────────────────────────
@@ -101,6 +101,7 @@ class Document(Base):
     uploader = relationship("User", lazy="joined")
 
     __table_args__ = (
+        UniqueConstraint("kb_id", "filename", name="uq_doc_kb_filename"),
         Index("ix_doc_kb", "kb_id"),
         Index("ix_doc_hash", "file_hash"),
     )
@@ -119,6 +120,8 @@ class KBDepartmentAccess(Base):
 
     __table_args__ = (
         UniqueConstraint("kb_id", "department_id", name="uq_kb_dept"),
+        Index("ix_kb_dept_kb", "kb_id"),
+        Index("ix_kb_dept_dept", "department_id"),
     )
 
 
@@ -135,6 +138,8 @@ class KBUserAccess(Base):
 
     __table_args__ = (
         UniqueConstraint("kb_id", "user_id", name="uq_kb_user"),
+        Index("ix_kb_user_kb", "kb_id"),
+        Index("ix_kb_user_uid", "user_id"),
     )
 
 

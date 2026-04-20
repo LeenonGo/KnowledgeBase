@@ -8,8 +8,11 @@ from pathlib import Path
 # 加到 path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# 强制用 MySQL
-os.environ["DB_TYPE"] = "mysql"
+from dotenv import load_dotenv
+load_dotenv()
+
+# 默认用 MySQL，可通过环境变量覆盖
+os.environ.setdefault("DB_TYPE", "mysql")
 
 from app.core.database import engine, Base, DATABASE_URL
 from app.models.models import (  # noqa: F401 — 确保所有模型被导入
@@ -20,7 +23,11 @@ from app.models.models import (  # noqa: F401 — 确保所有模型被导入
 
 
 def main():
-    print(f"数据库: {DATABASE_URL.split('@')[1]}")  # 不打印密码
+    # 脱敏打印连接信息
+    safe_url = DATABASE_URL
+    if "@" in safe_url:
+        safe_url = safe_url.split("@")[1]
+    print(f"数据库: {safe_url}")
     print("正在创建数据库表...")
 
     Base.metadata.create_all(bind=engine)

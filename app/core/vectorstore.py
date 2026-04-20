@@ -1,4 +1,4 @@
-"""向量存储 — 基于 Chroma，支持按知识库隔离"""
+"""向量存储 — 基于 Chroma，按 metadata.kb_id 隔离"""
 
 import uuid
 from pathlib import Path
@@ -15,23 +15,14 @@ _collection = _client.get_or_create_collection(
     name="knowledge_base",
     metadata={"hnsw:space": "cosine", "hnsw:ef": 200, "hnsw:M": 32},
 )
-# 迁移：已有集合补充 HNSW 参数（首次查询报 ef too small 时自动修复）
+# 确保 HNSW 参数正确
 _meta = _collection.metadata or {}
 if _meta.get("hnsw:ef") != 200 or _meta.get("hnsw:M") != 32:
     _collection.modify(metadata={"hnsw:ef": 200, "hnsw:M": 32})
 
 
 def add_documents(chunks: list[str], filename: str, kb_id: str = "default") -> int:
-    """
-    将文本块写入向量库，关联到指定知识库。
-
-    Args:
-        chunks: 分块后的文本列表
-        filename: 来源文件名
-        kb_id: 知识库 ID
-    Returns:
-        写入的文档数量
-    """
+    """将文本块写入向量库，关联到指定知识库"""
     if not chunks:
         return 0
 
@@ -45,17 +36,11 @@ def add_documents(chunks: list[str], filename: str, kb_id: str = "default") -> i
         embeddings=embeddings,
         metadatas=metadatas,
     )
-
     return len(chunks)
 
 
 def list_documents(kb_id: str = None) -> list[dict]:
-    """
-    列出已入库的文档及其块数。
-
-    Args:
-        kb_id: 知识库 ID，为 None 时列出所有
-    """
+    """列出已入库的文档及其块数"""
     if kb_id:
         results = _collection.get(where={"kb_id": kb_id})
     else:
@@ -83,13 +68,7 @@ def get_all_kb_stats() -> dict[str, dict]:
 
 
 def delete_document(filename: str, kb_id: str = None) -> int:
-    """
-    按来源文件名删除所有相关块。
-
-    Args:
-        filename: 文件名
-        kb_id: 知识库 ID，指定时只删该知识库下的
-    """
+    """按来源文件名删除所有相关块"""
     if kb_id:
         results = _collection.get(where={"$and": [{"source": filename}, {"kb_id": kb_id}]})
     else:
@@ -111,16 +90,7 @@ def delete_kb_documents(kb_id: str) -> int:
 
 
 def query(question: str, top_k: int = 5, kb_id: str = None) -> list[dict]:
-    """
-    语义检索，支持按知识库过滤。
-
-    Args:
-        question: 用户问题
-        top_k: 返回最相似的 top_k 条
-        kb_id: 知识库 ID，指定时只在该知识库内检索
-    Returns:
-        包含 text、source、distance 的结果列表
-    """
+    """语义检索，支持按知识库过滤"""
     embedding = embed_texts([question])[0]
 
     kwargs = {
@@ -139,5 +109,58 @@ def query(question: str, top_k: int = 5, kb_id: str = None) -> list[dict]:
             "source": results["metadatas"][0][i]["source"],
             "distance": results["distances"][0][i],
         })
-
     return docs
+
+
+def get_chunks(filename: str, kb_id: str = None) -> list[dict]:
+    """获取文档的所有分块"""
+    if kb_id:
+        results = _collection.get(where={"$and": [{"source": filename}, {"kb_id": kb_id}]})
+    else:
+        results = _collection.get(where={"source": filename})
+
+    chunks = []
+    for i in range(len(results["ids"])):
+        meta = results["metadatas"][i] if results["metadatas"] else {}
+        chunks.append({
+            "id": results["ids"][i], "index": i + 1,
+            "text": results["documents"][i],
+            "char_count": len(results["documents"][i]),
+            "source": meta.get("source", filename),
+            "kb_id": meta.get("kb_id", ""),
+        })
+    return chunks
+
+
+def update_chunk(chunk_id: str, new_text: str) -> dict:
+    """更新单个分块内容"""
+    old = _collection.get(ids=[chunk_id])
+    if not old["ids"]:
+        raise ValueError("分块不存在")
+    new_embedding = embed_texts([new_text])[0]
+    _collection.update(ids=[chunk_id], documents=[new_text], embeddings=[new_embedding])
+    return {"id": chunk_id, "char_count": len(new_text)}
+
+
+def delete_chunk(chunk_id: str) -> bool:
+    """删除单个分块"""
+    old = _collection.get(ids=[chunk_id])
+    if not old["ids"]:
+        return False
+    _collection.delete(ids=[chunk_id])
+    return True
+
+
+def reindex_kb(kb_id: str = None) -> int:
+    """重建指定知识库（或全部）的向量索引"""
+    if kb_id:
+        results = _collection.get(where={"kb_id": kb_id})
+    else:
+        results = _collection.get()
+
+    if not results["ids"]:
+        return 0
+
+    new_embeddings = embed_texts(results["documents"])
+    _collection.update(ids=results["ids"], embeddings=new_embeddings)
+    return len(results["ids"])

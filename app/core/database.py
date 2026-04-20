@@ -1,20 +1,26 @@
-"""数据库初始化 — 支持 SQLite / MySQL"""
+"""数据库初始化 — 支持 SQLite / MySQL，凭据从 .env 读取"""
 
 import os
 from pathlib import Path
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+# 加载 .env
+load_dotenv()
+
 # ─── 数据库连接配置 ───────────────────────────────
-# 优先读环境变量，fallback 到默认值
-DB_TYPE = os.getenv("DB_TYPE", "mysql")  # "mysql" or "sqlite"
+DB_TYPE = os.getenv("DB_TYPE", "sqlite")
 
 if DB_TYPE == "mysql":
-    DB_HOST = os.getenv("DB_HOST", "172.26.32.1")
+    DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
     DB_PORT = os.getenv("DB_PORT", "3306")
     DB_USER = os.getenv("DB_USER", "root")
-    DB_PASS = os.getenv("DB_PASS", "Admin1234..")
+    DB_PASS = os.getenv("DB_PASS", "")
     DB_NAME = os.getenv("DB_NAME", "knowledge_base")
+    if not DB_PASS:
+        raise RuntimeError("DB_PASS 环境变量未设置，请在 .env 中配置数据库密码")
     DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
 else:
     DB_PATH = Path(__file__).parent.parent.parent / "data" / "knowledge.db"

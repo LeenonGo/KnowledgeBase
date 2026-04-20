@@ -13,28 +13,28 @@
   <h2>📚 RAG 知识库系统</h2>
   <div class="side-section">
     <div class="side-section-title">概览</div>
-    <a onclick="nav('dashboard')" class="active">📊 仪表盘</a>
+    <a onclick="Router.navigate('dashboard')" class="active">📊 仪表盘</a>
   </div>
   <div class="side-section">
     <div class="side-section-title">知识库</div>
-    <a onclick="nav('kb-list')">📂 知识库列表</a>
-    <a onclick="nav('qa-chat')">💬 智能问答</a>
+    <a onclick="Router.navigate('kb-list')">📂 知识库列表</a>
+    <a onclick="Router.navigate('qa-chat')">💬 智能问答</a>
   </div>
   <div class="side-section">
     <div class="side-section-title">管理</div>
-    <a onclick="nav('user-mgmt')" id="menu-users">👥 用户管理</a>
-    <a onclick="nav('dept-tree')" id="menu-depts">🏢 部门管理</a>
-    <a onclick="nav('perm-mgmt')" id="menu-perms">🔑 权限管理</a>
+    <a onclick="Router.navigate('user-mgmt')" id="menu-users">👥 用户管理</a>
+    <a onclick="Router.navigate('dept-tree')" id="menu-depts">🏢 部门管理</a>
+    <a onclick="Router.navigate('perm-mgmt')" id="menu-perms">🔑 权限管理</a>
   </div>
   <div class="side-section">
     <div class="side-section-title">运维</div>
-    <a onclick="nav('audit-log')">📋 审计日志</a>
-    <a onclick="nav('quality')" id="menu-quality">📈 质量监控</a>
-    <a onclick="nav('sys-config')" id="menu-config">⚙️ 系统配置</a>
+    <a onclick="Router.navigate('audit-log')" id="menu-audit">📋 审计日志</a>
+    <a onclick="Router.navigate('quality')" id="menu-quality">📈 质量监控</a>
+    <a onclick="Router.navigate('sys-config')" id="menu-config">⚙️ 系统配置</a>
   </div>
   <div style="padding:12px 20px;border-top:1px solid rgba(255,255,255,.1);margin-top:auto;position:absolute;bottom:0;width:100%;">
     <div style="padding:8px 20px;font-size:12px;color:rgba(255,255,255,.45);border-top:1px solid rgba(255,255,255,.1);margin-top:8px;">👤 <span id="current-user"></span></div>
-    <a onclick="logout()" style="padding:0 20px;border:none;color:rgba(255,255,255,.5);font-size:12px;cursor:pointer;">🚪 退出登录</a>
+    <a onclick="PageLogin.logout()" style="padding:0 20px;border:none;color:rgba(255,255,255,.5);font-size:12px;cursor:pointer;">🚪 退出登录</a>
   </div>
 </nav>
 
@@ -52,7 +52,7 @@
       <label style="font-size:13px;color:#666;"><input type="checkbox" checked> 记住登录</label>
       <a href="#" style="font-size:13px;color:#1890ff;">忘记密码？</a>
     </div>
-    <button class="btn btn-primary" style="width:100%;justify-content:center;height:40px;font-size:15px;" onclick="doLogin()">登 录</button>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;height:40px;font-size:15px;" onclick="PageLogin.doLogin()">登 录</button>
     <p style="text-align:center;margin-top:16px;font-size:12px;color:#ccc;">SSO 单点登录（P2 开放）</p>
   </div>
 </div>
@@ -89,9 +89,9 @@
     <div class="card-header"><h3>⚠️ 待处理事项</h3></div>
     <table>
       <tr><th>类型</th><th>描述</th><th>数量</th><th>操作</th></tr>
-      <tr><td><span class="tag tag-red">点踩反馈</span></td><td>待审核的用户差评反馈</td><td>0</td><td><button class="btn btn-sm" onclick="nav('quality')">去处理</button></td></tr>
-      <tr><td><span class="tag tag-orange">解析失败</span></td><td>文档解析失败，需人工处理</td><td>0</td><td><button class="btn btn-sm" onclick="nav('kb-list')">去处理</button></td></tr>
-      <tr><td><span class="tag tag-purple">低置信度</span></td><td>置信度低于 0.5 的问答记录</td><td>--</td><td><button class="btn btn-sm" onclick="nav('audit-log')">查看</button></td></tr>
+      <tr><td><span class="tag tag-red">点踩反馈</span></td><td>待审核的用户差评反馈</td><td>0</td><td><button class="btn btn-sm" onclick="Router.navigate('quality')">去处理</button></td></tr>
+      <tr><td><span class="tag tag-orange">解析失败</span></td><td>文档解析失败，需人工处理</td><td>0</td><td><button class="btn btn-sm" onclick="Router.navigate('kb-list')">去处理</button></td></tr>
+      <tr><td><span class="tag tag-purple">低置信度</span></td><td>置信度低于 0.5 的问答记录</td><td>--</td><td><button class="btn btn-sm" onclick="Router.navigate('audit-log')">查看</button></td></tr>
     </table>
   </div>
 </div>
@@ -100,7 +100,7 @@
 <div id="kb-list" class="screen">
   <div class="screen-title" style="justify-content:space-between;">
     <span>知识库管理</span>
-    <button class="btn btn-primary" onclick="showModal('create-kb')">＋ 创建知识库</button>
+    <button class="btn btn-primary" onclick="UI.showModal('create-kb')">＋ 创建知识库</button>
   </div>
   <div class="card">
     <div class="flex-between mb-16">
@@ -117,19 +117,19 @@
 <!-- ==================== 4. 知识库详情 ==================== -->
 <div id="kb-detail" class="screen">
   <div class="screen-title">
-    <a onclick="nav('kb-list')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
+    <a onclick="Router.navigate('kb-list')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
     📖 <span id="kb-detail-name">知识库</span> <span class="tag tag-green">活跃</span>
   </div>
   <div class="tabs" id="kb-detail-tabs">
-    <div class="tab active" onclick="switchTab(this,'kb-tab-docs')">文档管理</div>
-    <div class="tab" onclick="switchTab(this,'kb-tab-settings')">知识库设置</div>
+    <div class="tab active" onclick="UI.switchTab(this,'kb-tab-docs')">文档管理</div>
+    <div class="tab" onclick="UI.switchTab(this,'kb-tab-settings');PageKB.loadKBSettings()">知识库设置</div>
 
   </div>
   <!-- KB Tab: Documents -->
   <div id="kb-tab-docs">
     <div class="card">
       <div class="flex-between mb-16">
-        <button class="btn btn-primary kb-edit-only" onclick="nav('doc-upload')">⬆️ 上传文档</button>
+        <button class="btn btn-primary kb-edit-only" onclick="Router.navigate('doc-upload')">⬆️ 上传文档</button>
       </div>
       <table>
         <tr><th>文档名称</th><th>大小</th><th>Chunks</th><th>状态</th><th>操作</th></tr>
@@ -159,7 +159,17 @@
         <div class="form-group"><label>Embedding 模型</label><input class="input" id="kb-set-emb-model" placeholder="如 text-embedding-v3"></div>
         <div class="form-group"><label>LLM 模型</label><input class="input" id="kb-set-llm-model" placeholder="如 qwen3.6-plus"></div>
       </div>
-      <button class="btn btn-primary mt-16 kb-admin-only" onclick="saveKBSettings()">保存设置</button>
+      <button class="btn btn-primary mt-16 kb-admin-only" onclick="PageKB.saveKBSettings()">保存设置</button>
+    </div>
+    <div class="card mt-16 kb-admin-only">
+      <div class="flex-between mb-16">
+        <h3>🏢 授权部门</h3>
+        <button class="btn btn-primary btn-sm" onclick="PageKB.showAddDeptAccess()">＋ 添加授权</button>
+      </div>
+      <table>
+        <thead><tr><th>部门名称</th><th>权限角色</th><th>操作</th></tr></thead>
+        <tbody id="kb-dept-access-body"><tr><td colspan="3" style="text-align:center;padding:20px;color:#999;">加载中...</td></tr></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -167,7 +177,7 @@
 <!-- ==================== 5. 文档上传 ==================== -->
 <div id="doc-upload" class="screen">
   <div class="screen-title">
-    <a onclick="nav('kb-detail')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
+    <a onclick="Router.navigate('kb-detail')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
     上传文档
   </div>
   <div class="steps">
@@ -188,7 +198,7 @@
       <input type="file" id="file-input" style="display:none;" accept=".pdf,.docx,.doc,.md,.txt">
       <div id="selected-files" style="margin-top:16px;"></div>
       <div style="margin-top:20px;text-align:right;">
-        <button class="btn btn-primary" id="step1-next" onclick="goUploadStep(2)" disabled>下一步 →</button>
+        <button class="btn btn-primary" id="step1-next" onclick="PageUpload.goStep(2)" disabled>下一步 →</button>
       </div>
     </div>
   </div>
@@ -225,8 +235,8 @@
       <h3 class="mb-16">已选择文件</h3>
       <div id="step2-file-info" style="padding:12px;background:#f8fafc;border-radius:6px;font-size:13px;"></div>
       <div style="margin-top:20px;display:flex;justify-content:space-between;">
-        <button class="btn" onclick="goUploadStep(1)">← 上一步</button>
-        <button class="btn btn-primary" onclick="doUpload()">🚀 开始上传</button>
+        <button class="btn" onclick="PageUpload.goStep(1)">← 上一步</button>
+        <button class="btn btn-primary" onclick="PageUpload.doUpload()">🚀 开始上传</button>
       </div>
     </div>
   </div>
@@ -244,9 +254,9 @@
       </div>
       <div id="upload-result" style="display:none;"></div>
       <div id="upload-actions" style="display:none;margin-top:20px;display:flex;gap:12px;">
-        <button class="btn btn-primary" onclick="viewLastUploadChunks()">📝 查看分块</button>
-        <button class="btn" onclick="resetUpload()">📂 继续上传</button>
-        <button class="btn" onclick="nav('kb-detail')">← 返回文档管理</button>
+        <button class="btn btn-primary" onclick="PageUpload.viewLastChunks()">📝 查看分块</button>
+        <button class="btn" onclick="PageUpload.reset()">📂 继续上传</button>
+        <button class="btn" onclick="Router.navigate('kb-detail')">← 返回文档管理</button>
       </div>
     </div>
   </div>
@@ -258,7 +268,7 @@
   <div class="chat-container">
     <div class="chat-sidebar-panel">
       <div class="chat-sidebar-header">
-        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="newChat()">＋ 新对话</button>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="PageQA.newChat()">＋ 新对话</button>
       </div>
       <div class="chat-list" id="chat-list">
         <div class="chat-item active"><div class="title">新对话</div><div class="meta">刚刚</div></div>
@@ -277,15 +287,15 @@
           <div style="font-size:16px;">输入问题开始对话</div>
           <div style="font-size:13px;margin-top:8px;">系统将从知识库中检索相关内容并生成回答</div>
           <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px;align-items:center;">
-            <button class="btn" style="max-width:500px;width:100%;justify-content:flex-start;text-align:left;font-size:13px;padding:10px 16px;" onclick="askPreset(this)">📋 知识库系统有什么功能模块？</button>
-            <button class="btn" style="max-width:500px;width:100%;justify-content:flex-start;text-align:left;font-size:13px;padding:10px 16px;" onclick="askPreset(this)">📋 P1阶段将会更新什么模块？</button>
+            <button class="btn" style="max-width:500px;width:100%;justify-content:flex-start;text-align:left;font-size:13px;padding:10px 16px;" onclick="PageQA.askPreset(this)">📋 知识库系统有什么功能模块？</button>
+            <button class="btn" style="max-width:500px;width:100%;justify-content:flex-start;text-align:left;font-size:13px;padding:10px 16px;" onclick="PageQA.askPreset(this)">📋 P1阶段将会更新什么模块？</button>
           </div>
         </div>
       </div>
       <div class="chat-input-area">
         <div class="chat-input-row">
-          <textarea class="chat-input" id="qa-input" placeholder="输入问题，Enter 发送..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();askQuestion()}"></textarea>
-          <button class="btn btn-primary" style="height:44px;" onclick="askQuestion()" id="qa-send-btn">发送</button>
+          <textarea class="chat-input" id="qa-input" placeholder="输入问题，Enter 发送..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();PageQA.askQuestion()}"></textarea>
+          <button class="btn btn-primary" style="height:44px;" onclick="PageQA.PageQA.askQuestion()" id="qa-send-btn">发送</button>
         </div>
         <div class="chat-actions">
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" checked> 流式输出</label>
@@ -301,21 +311,21 @@
   <div class="screen-title" style="justify-content:space-between;">
     <span>👥 用户管理</span>
     <div class="flex gap-8">
-      <button class="btn btn-primary" onclick="showCreateUserModal()">＋ 创建用户</button>
+      <button class="btn btn-primary" onclick="PageUsers.showCreate()">＋ 创建用户</button>
     </div>
   </div>
   <div class="card">
     <div class="flex-between mb-16">
       <div class="flex gap-12">
-        <input class="input" placeholder="搜索用户名/姓名..." style="width:240px;" id="user-search" oninput="filterUsers()">
-        <select class="select" id="user-dept-filter" onchange="filterUsers()"><option value="">全部部门</option></select>
-        <select class="select" id="user-role-filter" onchange="filterUsers()">
+        <input class="input" placeholder="搜索用户名/姓名..." style="width:240px;" id="user-search" oninput="PageUsers.filter()">
+        <select class="select" id="user-dept-filter" onchange="PageUsers.filter()"><option value="">全部部门</option></select>
+        <select class="select" id="user-role-filter" onchange="PageUsers.filter()">
           <option value="">全部角色</option>
           <option value="super_admin">super_admin</option>
           <option value="kb_admin">kb_admin</option>
           <option value="user">user</option>
         </select>
-        <select class="select" id="user-status-filter" onchange="filterUsers()">
+        <select class="select" id="user-status-filter" onchange="PageUsers.filter()">
           <option value="">全部状态</option>
           <option value="active">启用</option>
           <option value="disabled">禁用</option>
@@ -337,7 +347,7 @@
 <div id="dept-tree" class="screen">
   <div class="screen-title flex-between" style="display:flex;justify-content:space-between;">
     <span>🏢 部门管理</span>
-    <button class="btn btn-primary" onclick="showModal('add-dept')">＋ 添加部门</button>
+    <button class="btn btn-primary" onclick="UI.showModal('add-dept')">＋ 添加部门</button>
   </div>
   <div class="card">
     <div class="tree-item root">
@@ -393,7 +403,7 @@
           <option value="create_user">创建用户</option>
           <option value="delete_user">删除用户</option>
         </select>
-        <button class="btn btn-primary" onclick="loadAuditLogs()">筛选</button>
+        <button class="btn btn-primary" onclick="PageAudit.load()">筛选</button>
       </div>
       <span class="text-muted" id="audit-count"></span>
     </div>
@@ -431,11 +441,11 @@
 <div id="sys-config" class="screen">
   <div class="screen-title">⚙️ 系统配置</div>
   <div class="tabs">
-    <div class="tab active" onclick="switchTab(this,'config-tab-general')">通用设置</div>
-    <div class="tab" onclick="switchTab(this,'config-tab-model')">模型配置</div>
-    <div class="tab" onclick="switchTab(this,'config-tab-prompt')">Prompt 管理</div>
-    <div class="tab" onclick="switchTab(this,'config-tab-retrieval')">检索策略</div>
-    <div class="tab" onclick="switchTab(this,'config-tab-cache')">缓存设置</div>
+    <div class="tab active" onclick="UI.switchTab(this,'config-tab-general')">通用设置</div>
+    <div class="tab" onclick="var tid=UI.switchTab(this,'config-tab-model');PageConfig.onTabChange(tid)">模型配置</div>
+    <div class="tab" onclick="UI.switchTab(this,'config-tab-prompt');PageConfig.loadPromptEditor()">Prompt 管理</div>
+    <div class="tab" onclick="UI.switchTab(this,'config-tab-retrieval')">检索策略</div>
+    <div class="tab" onclick="UI.switchTab(this,'config-tab-cache')">缓存设置</div>
   </div>
   <div id="config-tab-general">
     <div class="card">
@@ -516,13 +526,13 @@
       <h3 class="mb-16">🔄 索引重建</h3>
       <p class="text-muted" style="margin-bottom:16px;">更换 Embedding 模型后，需要重新向量化所有文档。此操作会用新模型重新计算向量，不影响原始文本。</p>
       <div class="flex gap-12">
-        <button class="btn btn-primary" onclick="reindexAll()">重建全部索引</button>
-        <button class="btn" onclick="reindexCurrentKB()">重建当前知识库索引</button>
+        <button class="btn btn-primary" onclick="PageConfig.reindexAll()">重建全部索引</button>
+        <button class="btn" onclick="PageConfig.reindexCurrentKB()">重建当前知识库索引</button>
       </div>
       <div id="reindex-status" style="margin-top:12px;display:none;"></div>
     </div>
 
-    <button class="btn btn-primary mt-16" onclick="saveModelConfig()" style="width:100%;justify-content:center;height:40px;font-size:15px;">💾 保存配置</button>
+    <button class="btn btn-primary mt-16" onclick="PageConfig.saveModelConfig()" style="width:100%;justify-content:center;height:40px;font-size:15px;">💾 保存配置</button>
   </div>
   
   <div id="config-tab-prompt" style="display:none;">
@@ -571,7 +581,7 @@
         </div>
       </div>
 
-      <button class="btn btn-primary mt-16" onclick="savePrompts()" style="width:100%;justify-content:center;height:40px;">💾 保存 Prompt</button>
+      <button class="btn btn-primary mt-16" onclick="PageConfig.savePrompts()" style="width:100%;justify-content:center;height:40px;">💾 保存 Prompt</button>
     </div>
   </div>
   <div id="config-tab-retrieval" style="display:none;">
@@ -603,7 +613,7 @@
 <!-- ==================== 分块查看/编辑 ==================== -->
 <div id="chunk-viewer" class="screen">
   <div class="screen-title">
-    <a onclick="nav('kb-detail')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
+    <a onclick="Router.navigate('kb-detail')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
     📝 分块查看 — <span id="chunk-viewer-filename">文档</span>
     <span class="badge" id="chunk-viewer-count">0 块</span>
   </div>
@@ -618,8 +628,8 @@
         </select>
       </div>
       <div class="flex gap-8">
-        <button class="btn" onclick="expandAll()">全部展开</button>
-        <button class="btn" onclick="collapseAll()">全部折叠</button>
+        <button class="btn" onclick="PageChunks.expandAll()">全部展开</button>
+        <button class="btn" onclick="PageChunks.collapseAll()">全部折叠</button>
       </div>
     </div>
     <div id="chunk-list">
@@ -633,13 +643,13 @@
 
 <!-- ============= Modals ============= -->
 
-<div id="modal-overlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this)hideModal()">
+<div id="modal-overlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this)UI.hideModal()">
 
 <!-- Chunk Edit Modal -->
 <div id="modal-chunk-edit" class="modal" style="display:none;width:700px;">
   <div class="modal-header">
     <span>编辑分块 <span id="chunk-edit-index"></span></span>
-    <button onclick="hideChunkEdit()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button>
+    <button onclick="PageChunks.hideEdit()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button>
   </div>
   <div class="modal-body">
     <div class="form-group">
@@ -649,9 +659,9 @@
     </div>
   </div>
   <div class="modal-footer">
-    <button class="btn" onclick="hideChunkEdit()">取消</button>
-    <button class="btn btn-danger" onclick="deleteCurrentChunk()">删除此分块</button>
-    <button class="btn btn-primary" onclick="saveChunkEdit()">保存</button>
+    <button class="btn" onclick="PageChunks.hideEdit()">取消</button>
+    <button class="btn btn-danger" onclick="PageChunks.remove(PageChunks._currentId)">删除此分块</button>
+    <button class="btn btn-primary" onclick="PageChunks.saveEdit()">保存</button>
   </div>
 </div>
 
@@ -659,18 +669,18 @@
 
 <!-- Create KB Modal -->
 <div id="modal-create-kb" class="modal" style="display:none;">
-  <div class="modal-header"><span>创建知识库</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-header"><span>创建知识库</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
   <div class="modal-body">
     <div class="form-group"><label>知识库名称 *</label><input class="input" id="new-kb-name" placeholder="请输入知识库名称"></div>
     <div class="form-group"><label>描述</label><textarea class="input" rows="3" id="new-kb-desc" placeholder="请输入知识库描述"></textarea></div>
     <div class="form-group"><label>所属部门</label><select class="select" style="width:100%" id="new-kb-dept"><option value="">全部部门</option></select></div>
   </div>
-  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="createKB()">创建</button></div>
+  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">取消</button><button class="btn btn-primary" onclick="PageKB.createKB()">创建</button></div>
 </div>
 
 <!-- Create User Modal -->
 <div id="modal-create-user" class="modal" style="display:none;">
-  <div class="modal-header"><span id="user-modal-title">创建用户</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-header"><span id="user-modal-title">创建用户</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
   <div class="modal-body">
     <input type="hidden" id="edit-user-id" value="">
     <div class="form-row">
@@ -689,7 +699,7 @@
       <div class="form-group"><label>系统角色</label><select class="select" style="width:100%" id="new-user-role"><option value="user">user</option><option value="kb_admin">kb_admin</option><option value="super_admin">super_admin</option></select></div>
     </div>
   </div>
-  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" id="user-modal-btn" onclick="saveUser()">创建</button></div>
+  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">取消</button><button class="btn btn-primary" id="user-modal-btn" onclick="PageUsers.save()">创建</button></div>
 </div>
 
 
@@ -697,26 +707,63 @@
 
 <!-- Add Dept Modal -->
 <div id="modal-add-dept" class="modal" style="display:none;">
-  <div class="modal-header"><span>添加部门</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-header"><span>添加部门</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
   <div class="modal-body">
     <div class="form-group"><label>部门名称 *</label><input class="input" id="new-dept-name" placeholder="请输入部门名称"></div>
     <div class="form-group"><label>上级部门</label><select class="select" style="width:100%" id="new-dept-parent"></select></div>
     <div class="form-group"><label>描述</label><textarea class="input" rows="2" id="new-dept-desc"></textarea></div>
   </div>
-  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="createDept()">添加</button></div>
+  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">取消</button><button class="btn btn-primary" onclick="PageDepts.create()">添加</button></div>
 </div>
 
 <!-- Create Role Modal -->
 <div id="modal-create-role" class="modal" style="display:none;">
-  <div class="modal-header"><span>新建角色</span><button onclick="hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-header"><span>新建角色</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
   <div class="modal-body">
     <div class="form-group"><label>角色名称 *</label><input class="input" id="new-role-name" placeholder="请输入角色名称"></div>
     <div class="form-group"><label>描述</label><input class="input" id="new-role-desc" placeholder="请输入角色描述"></div>
   </div>
-  <div class="modal-footer"><button class="btn" onclick="hideModal()">取消</button><button class="btn btn-primary" onclick="createRole()">创建</button></div>
+  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">取消</button><button class="btn btn-primary" onclick="createRole()">创建</button></div>
+</div>
+
+<!-- 添加部门授权弹窗 -->
+<div id="modal-add-dept-access" class="modal" style="display:none;">
+  <div class="modal-header"><span>添加部门授权</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label>选择部门</label><select class="select" style="width:100%" id="dept-access-dept"></select></div>
+    <div class="form-group"><label>权限角色</label><select class="select" style="width:100%" id="dept-access-role"><option value="viewer">只读（viewer）</option><option value="editor">编辑（editor）</option><option value="admin">管理（admin）</option></select></div>
+  </div>
+  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">取消</button><button class="btn btn-primary" onclick="PageKB.addDeptAccess()">添加</button></div>
 </div>
 
 <!-- ============= JavaScript ============= -->
-<script src="/app.js"></script>
+<!-- 核心模块 -->
+<script src="/js/api.js?v=2"></script>
+<script src="/js/router.js?v=2"></script>
+<script src="/js/components/ui.js?v=2"></script>
+<!-- 页面模块 -->
+<script src="/js/pages/auth.js?v=2"></script>
+<script src="/js/pages/dashboard.js?v=2"></script>
+<script src="/js/pages/kb.js?v=2"></script>
+<script src="/js/pages/upload.js?v=2"></script>
+<script src="/js/pages/qa.js?v=2"></script>
+<script src="/js/pages/users.js?v=2"></script>
+<script src="/js/pages/depts.js?v=2"></script>
+<script src="/js/pages/audit.js?v=2"></script>
+<script src="/js/pages/config.js?v=2"></script>
+<script src="/js/pages/chunks.js?v=2"></script>
+<!-- 初始化 -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    PageLogin.init();
+    PageUpload.init();
+    // 检查已有 token，自动进入
+    if (API.getToken()) {
+      PageLogin.showApp();
+    } else {
+      Router.navigate('login');
+    }
+  });
+</script>
 </body>
 </html>

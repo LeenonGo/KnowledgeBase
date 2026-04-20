@@ -1,13 +1,20 @@
 """JWT 认证 — Token 生成与验证"""
 
 import os
-import time
 from datetime import datetime, timedelta
 
+from dotenv import load_dotenv
 import jwt
 from werkzeug.security import check_password_hash
 
-SECRET_KEY = os.getenv("JWT_SECRET", "knowledge-base-secret-key-change-in-production")
+# 加载 .env（必须在读取环境变量之前）
+load_dotenv()
+
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "JWT_SECRET 未设置。请在 .env 文件或环境变量中配置，例如: openssl rand -hex 32"
+    )
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 24
 
