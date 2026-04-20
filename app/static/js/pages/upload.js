@@ -88,8 +88,7 @@ const PageUpload = (() => {
     lastUploadedFile = selectedFile.name;
     const fd = new FormData();
     fd.append('file', selectedFile);
-    const kbId = PageKB.getCurrentKbId();
-    if (kbId) fd.append('kb_id', kbId);
+    fd.append('kb_id', kbId);
     const strategy = document.getElementById('chunk-strategy').value || 'semantic';
     fd.append('chunk_strategy', strategy);
     if (strategy === 'structural') {
