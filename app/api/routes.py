@@ -12,6 +12,7 @@ from app.api.config_routes import router as config_router
 from app.api.audit_routes import router as audit_router
 from app.api.access_routes import router as access_router
 from app.api.conversation_routes import router as conversation_router
+from app.api.stats_routes import router as stats_router
 
 router = APIRouter()
 
@@ -25,3 +26,4 @@ router.include_router(config_router)
 router.include_router(audit_router)
 router.include_router(access_router)
 router.include_router(conversation_router)
+router.include_router(stats_router)

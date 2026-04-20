@@ -1,11 +1,22 @@
 /**
- * 质量监控页 — 用户反馈列表
+ * 质量监控页 — 统计 + 用户反馈列表
  */
 const PageQuality = (() => {
   let feedbackPage = 1;
 
   async function load(page) {
     feedbackPage = page || 1;
+
+    // 加载统计数据
+    try {
+      const stats = await API.request('/api/stats/quality');
+      document.getElementById('qual-down-rate').textContent = stats.down_rate + '%';
+      document.getElementById('qual-no-result').textContent = stats.no_result_rate + '%';
+      document.getElementById('qual-latency').textContent = stats.avg_latency + 's';
+      document.getElementById('qual-total').textContent = stats.total_feedback;
+    } catch (e) { console.error('加载统计失败:', e); }
+
+    // 加载反馈列表
     const rating = document.getElementById('feedback-filter')?.value || '';
     let url = `/api/feedback?page=${feedbackPage}&page_size=20`;
     if (rating) url += `&rating=${rating}`;
@@ -28,11 +39,13 @@ const PageQuality = (() => {
         const tag = f.rating === 'up'
           ? '<span class="tag tag-green">点赞</span>'
           : '<span class="tag tag-red">点踩</span>';
+        const q = f.question ? f.question.substring(0, 60) : '-';
+        const a = f.answer ? f.answer.substring(0, 80) : '-';
         return `<tr>
           <td>${time}</td>
           <td>${f.user_id || '-'}</td>
-          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${f.question || ''}">${f.question || '-'}</td>
-          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${f.answer || ''}">${f.answer || '-'}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${f.question || ''}">${q}</td>
+          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${f.answer || ''}">${a}</td>
           <td>${icon} ${tag}</td>
         </tr>`;
       }).join('');
