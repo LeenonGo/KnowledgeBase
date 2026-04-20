@@ -54,6 +54,21 @@ const PageUpload = (() => {
 
   async function doUpload() {
     if (!selectedFile) return;
+
+    // 检查同名文件是否已存在
+    const kbId = PageKB.getCurrentKbId();
+    try {
+      const docs = await API.request(`/api/documents?kb_id=${kbId || 'default'}&page=1&page_size=100`);
+      const existing = (docs.items || []).find(d => d.filename === selectedFile.name);
+      if (existing) {
+        if (!confirm(`知识库中已存在同名文件「${selectedFile.name}」（${existing.chunks} 块）。
+
+确定要用新文件替换旧版本吗？旧版本的分块数据将被删除。`)) {
+          return;
+        }
+      }
+    } catch {}
+
     goStep(3);
     document.getElementById('upload-progress').style.display = 'block';
     document.getElementById('upload-result').style.display = 'none';
