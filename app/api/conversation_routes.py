@@ -183,14 +183,25 @@ async def list_feedback(rating: str = None, page: int = 1, page_size: int = 20,
 
     result = []
     for fb in items:
-        turn = db.query(ConversationTurn).filter(ConversationTurn.id == fb.turn_id).first()
-        u = db.query(User).filter(User.id == fb.user_id).first() if False else None  # 避免循环导入
+        assistant_turn = db.query(ConversationTurn).filter(ConversationTurn.id == fb.turn_id).first()
+        question = ""
+        answer = ""
+        if assistant_turn:
+            answer = assistant_turn.content
+            # 往前找同一对话中的用户提问
+            user_turn = db.query(ConversationTurn).filter(
+                ConversationTurn.conversation_id == assistant_turn.conversation_id,
+                ConversationTurn.role == "user",
+                ConversationTurn.created_at < assistant_turn.created_at,
+            ).order_by(ConversationTurn.created_at.desc()).first()
+            if user_turn:
+                question = user_turn.content
         result.append({
             "id": fb.id, "turn_id": fb.turn_id,
             "rating": fb.rating, "comment": fb.comment,
             "user_id": fb.user_id,
-            "question": turn.content if turn and turn.role == "user" else "",
-            "answer": turn.content if turn and turn.role == "assistant" else "",
+            "question": question,
+            "answer": answer,
             "created_at": str(fb.created_at),
         })
 
