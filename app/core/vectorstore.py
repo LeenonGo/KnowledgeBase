@@ -136,22 +136,35 @@ def query(
     """
     embedding = embed_texts([question])[0]
 
-    # 向量检索
+    # 向量检索（n_results 不能超过文档总数）
+    if kb_id:
+        count_results = _collection.get(where={"kb_id": kb_id})
+        total_docs = len(count_results["ids"])
+    else:
+        total_docs = _collection.count()
+    vec_n = min(max(top_k * 2, 10), total_docs) if total_docs > 0 else top_k
+
     vec_kwargs = {
         "query_embeddings": [embedding],
-        "n_results": max(top_k * 2, 10),  # 多取一些用于融合
+        "n_results": vec_n,
     }
     if kb_id:
         vec_kwargs["where"] = {"kb_id": kb_id}
 
-    vec_results_raw = _collection.query(**vec_kwargs)
+    try:
+        vec_results_raw = _collection.query(**vec_kwargs)
+    except Exception as e:
+        print(f"[VectorStore] 向量检索失败: {e}")
+        vec_results_raw = {"documents": [[]], "metadatas": [[]], "distances": [[]]}
+
     vector_results = []
-    for i in range(len(vec_results_raw["documents"][0])):
-        vector_results.append({
-            "text": vec_results_raw["documents"][0][i],
-            "source": vec_results_raw["metadatas"][0][i]["source"],
-            "distance": vec_results_raw["distances"][0][i],
-        })
+    if vec_results_raw["documents"] and vec_results_raw["documents"][0]:
+        for i in range(len(vec_results_raw["documents"][0])):
+            vector_results.append({
+                "text": vec_results_raw["documents"][0][i],
+                "source": vec_results_raw["metadatas"][0][i]["source"],
+                "distance": vec_results_raw["distances"][0][i],
+            })
 
     if not use_hybrid:
         return vector_results[:top_k]
