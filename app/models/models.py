@@ -112,8 +112,8 @@ class KBDepartmentAccess(Base):
     __tablename__ = "kb_department_access"
 
     id = Column(String(32), primary_key=True, default=gen_id)
-    kb_id = Column(String(32), ForeignKey("knowledge_base.id"), nullable=False)
-    department_id = Column(String(32), ForeignKey("department.id"), nullable=False)
+    kb_id = Column(String(32), ForeignKey("knowledge_base.id", ondelete="CASCADE"), nullable=False)
+    department_id = Column(String(32), ForeignKey("department.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(16), default="viewer", comment="admin / editor / viewer")
     created_by = Column(String(32), nullable=True)
     created_at = Column(DateTime, default=_now)
@@ -131,7 +131,7 @@ class KBUserAccess(Base):
 
     id = Column(String(32), primary_key=True, default=gen_id)
     kb_id = Column(String(32), ForeignKey("knowledge_base.id"), nullable=False)
-    user_id = Column(String(32), ForeignKey("user.id"), nullable=False)
+    user_id = Column(String(32), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(16), default="viewer", comment="admin / editor / viewer")
     created_by = Column(String(32), nullable=True)
     created_at = Column(DateTime, default=_now)
@@ -148,7 +148,7 @@ class Conversation(Base):
     __tablename__ = "conversation"
 
     id = Column(String(32), primary_key=True, default=gen_id)
-    user_id = Column(String(32), ForeignKey("user.id"), nullable=False)
+    user_id = Column(String(32), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(512), default="新对话")
     status = Column(String(16), default="active")  # active / closed
     created_at = Column(DateTime, default=_now)
@@ -160,7 +160,7 @@ class ConversationTurn(Base):
     __tablename__ = "conversation_turn"
 
     id = Column(String(32), primary_key=True, default=gen_id)
-    conversation_id = Column(String(32), ForeignKey("conversation.id"), nullable=False)
+    conversation_id = Column(String(32), ForeignKey("conversation.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(16), nullable=False, comment="user / assistant")
     content = Column(Text, nullable=False)
     sources = Column(Text, default="", comment="JSON 格式的引用来源列表")
@@ -179,8 +179,8 @@ class QAFeedback(Base):
     __tablename__ = "qa_feedback"
 
     id = Column(String(32), primary_key=True, default=gen_id)
-    turn_id = Column(String(32), ForeignKey("conversation_turn.id"), nullable=False)
-    user_id = Column(String(32), ForeignKey("user.id"), nullable=False)
+    turn_id = Column(String(32), ForeignKey("conversation_turn.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(32), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     rating = Column(String(16), nullable=False, comment="up / down")
     comment = Column(Text, default="")
     created_at = Column(DateTime, default=_now)

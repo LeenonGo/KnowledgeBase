@@ -68,7 +68,7 @@ class QueryCache:
         now = time.time()
         expired = [k for k, (exp, _) in self._cache.items() if now > exp]
         for k in expired:
-            del self._cache[self._cache_key_for(k)]
+            del self._cache[k]
 
         # 如果还是超限，删除最旧的
         if len(self._cache) >= self._max_size:

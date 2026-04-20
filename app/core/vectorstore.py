@@ -24,12 +24,14 @@ from app.core.hybrid_search import BM25Index, rrf_fusion
 
 _bm25_index: BM25Index | None = None
 _bm25_dirty = True
+_bm25_doc_count = 0
 
 
 def _get_bm25_index(kb_id: str = None) -> BM25Index:
-    """获取 BM25 索引（懒构建，数据变更时标记 dirty）"""
-    global _bm25_index, _bm25_dirty
-    if _bm25_index is None or _bm25_dirty:
+    """获取 BM25 索引（懒构建，文档数变化时重建）"""
+    global _bm25_index, _bm25_dirty, _bm25_doc_count
+    current_count = _collection.count()
+    if _bm25_index is None or _bm25_dirty or current_count != _bm25_doc_count:
         _bm25_index = BM25Index()
         if kb_id:
             results = _collection.get(where={"kb_id": kb_id})
@@ -45,6 +47,7 @@ def _get_bm25_index(kb_id: str = None) -> BM25Index:
             })
         _bm25_index.build(docs)
         _bm25_dirty = False
+        _bm25_doc_count = current_count
     return _bm25_index
 
 

@@ -43,11 +43,24 @@ async def upload_document(
     db: Session = Depends(get_db),
 ):
     require_kb_access(db, user, kb_id, "editor")
+
+    # 文件格式校验
+    ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".md", ".txt"}
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(400, f"不支持的文件格式: {file_ext}，支持: {', '.join(ALLOWED_EXTENSIONS)}")
+
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     file_path = UPLOAD_DIR / file.filename
 
     # 先读取内容算 hash
     content = await file.read()
+
+    # 文件大小校验（50MB）
+    MAX_FILE_SIZE = 50 * 1024 * 1024
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(400, f"文件过大: {len(content)/1024/1024:.1f}MB，最大允许 50MB")
+
     file_hash = hashlib.sha256(content).hexdigest()
 
     # 检查同 KB 内同名文件 → 版本替换
