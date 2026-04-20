@@ -525,6 +525,33 @@
       </div>
     </div>
 
+    <!-- 重排模型配置 -->
+    <div class="card">
+      <h3 class="mb-16">🔀 重排模型（Reranker）配置</h3>
+      <p class="text-muted mb-16">对检索结果二次排序，提升问答准确率。推荐 qwen3-vl-rerank。</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>服务提供商</label>
+          <select class="select" style="width:100%;" id="rerank-provider" onchange="toggleRerankFields()">
+            <option value="dashscope">阿里云 DashScope</option>
+            <option value="custom">自定义 API</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>模型名称</label>
+          <input class="input" id="rerank-model" value="qwen3-vl-rerank" placeholder="如 qwen3-vl-rerank">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>API 地址</label>
+        <input class="input" id="rerank-base-url" value="https://dashscope.aliyuncs.com/compatible-mode/v1" placeholder="Reranker API 地址">
+      </div>
+      <div class="form-group">
+        <label>API Key</label>
+        <input class="input" id="rerank-api-key" type="password" placeholder="可复用 LLM 的 API Key">
+      </div>
+    </div>
+
     <!-- 重建索引 -->
     <div class="card">
       <h3 class="mb-16">🔄 索引重建</h3>
@@ -733,21 +760,21 @@
 
 <!-- ============= JavaScript ============= -->
 <!-- 核心模块 -->
-<script src="/js/api.js?v=8"></script>
-<script src="/js/router.js?v=8"></script>
-<script src="/js/components/ui.js?v=8"></script>
+<script src="/js/api.js?v=9"></script>
+<script src="/js/router.js?v=9"></script>
+<script src="/js/components/ui.js?v=9"></script>
 <!-- 页面模块 -->
-<script src="/js/pages/auth.js?v=8"></script>
-<script src="/js/pages/dashboard.js?v=8"></script>
-<script src="/js/pages/kb.js?v=8"></script>
-<script src="/js/pages/upload.js?v=8"></script>
-<script src="/js/pages/qa.js?v=8"></script>
-<script src="/js/pages/users.js?v=8"></script>
-<script src="/js/pages/depts.js?v=8"></script>
-<script src="/js/pages/audit.js?v=8"></script>
-<script src="/js/pages/config.js?v=8"></script>
-<script src="/js/pages/quality.js?v=8"></script>
-<script src="/js/pages/chunks.js?v=8"></script>
+<script src="/js/pages/auth.js?v=9"></script>
+<script src="/js/pages/dashboard.js?v=9"></script>
+<script src="/js/pages/kb.js?v=9"></script>
+<script src="/js/pages/upload.js?v=9"></script>
+<script src="/js/pages/qa.js?v=9"></script>
+<script src="/js/pages/users.js?v=9"></script>
+<script src="/js/pages/depts.js?v=9"></script>
+<script src="/js/pages/audit.js?v=9"></script>
+<script src="/js/pages/config.js?v=9"></script>
+<script src="/js/pages/quality.js?v=9"></script>
+<script src="/js/pages/chunks.js?v=9"></script>
 <!-- 初始化 -->
 <script>
   document.addEventListener('DOMContentLoaded', () => {

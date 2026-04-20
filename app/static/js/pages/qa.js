@@ -59,7 +59,7 @@ const PageQA = (() => {
 
       const topK = parseInt(document.getElementById('qa-topk').value) || 5;
       const useHybrid = document.getElementById('qa-hybrid')?.checked ?? true;
-      const body = { question, top_k: topK, use_hybrid: useHybrid };
+      const body = { question, top_k: topK, use_hybrid: useHybrid, conv_id: convId, use_reranker: true };
       const kbId = PageKB.getCurrentKbId();
       if (kbId) body.kb_id = kbId;
 

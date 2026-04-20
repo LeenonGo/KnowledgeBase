@@ -181,31 +181,11 @@ def query(
 
     # 精排（可选）
     if use_reranker:
-        fused = _rerank(question, fused, top_k)
+        from app.core.reranker import rerank as rerank_fn
+        fused = rerank_fn(question, fused, top_k)
 
     return fused
 
-
-def _rerank(question: str, docs: list[dict], top_k: int) -> list[dict]:
-    """
-    轻量精排 — 用向量余弦相似度作为 reranker。
-    （生产环境可替换为 Cross-Encoder 如 bge-reranker-v2-m3）
-    """
-    if not docs:
-        return docs
-
-    query_emb = embed_texts([question])[0]
-    doc_texts = [d["text"] for d in docs]
-    doc_embs = embed_texts(doc_texts)
-
-    scored = []
-    for i, doc in enumerate(docs):
-        # 余弦相似度（Chroma 已归一化向量，直接点积）
-        sim = sum(a * b for a, b in zip(query_emb, doc_embs[i]))
-        scored.append((sim, doc))
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [{**doc, "rerank_score": sim} for sim, doc in scored[:top_k]]
 
 
 def get_chunks(filename: str, kb_id: str = None) -> list[dict]:

@@ -10,6 +10,8 @@ const PageConfig = (() => {
   async function loadModelConfig() {
     try {
       const cfg = await API.request('/api/config/models');
+
+      // LLM
       if (cfg.llm) {
         const url = cfg.llm.base_url || '';
         let prov = 'custom';
@@ -23,6 +25,8 @@ const PageConfig = (() => {
         document.getElementById('llm-max-tokens').value = cfg.llm.max_tokens || 2048;
         document.getElementById('llm-temperature').value = cfg.llm.temperature || 0.7;
       }
+
+      // Embedding
       if (cfg.embedding) {
         const url = cfg.embedding.base_url || '';
         let prov = 'custom';
@@ -34,6 +38,15 @@ const PageConfig = (() => {
         document.getElementById('emb-base-url').value = url;
         document.getElementById('emb-api-key').value = cfg.embedding.api_key || '';
         document.getElementById('emb-dimensions').value = cfg.embedding.dimensions || '';
+      }
+
+      // Reranker
+      if (cfg.reranker) {
+        const url = cfg.reranker.base_url || '';
+        document.getElementById('rerank-provider').value = url.includes('dashscope') ? 'dashscope' : 'custom';
+        document.getElementById('rerank-model').value = cfg.reranker.model || 'qwen3-vl-rerank';
+        document.getElementById('rerank-base-url').value = url;
+        document.getElementById('rerank-api-key').value = cfg.reranker.api_key || '';
       }
     } catch (e) { console.error('Load config error:', e); }
   }
@@ -54,7 +67,13 @@ const PageConfig = (() => {
         api_key: document.getElementById('emb-api-key').value,
         model: document.getElementById('emb-model').value,
         dimensions: parseInt(document.getElementById('emb-dimensions').value) || null,
-      }
+      },
+      reranker: {
+        provider: document.getElementById('rerank-provider').value,
+        base_url: document.getElementById('rerank-base-url').value,
+        api_key: document.getElementById('rerank-api-key').value,
+        model: document.getElementById('rerank-model').value,
+      },
     };
     try {
       await API.request('/api/config/models', { method: 'POST', body: cfg });

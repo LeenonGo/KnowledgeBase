@@ -10,6 +10,8 @@ class QueryRequest(BaseModel):
     kb_id: str | None = None
     use_hybrid: bool = True
     use_reranker: bool = False
+    history: str | None = None  # 多轮对话上下文
+    conv_id: str | None = None  # 对话 ID（自动获取 history）
 
 
 class QueryResponse(BaseModel):
@@ -48,3 +50,4 @@ class ModelsConfig(BaseModel):
     """完整模型配置"""
     llm: ModelConfig
     embedding: ModelConfig
+    reranker: ModelConfig | None = None
