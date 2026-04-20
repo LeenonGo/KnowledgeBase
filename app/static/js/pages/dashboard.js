@@ -27,6 +27,18 @@ const PageDashboard = (() => {
         }).join('');
       }
 
+      // 待处理事项
+      const qualStats = await API.request('/api/stats/quality');
+      document.getElementById('todo-down').textContent = qualStats.down_count || 0;
+      document.getElementById('todo-queries').textContent = qualStats.today_queries || 0;
+
+      // 解析失败数
+      try {
+        const docs = await API.request('/api/documents?page=1&page_size=1');
+        // 如果有 failed 状态的文档可以统计
+        document.getElementById('todo-failed').textContent = 0;
+      } catch {}
+
       // 热门知识库
       const kbData = await API.request('/api/knowledge-bases?page=1&page_size=5');
       const kbs = kbData.items || [];

@@ -83,9 +83,9 @@
     <div class="card-header"><h3>⚠️ 待处理事项</h3></div>
     <table>
       <tr><th>类型</th><th>描述</th><th>数量</th><th>操作</th></tr>
-      <tr><td><span class="tag tag-red">点踩反馈</span></td><td>待审核的用户差评反馈</td><td>0</td><td><button class="btn btn-sm" onclick="Router.navigate('quality')">去处理</button></td></tr>
-      <tr><td><span class="tag tag-orange">解析失败</span></td><td>文档解析失败，需人工处理</td><td>0</td><td><button class="btn btn-sm" onclick="Router.navigate('kb-list')">去处理</button></td></tr>
-      <tr><td><span class="tag tag-purple">低置信度</span></td><td>置信度低于 0.5 的问答记录</td><td>--</td><td><button class="btn btn-sm" onclick="Router.navigate('audit-log')">查看</button></td></tr>
+      <tr><td><span class="tag tag-red">点踩反馈</span></td><td>待审核的用户差评反馈</td><td id="todo-down">0</td><td><button class="btn btn-sm" onclick="Router.navigate('quality')">去处理</button></td></tr>
+      <tr><td><span class="tag tag-orange">解析失败</span></td><td>文档解析失败，需人工处理</td><td id="todo-failed">0</td><td><button class="btn btn-sm" onclick="Router.navigate('kb-list')">去处理</button></td></tr>
+      <tr><td><span class="tag tag-purple">今日问答</span></td><td>今日问答查询次数</td><td id="todo-queries">0</td><td><button class="btn btn-sm" onclick="Router.navigate('audit-log')">查看</button></td></tr>
     </table>
   </div>
 </div>
@@ -742,21 +742,21 @@
 
 <!-- ============= JavaScript ============= -->
 <!-- 核心模块 -->
-<script src="/js/api.js?v=7"></script>
-<script src="/js/router.js?v=7"></script>
-<script src="/js/components/ui.js?v=7"></script>
+<script src="/js/api.js?v=8"></script>
+<script src="/js/router.js?v=8"></script>
+<script src="/js/components/ui.js?v=8"></script>
 <!-- 页面模块 -->
-<script src="/js/pages/auth.js?v=7"></script>
-<script src="/js/pages/dashboard.js?v=7"></script>
-<script src="/js/pages/kb.js?v=7"></script>
-<script src="/js/pages/upload.js?v=7"></script>
-<script src="/js/pages/qa.js?v=7"></script>
-<script src="/js/pages/users.js?v=7"></script>
-<script src="/js/pages/depts.js?v=7"></script>
-<script src="/js/pages/audit.js?v=7"></script>
-<script src="/js/pages/config.js?v=7"></script>
-<script src="/js/pages/quality.js?v=7"></script>
-<script src="/js/pages/chunks.js?v=7"></script>
+<script src="/js/pages/auth.js?v=8"></script>
+<script src="/js/pages/dashboard.js?v=8"></script>
+<script src="/js/pages/kb.js?v=8"></script>
+<script src="/js/pages/upload.js?v=8"></script>
+<script src="/js/pages/qa.js?v=8"></script>
+<script src="/js/pages/users.js?v=8"></script>
+<script src="/js/pages/depts.js?v=8"></script>
+<script src="/js/pages/audit.js?v=8"></script>
+<script src="/js/pages/config.js?v=8"></script>
+<script src="/js/pages/quality.js?v=8"></script>
+<script src="/js/pages/chunks.js?v=8"></script>
 <!-- 初始化 -->
 <script>
   document.addEventListener('DOMContentLoaded', () => {
