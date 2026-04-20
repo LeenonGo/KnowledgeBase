@@ -55,10 +55,15 @@ const PageUpload = (() => {
   async function doUpload() {
     if (!selectedFile) return;
 
-    // 检查同名文件是否已存在
     const kbId = PageKB.getCurrentKbId();
+    if (!kbId) {
+      alert('请先选择一个知识库');
+      return;
+    }
+
+    // 检查同名文件是否已存在
     try {
-      const docs = await API.request(`/api/documents?kb_id=${kbId || 'default'}&page=1&page_size=100`);
+      const docs = await API.request(`/api/documents?kb_id=${kbId}&page=1&page_size=100`);
       const existing = (docs.items || []).find(d => d.filename === selectedFile.name);
       if (existing) {
         if (!confirm(`知识库中已存在同名文件「${selectedFile.name}」（${existing.chunks} 块）。
@@ -67,7 +72,9 @@ const PageUpload = (() => {
           return;
         }
       }
-    } catch {}
+    } catch (e) {
+      console.error('检查同名文件失败:', e);
+    }
 
     goStep(3);
     document.getElementById('upload-progress').style.display = 'block';
