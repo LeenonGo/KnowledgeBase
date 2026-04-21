@@ -751,90 +751,6 @@
 </div><!-- end main-area -->
 
 
-<!-- ============= Eval Modals ============= -->
-
-<!-- 生成评测集弹窗 -->
-<div id="modal-eval-generate" class="modal" style="display:none;width:600px;">
-  <div class="modal-header"><span>生成评测集</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
-  <div class="modal-body">
-    <div class="form-group">
-      <label>选择知识库（可多选）</label>
-      <div id="eval-kb-checkboxes" style="max-height:300px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;padding:8px;">
-        <div class="text-muted">加载中...</div>
-      </div>
-    </div>
-    <div class="form-group">
-      <label>每个知识库生成问题数</label>
-      <input class="input" type="number" id="eval-gen-count" value="15" min="5" max="50">
-      <div class="text-muted" style="margin-top:4px;">每个知识库将生成指定数量的评测问题（5-50）</div>
-    </div>
-    <div class="text-muted" style="font-size:12px;background:#f8fafc;padding:10px;border-radius:6px;margin-top:8px;">
-      <strong>问题类型分布：</strong>事实型 40% · 超范围 20% · 多文档 15% · 歧义 15% · 错误前提 10%
-    </div>
-  </div>
-  <div class="modal-footer">
-    <button class="btn" onclick="UI.hideModal()">取消</button>
-    <button class="btn btn-primary" onclick="PageEval.doGenerate()">🚀 开始生成</button>
-  </div>
-</div>
-
-<!-- 查看问题弹窗 -->
-<div id="modal-eval-questions" class="modal" style="display:none;width:900px;max-height:80vh;">
-  <div class="modal-header"><span>评测问题列表</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
-  <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
-    <table>
-      <tr><th style="width:40px;">#</th><th>问题</th><th>类型</th><th>期望答案</th><th>操作</th></tr>
-      <tbody id="eval-q-body">
-        <tr><td colspan="5" style="text-align:center;padding:30px;color:#999;">加载中...</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">关闭</button></div>
-</div>
-
-<!-- 编辑问题弹窗 -->
-<div id="modal-eval-qe-edit" class="modal" style="display:none;width:700px;">
-  <div class="modal-header"><span>编辑评测问题</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
-  <div class="modal-body">
-    <div class="form-group">
-      <label>问题</label>
-      <textarea class="input" id="eval-qe-question" rows="3" style="resize:vertical;"></textarea>
-    </div>
-    <div class="form-group">
-      <label>期望答案</label>
-      <textarea class="input" id="eval-qe-answer" rows="4" style="resize:vertical;"></textarea>
-    </div>
-    <div class="form-group">
-      <label>问题类型</label>
-      <select class="select" style="width:100%;" id="eval-qe-category">
-        <option value="factual">事实型</option>
-        <option value="out_of_scope">超范围</option>
-        <option value="multi_doc">多文档</option>
-        <option value="ambiguous">歧义</option>
-        <option value="false_premise">错误前提</option>
-      </select>
-    </div>
-  </div>
-  <div class="modal-footer">
-    <button class="btn" onclick="UI.hideModal()">取消</button>
-    <button class="btn btn-primary" onclick="PageEval.saveQuestion()">保存</button>
-  </div>
-</div>
-
-<!-- 评测结果弹窗 -->
-<div id="modal-eval-results" class="modal" style="display:none;width:950px;max-height:85vh;">
-  <div class="modal-header"><span>🧪 评测结果</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
-  <div class="modal-body" style="max-height:72vh;overflow-y:auto;">
-    <div id="eval-res-overview"></div>
-    <div id="eval-res-dimensions" style="margin-bottom:20px;"></div>
-    <div id="eval-res-categories" style="margin-bottom:20px;"></div>
-    <div id="eval-res-details"></div>
-  </div>
-  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">关闭</button></div>
-</div>
-
-<!-- ============= Modals ============= -->
-
 <div id="modal-overlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this)UI.hideModal()">
 
 <!-- Chunk Edit Modal -->
@@ -917,6 +833,88 @@
     <div class="form-group"><label>权限角色</label><select class="select" style="width:100%" id="dept-access-role"><option value="viewer">只读（viewer）</option><option value="editor">编辑（editor）</option><option value="admin">管理（admin）</option></select></div>
   </div>
   <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">取消</button><button class="btn btn-primary" onclick="PageKB.addDeptAccess()">添加</button></div>
+</div>
+
+<!-- 生成评测集弹窗 -->
+<div id="modal-eval-generate" class="modal" style="display:none;width:600px;">
+  <div class="modal-header"><span>生成评测集</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body">
+    <div class="form-group">
+      <label>选择知识库（可多选）</label>
+      <div id="eval-kb-checkboxes" style="max-height:300px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;padding:8px;">
+        <div class="text-muted">加载中...</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>每个知识库生成问题数</label>
+      <input class="input" type="number" id="eval-gen-count" value="15" min="5" max="50">
+      <div class="text-muted" style="margin-top:4px;">每个知识库将生成指定数量的评测问题（5-50）</div>
+    </div>
+    <div class="text-muted" style="font-size:12px;background:#f8fafc;padding:10px;border-radius:6px;margin-top:8px;">
+      <strong>问题类型分布：</strong>事实型 40% · 超范围 20% · 多文档 15% · 歧义 15% · 错误前提 10%
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="UI.hideModal()">取消</button>
+    <button class="btn btn-primary" onclick="PageEval.doGenerate()">🚀 开始生成</button>
+  </div>
+</div>
+
+<!-- 查看问题弹窗 -->
+<div id="modal-eval-questions" class="modal" style="display:none;width:900px;max-height:80vh;">
+  <div class="modal-header"><span>评测问题列表</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
+    <table>
+      <tr><th style="width:40px;">#</th><th>问题</th><th>类型</th><th>期望答案</th><th>操作</th></tr>
+      <tbody id="eval-q-body">
+        <tr><td colspan="5" style="text-align:center;padding:30px;color:#999;">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">关闭</button></div>
+</div>
+
+<!-- 编辑问题弹窗 -->
+<div id="modal-eval-qe-edit" class="modal" style="display:none;width:700px;">
+  <div class="modal-header"><span>编辑评测问题</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body">
+    <div class="form-group">
+      <label>问题</label>
+      <textarea class="input" id="eval-qe-question" rows="3" style="resize:vertical;"></textarea>
+    </div>
+    <div class="form-group">
+      <label>期望答案</label>
+      <textarea class="input" id="eval-qe-answer" rows="4" style="resize:vertical;"></textarea>
+    </div>
+    <div class="form-group">
+      <label>问题类型</label>
+      <select class="select" style="width:100%;" id="eval-qe-category">
+        <option value="factual">事实型</option>
+        <option value="out_of_scope">超范围</option>
+        <option value="multi_doc">多文档</option>
+        <option value="ambiguous">歧义</option>
+        <option value="false_premise">错误前提</option>
+      </select>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="UI.hideModal()">取消</button>
+    <button class="btn btn-primary" onclick="PageEval.saveQuestion()">保存</button>
+  </div>
+</div>
+
+<!-- 评测结果弹窗 -->
+<div id="modal-eval-results" class="modal" style="display:none;width:950px;max-height:85vh;">
+  <div class="modal-header"><span>🧪 评测结果</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body" style="max-height:72vh;overflow-y:auto;">
+    <div id="eval-res-overview"></div>
+    <div id="eval-res-dimensions" style="margin-bottom:20px;"></div>
+    <div id="eval-res-categories" style="margin-bottom:20px;"></div>
+    <div id="eval-res-details"></div>
+  </div>
+  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">关闭</button></div>
+</div>
+
 </div>
 
 <!-- ============= JavaScript ============= -->
