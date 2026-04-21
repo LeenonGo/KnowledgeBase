@@ -5,10 +5,22 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import verify_token
-from app.models.models import User, KBDepartmentAccess
+from app.models.models import User, KBDepartmentAccess, AuditLog
 
 
 PUBLIC_PATHS = {"/api/login"}
+
+
+def log_audit(db, user, action, resource="", detail="", status="success", ip=""):
+    """写入审计日志（共用）"""
+    log = AuditLog(
+        user_id=user.get("sub") if user else None,
+        username=user.get("username") if user else "",
+        action=action, resource=resource, detail=detail,
+        ip_address=ip, status=status,
+    )
+    db.add(log)
+    db.commit()
 
 
 def get_current_user(

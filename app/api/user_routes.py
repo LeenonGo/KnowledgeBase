@@ -5,21 +5,11 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.models import User, AuditLog
-from app.api.deps import get_current_user
+from app.models.models import User
+from app.api.deps import get_current_user, log_audit
 
 router = APIRouter(prefix="/api", tags=["用户"])
 
-
-def _log_audit(db, user, action, resource="", detail="", status="success", ip=""):
-    log = AuditLog(
-        user_id=user.get("sub") if user else None,
-        username=user.get("username") if user else "",
-        action=action, resource=resource, detail=detail,
-        ip_address=ip, status=status,
-    )
-    db.add(log)
-    db.commit()
 
 
 @router.get("/users")
@@ -58,7 +48,7 @@ async def create_user(data: dict, request: Request,
     )
     db.add(new_user)
     db.commit()
-    _log_audit(db, user, "create_user", data["username"], f"role={new_user.role}", "success",
+    log_audit(db, user, "create_user", data["username"], f"role={new_user.role}", "success",
                request.client.host if request.client else "")
     return {"id": new_user.id, "username": new_user.username}
 
@@ -76,7 +66,7 @@ async def update_user(user_id: str, data: dict, request: Request,
         from werkzeug.security import generate_password_hash
         target.password_hash = generate_password_hash(data["password"])
     db.commit()
-    _log_audit(db, user, "update_user", target.username,
+    log_audit(db, user, "update_user", target.username,
                json.dumps(data, ensure_ascii=False), "success",
                request.client.host if request.client else "")
     return {"id": target.id, "username": target.username}
@@ -90,6 +80,6 @@ async def delete_user(user_id: str, request: Request,
         raise HTTPException(404, "用户不存在")
     target.status = "disabled"
     db.commit()
-    _log_audit(db, user, "delete_user", target.username, "禁用", "success",
+    log_audit(db, user, "delete_user", target.username, "禁用", "success",
                request.client.host if request.client else "")
     return {"message": "已禁用"}

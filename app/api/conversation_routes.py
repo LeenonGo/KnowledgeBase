@@ -7,23 +7,13 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.models import Conversation, ConversationTurn, QAFeedback, AuditLog
-from app.api.deps import get_current_user
+from app.models.models import Conversation, ConversationTurn, QAFeedback
+from app.api.deps import get_current_user, log_audit
 
 router = APIRouter(prefix="/api", tags=["对话"])
 
 _CST = timezone(timedelta(hours=8))
 
-
-def _log_audit(db, user, action, resource="", detail="", status="success", ip=""):
-    log = AuditLog(
-        user_id=user.get("sub") if user else None,
-        username=user.get("username") if user else "",
-        action=action, resource=resource, detail=detail,
-        ip_address=ip, status=status,
-    )
-    db.add(log)
-    db.commit()
 
 
 # ─── 会话管理 ────────────────────────────────────

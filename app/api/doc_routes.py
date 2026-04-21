@@ -11,23 +11,13 @@ from fastapi import APIRouter, HTTPException, Depends, Request, File, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.models import Document, AuditLog
-from app.api.deps import get_current_user, require_kb_access, get_accessible_kb_ids
+from app.models.models import Document
+from app.api.deps import get_current_user, log_audit, require_kb_access, get_accessible_kb_ids
 
 router = APIRouter(prefix="/api", tags=["文档"])
 
 UPLOAD_DIR = Path(__file__).parent.parent.parent / "data" / "uploads"
 
-
-def _log_audit(db, user, action, resource="", detail="", status="success", ip=""):
-    log = AuditLog(
-        user_id=user.get("sub") if user else None,
-        username=user.get("username") if user else "",
-        action=action, resource=resource, detail=detail,
-        ip_address=ip, status=status,
-    )
-    db.add(log)
-    db.commit()
 
 
 @router.post("/upload")
@@ -101,7 +91,7 @@ async def upload_document(
     except HTTPException:
         raise
     except Exception as e:
-        _log_audit(db, user, "upload", file.filename, str(e), "failure",
+        log_audit(db, user, "upload", file.filename, str(e), "failure",
                    request.client.host if request.client else "")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -116,7 +106,7 @@ async def upload_document(
     db.add(doc)
     db.commit()
 
-    _log_audit(db, user, "upload", file.filename,
+    log_audit(db, user, "upload", file.filename,
                f"kb={kb_id}, {count}块, 策略={chunk_strategy}", "success",
                request.client.host if request.client else "")
     return {"filename": file.filename, "chunks": count,
@@ -179,7 +169,7 @@ async def remove_document(
     if file_path.exists():
         file_path.unlink()
 
-    _log_audit(db, user, "delete_doc", filename, f"删除{count}个文本块", "success",
+    log_audit(db, user, "delete_doc", filename, f"删除{count}个文本块", "success",
                request.client.host if request.client else "")
     return {"message": f"已删除 {filename}（{count} 个文本块）"}
 

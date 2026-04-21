@@ -6,21 +6,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.core.database import get_db
-from app.models.models import KnowledgeBase, Document, User, AuditLog
-from app.api.deps import get_current_user, require_kb_access, get_accessible_kb_ids
+from app.models.models import KnowledgeBase, Document, User
+from app.api.deps import get_current_user, log_audit, require_kb_access, get_accessible_kb_ids
 
 router = APIRouter(prefix="/api", tags=["知识库"])
 
-
-def _log_audit(db, user, action, resource="", detail="", status="success", ip=""):
-    log = AuditLog(
-        user_id=user.get("sub") if user else None,
-        username=user.get("username") if user else "",
-        action=action, resource=resource, detail=detail,
-        ip_address=ip, status=status,
-    )
-    db.add(log)
-    db.commit()
 
 
 @router.get("/knowledge-bases")
@@ -70,7 +60,7 @@ async def create_knowledge_base(data: dict, request: Request,
                                     role="admin", created_by=user["sub"])
         db.add(access)
     db.commit()
-    _log_audit(db, user, "create_kb", data["name"], "", "success",
+    log_audit(db, user, "create_kb", data["name"], "", "success",
                request.client.host if request.client else "")
     return {"id": kb.id, "name": kb.name}
 
@@ -86,7 +76,7 @@ async def update_knowledge_base(kb_id: str, data: dict, request: Request,
         if field in data:
             setattr(kb, field, data[field])
     db.commit()
-    _log_audit(db, user, "update_kb", kb.name, json.dumps(data, ensure_ascii=False), "success",
+    log_audit(db, user, "update_kb", kb.name, json.dumps(data, ensure_ascii=False), "success",
                request.client.host if request.client else "")
     return {"id": kb.id, "name": kb.name}
 
@@ -103,6 +93,6 @@ async def delete_knowledge_base(kb_id: str, request: Request,
     db.commit()
     from app.core.vectorstore import delete_kb_documents
     delete_kb_documents(kb_id)
-    _log_audit(db, user, "delete_kb", kb.name, "", "success",
+    log_audit(db, user, "delete_kb", kb.name, "", "success",
                request.client.host if request.client else "")
     return {"message": "已删除"}

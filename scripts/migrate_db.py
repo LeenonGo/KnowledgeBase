@@ -116,6 +116,77 @@ def migrate():
                 else:
                     print(f"  ❌ {table}.{name}: {e}")
 
+        # ── 3. 评测相关表 ──
+        print("\n📋 检查评测相关表...")
+        eval_tables = [
+            ("eval_dataset", """CREATE TABLE IF NOT EXISTS eval_dataset (
+                id VARCHAR(32) PRIMARY KEY,
+                kb_id VARCHAR(32) NOT NULL,
+                name VARCHAR(256) DEFAULT '',
+                question_count INT DEFAULT 0,
+                status VARCHAR(16) DEFAULT 'ready',
+                created_by VARCHAR(32),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX ix_eval_ds_kb (kb_id)
+            )"""),
+            ("eval_question", """CREATE TABLE IF NOT EXISTS eval_question (
+                id VARCHAR(32) PRIMARY KEY,
+                dataset_id VARCHAR(32) NOT NULL,
+                kb_id VARCHAR(32) NOT NULL,
+                question TEXT NOT NULL,
+                expected_answer TEXT DEFAULT '',
+                category VARCHAR(32) NOT NULL,
+                source_hint VARCHAR(512) DEFAULT '',
+                ref_chunks TEXT DEFAULT '[]',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX ix_eval_q_ds (dataset_id)
+            )"""),
+            ("eval_run", """CREATE TABLE IF NOT EXISTS eval_run (
+                id VARCHAR(32) PRIMARY KEY,
+                dataset_id VARCHAR(32) NOT NULL,
+                kb_id VARCHAR(32) NOT NULL,
+                total INT DEFAULT 0,
+                passed INT DEFAULT 0,
+                failed INT DEFAULT 0,
+                avg_score FLOAT DEFAULT 0.0,
+                status VARCHAR(16) DEFAULT 'running',
+                started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                finished_at DATETIME,
+                created_by VARCHAR(32),
+                INDEX ix_eval_run_ds (dataset_id)
+            )"""),
+            ("eval_result", """CREATE TABLE IF NOT EXISTS eval_result (
+                id VARCHAR(32) PRIMARY KEY,
+                run_id VARCHAR(32) NOT NULL,
+                question_id VARCHAR(32) NOT NULL,
+                question TEXT DEFAULT '',
+                category VARCHAR(32) DEFAULT '',
+                expected_answer TEXT DEFAULT '',
+                retrieved_chunks TEXT DEFAULT '[]',
+                actual_answer TEXT DEFAULT '',
+                scores TEXT DEFAULT '{}',
+                reasoning TEXT DEFAULT '',
+                avg_score FLOAT DEFAULT 0.0,
+                passed TINYINT(1) DEFAULT 0,
+                latency_ms INT DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX ix_eval_res_run (run_id)
+            )"""),
+        ]
+
+        for table_name, ddl in eval_tables:
+            try:
+                conn.execute(text(ddl))
+                conn.commit()
+                print(f"  ✅ {table_name}")
+            except Exception as e:
+                err = str(e).lower()
+                if "already exists" in err or "duplicate" in err:
+                    print(f"  ⏭️  {table_name}（已存在）")
+                else:
+                    print(f"  ❌ {table_name}: {e}")
+
     print("\n✅ 迁移完成")
 
 

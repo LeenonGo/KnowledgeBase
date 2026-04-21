@@ -30,6 +30,7 @@
     <div class="side-section-title">运维</div>
     <a onclick="Router.navigate('audit-log')" id="menu-audit">📋 审计日志</a>
     <a onclick="Router.navigate('quality')" id="menu-quality">📈 质量监控</a>
+    <a onclick="Router.navigate('evaluation')" id="menu-eval">🧪 效果评测</a>
     <a onclick="Router.navigate('sys-config')" id="menu-config">⚙️ 系统配置</a>
   </div>
   <div style="padding:12px 20px;border-top:1px solid rgba(255,255,255,.1);margin-top:auto;position:absolute;bottom:0;width:100%;">
@@ -647,6 +648,78 @@
   </div>
 </div>
 
+<!-- ==================== 13. 效果评测 ==================== -->
+<div id="evaluation" class="screen">
+  <div class="screen-title" style="justify-content:space-between;">
+    <span>🧪 效果评测</span>
+    <button class="btn btn-primary" onclick="PageEval.showGenerateModal()">＋ 生成评测集</button>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="UI.switchTab(this,'eval-tab-datasets')">评测集</div>
+    <div class="tab" onclick="UI.switchTab(this,'eval-tab-runs');PageEval.loadRuns()">评测记录</div>
+    <div class="tab" onclick="UI.switchTab(this,'eval-tab-prompts');PageEval.loadEvalPrompts()">Prompt 管理</div>
+  </div>
+  <div id="eval-tab-datasets">
+    <div class="card">
+      <div class="flex-between mb-16">
+        <div class="text-muted">评测集：从知识库文档自动生成多类型测试问题，用于系统化评估问答效果</div>
+      </div>
+      <table>
+        <tr><th>评测集名称</th><th>知识库</th><th>问题数</th><th>状态</th><th>创建时间</th><th>操作</th></tr>
+        <tbody id="eval-ds-body">
+          <tr><td colspan="6" style="text-align:center;padding:40px;color:#999;">加载中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div id="eval-tab-runs" style="display:none;">
+    <div class="card">
+      <table>
+        <tr><th>开始时间</th><th>总题数</th><th>通过</th><th>未通过</th><th>平均分</th><th>状态</th><th>操作</th></tr>
+        <tbody id="eval-run-body">
+          <tr><td colspan="7" style="text-align:center;padding:40px;color:#999;">加载中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div id="eval-tab-prompts" style="display:none;">
+    <div class="card">
+      <div class="flex-between mb-16">
+        <h3>📝 评测 Prompt 管理</h3>
+        <div class="flex gap-8">
+          <select class="select" id="eval-prompt-selector" onchange="PageEval.switchEvalPrompt()">
+            <option value="eval_generate">评测集生成 Prompt</option>
+            <option value="eval_judge">评测打分 Prompt</option>
+          </select>
+        </div>
+      </div>
+      <div id="eval-prompt-gen-panel">
+        <div class="form-group">
+          <label>系统 Prompt（System）</label>
+          <textarea class="input" id="eval-prompt-gen-system" rows="10" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+        </div>
+        <div class="form-group">
+          <label>用户 Prompt 模板（User）</label>
+          <textarea class="input" id="eval-prompt-gen-user" rows="8" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+          <div class="text-muted">变量: {chunks}=文档内容 {count}=总数量 {factual_count} {oos_count} {multi_count} {amb_count} {fp_count}</div>
+        </div>
+      </div>
+      <div id="eval-prompt-judge-panel" style="display:none;">
+        <div class="form-group">
+          <label>系统 Prompt（System）</label>
+          <textarea class="input" id="eval-prompt-judge-system" rows="10" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+        </div>
+        <div class="form-group">
+          <label>用户 Prompt 模板（User）</label>
+          <textarea class="input" id="eval-prompt-judge-user" rows="10" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+          <div class="text-muted">变量: {question} {category} {expected_answer} {ref_chunks} {retrieved_chunks} {actual_answer}</div>
+        </div>
+      </div>
+      <button class="btn btn-primary mt-16" onclick="PageEval.saveEvalPrompts()" style="width:100%;justify-content:center;height:40px;">💾 保存评测 Prompt</button>
+    </div>
+  </div>
+</div>
+
 <!-- ==================== 分块查看/编辑 ==================== -->
 <div id="chunk-viewer" class="screen">
   <div class="screen-title">
@@ -677,6 +750,88 @@
 
 </div><!-- end main-area -->
 
+
+<!-- ============= Eval Modals ============= -->
+
+<!-- 生成评测集弹窗 -->
+<div id="modal-eval-generate" class="modal" style="display:none;width:600px;">
+  <div class="modal-header"><span>生成评测集</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body">
+    <div class="form-group">
+      <label>选择知识库（可多选）</label>
+      <div id="eval-kb-checkboxes" style="max-height:300px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;padding:8px;">
+        <div class="text-muted">加载中...</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>每个知识库生成问题数</label>
+      <input class="input" type="number" id="eval-gen-count" value="15" min="5" max="50">
+      <div class="text-muted" style="margin-top:4px;">每个知识库将生成指定数量的评测问题（5-50）</div>
+    </div>
+    <div class="text-muted" style="font-size:12px;background:#f8fafc;padding:10px;border-radius:6px;margin-top:8px;">
+      <strong>问题类型分布：</strong>事实型 40% · 超范围 20% · 多文档 15% · 歧义 15% · 错误前提 10%
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="UI.hideModal()">取消</button>
+    <button class="btn btn-primary" onclick="PageEval.doGenerate()">🚀 开始生成</button>
+  </div>
+</div>
+
+<!-- 查看问题弹窗 -->
+<div id="modal-eval-questions" class="modal" style="display:none;width:900px;max-height:80vh;">
+  <div class="modal-header"><span>评测问题列表</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
+    <table>
+      <tr><th style="width:40px;">#</th><th>问题</th><th>类型</th><th>期望答案</th><th>操作</th></tr>
+      <tbody id="eval-q-body">
+        <tr><td colspan="5" style="text-align:center;padding:30px;color:#999;">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">关闭</button></div>
+</div>
+
+<!-- 编辑问题弹窗 -->
+<div id="modal-eval-qe-edit" class="modal" style="display:none;width:700px;">
+  <div class="modal-header"><span>编辑评测问题</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body">
+    <div class="form-group">
+      <label>问题</label>
+      <textarea class="input" id="eval-qe-question" rows="3" style="resize:vertical;"></textarea>
+    </div>
+    <div class="form-group">
+      <label>期望答案</label>
+      <textarea class="input" id="eval-qe-answer" rows="4" style="resize:vertical;"></textarea>
+    </div>
+    <div class="form-group">
+      <label>问题类型</label>
+      <select class="select" style="width:100%;" id="eval-qe-category">
+        <option value="factual">事实型</option>
+        <option value="out_of_scope">超范围</option>
+        <option value="multi_doc">多文档</option>
+        <option value="ambiguous">歧义</option>
+        <option value="false_premise">错误前提</option>
+      </select>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="UI.hideModal()">取消</button>
+    <button class="btn btn-primary" onclick="PageEval.saveQuestion()">保存</button>
+  </div>
+</div>
+
+<!-- 评测结果弹窗 -->
+<div id="modal-eval-results" class="modal" style="display:none;width:950px;max-height:85vh;">
+  <div class="modal-header"><span>🧪 评测结果</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body" style="max-height:72vh;overflow-y:auto;">
+    <div id="eval-res-overview"></div>
+    <div id="eval-res-dimensions" style="margin-bottom:20px;"></div>
+    <div id="eval-res-categories" style="margin-bottom:20px;"></div>
+    <div id="eval-res-details"></div>
+  </div>
+  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">关闭</button></div>
+</div>
 
 <!-- ============= Modals ============= -->
 
@@ -781,6 +936,7 @@
 <script src="/js/pages/config.js?v=12"></script>
 <script src="/js/pages/quality.js?v=12"></script>
 <script src="/js/pages/chunks.js?v=12"></script>
+<script src="/js/pages/eval.js?v=12"></script>
 <!-- 初始化 -->
 <script>
   document.addEventListener('DOMContentLoaded', () => {

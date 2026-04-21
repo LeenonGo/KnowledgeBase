@@ -49,7 +49,7 @@ const Router = (() => {
       'dashboard': '仪表盘', 'kb-list': '知识库列表', 'kb-detail': '知识库列表',
       'doc-upload': '知识库列表', 'qa-chat': '智能问答', 'user-mgmt': '用户管理',
       'dept-tree': '部门管理', 'perm-mgmt': '权限管理', 'audit-log': '审计日志',
-      'quality': '质量监控', 'sys-config': '系统配置',
+      'quality': '质量监控', 'evaluation': '效果评测', 'sys-config': '系统配置',
     };
     const label = navMap[screenName];
     if (label) {

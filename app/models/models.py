@@ -204,3 +204,89 @@ class AuditLog(Base):
         Index("ix_audit_user", "user_id"),
         Index("ix_audit_time", "created_at"),
     )
+
+
+# ─── 评测集 ─────────────────────────────────────
+class EvalDataset(Base):
+    __tablename__ = "eval_dataset"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    kb_id = Column(String(32), ForeignKey("knowledge_base.id"), nullable=False)
+    name = Column(String(256), default="")
+    question_count = Column(Integer, default=0)
+    status = Column(String(16), default="ready")  # generating / ready / error
+    created_by = Column(String(32), nullable=True)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    kb = relationship("KnowledgeBase", lazy="joined")
+
+    __table_args__ = (
+        Index("ix_eval_ds_kb", "kb_id"),
+    )
+
+
+# ─── 评测问题 ─────────────────────────────────────
+class EvalQuestion(Base):
+    __tablename__ = "eval_question"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    dataset_id = Column(String(32), ForeignKey("eval_dataset.id", ondelete="CASCADE"), nullable=False)
+    kb_id = Column(String(32), nullable=False)
+    question = Column(Text, nullable=False)
+    expected_answer = Column(Text, default="")
+    category = Column(String(32), nullable=False, comment="factual / out_of_scope / multi_doc / ambiguous / false_premise")
+    source_hint = Column(String(512), default="")
+    ref_chunks = Column(Text, default="[]", comment="JSON 数组：参考原文片段")
+    created_at = Column(DateTime, default=_now)
+
+    __table_args__ = (
+        Index("ix_eval_q_ds", "dataset_id"),
+    )
+
+
+# ─── 评测运行 ─────────────────────────────────────
+class EvalRun(Base):
+    __tablename__ = "eval_run"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    dataset_id = Column(String(32), ForeignKey("eval_dataset.id", ondelete="CASCADE"), nullable=False)
+    kb_id = Column(String(32), nullable=False)
+    total = Column(Integer, default=0)
+    passed = Column(Integer, default=0)
+    failed = Column(Integer, default=0)
+    avg_score = Column(Float, default=0.0)
+    status = Column(String(16), default="running")  # running / completed / error
+    started_at = Column(DateTime, default=_now)
+    finished_at = Column(DateTime, nullable=True)
+    created_by = Column(String(32), nullable=True)
+
+    dataset = relationship("EvalDataset", lazy="joined")
+
+    __table_args__ = (
+        Index("ix_eval_run_ds", "dataset_id"),
+    )
+
+
+# ─── 评测结果 ─────────────────────────────────────
+class EvalResult(Base):
+    __tablename__ = "eval_result"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    run_id = Column(String(32), ForeignKey("eval_run.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(String(32), ForeignKey("eval_question.id", ondelete="CASCADE"), nullable=False)
+    question = Column(Text, default="")
+    category = Column(String(32), default="")
+    expected_answer = Column(Text, default="")
+    retrieved_chunks = Column(Text, default="[]", comment="JSON: 检索到的文本片段")
+    actual_answer = Column(Text, default="")
+    scores = Column(Text, default="{}", comment="JSON: 各维度分数")
+    reasoning = Column(Text, default="")
+    avg_score = Column(Float, default=0.0)
+    passed = Column(Boolean, default=False)
+    latency_ms = Column(Integer, default=0)
+    created_at = Column(DateTime, default=_now)
+
+    __table_args__ = (
+        Index("ix_eval_res_run", "run_id"),
+    )

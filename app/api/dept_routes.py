@@ -4,21 +4,11 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.models import Department, AuditLog
-from app.api.deps import get_current_user
+from app.models.models import Department
+from app.api.deps import get_current_user, log_audit
 
 router = APIRouter(prefix="/api", tags=["部门"])
 
-
-def _log_audit(db, user, action, resource="", detail="", status="success", ip=""):
-    log = AuditLog(
-        user_id=user.get("sub") if user else None,
-        username=user.get("username") if user else "",
-        action=action, resource=resource, detail=detail,
-        ip_address=ip, status=status,
-    )
-    db.add(log)
-    db.commit()
 
 
 @router.get("/departments")
@@ -36,7 +26,7 @@ async def create_department(data: dict, request: Request,
     )
     db.add(dept)
     db.commit()
-    _log_audit(db, user, "create_dept", data["name"], "", "success",
+    log_audit(db, user, "create_dept", data["name"], "", "success",
                request.client.host if request.client else "")
     return {"id": dept.id, "name": dept.name}
 
@@ -49,6 +39,6 @@ async def delete_department(dept_id: str, request: Request,
         raise HTTPException(404, "部门不存在")
     dept.status = "disabled"
     db.commit()
-    _log_audit(db, user, "delete_dept", dept.name, "", "success",
+    log_audit(db, user, "delete_dept", dept.name, "", "success",
                request.client.host if request.client else "")
     return {"message": "已删除"}

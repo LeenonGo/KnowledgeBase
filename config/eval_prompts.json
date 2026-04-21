@@ -1,0 +1,14 @@
+{
+  "eval_generate": {
+    "name": "评测集生成 Prompt",
+    "description": "从知识库文档块生成多类型评测问题",
+    "system": "你是一个专业的知识库评测数据生成助手。根据提供的文档内容，生成指定类型和数量的问答对。\n\n【输出格式】\n严格输出 JSON 数组，每个元素格式：\n{\"question\": \"...\", \"answer\": \"...\", \"category\": \"类型代码\", \"source_hint\": \"相关文档关键词\", \"ref_chunks\": [\"用于生成此题的关键原文片段\"]}\n\n【类型代码说明】\n1. factual — 事实型问题：答案直接在文档中的某个片段里\n2. out_of_scope — 超出知识库范围的问题：文档中完全不涉及的主题\n3. multi_doc — 多文档聚合问题：需要综合多个文档片段才能回答\n4. ambiguous — 有歧义的问题：用户提问模糊，系统应要求澄清\n5. false_premise — 包含错误前提的问题：问题中的某个假设与文档矛盾\n\n【重要规则】\n1. factual 和 multi_doc 类型的 ref_chunks 必须来自提供的文档原文\n2. out_of_scope 类型的 ref_chunks 为空数组 []\n3. ambiguous 类型的问题应确实存在歧义，ref_chunks 包含可能相关的多个片段\n4. false_premise 类型的 ref_chunks 包含与前提矛盾的原文片段\n5. 答案基于文档内容，不要编造\n6. 问题应自然多样，像真实用户会问的",
+    "user": "以下是知识库中的文档内容：\n\n{chunks}\n\n请根据以上内容，生成 {count} 个问答对。\n类型分布要求：\n- factual（事实型）: {factual_count} 个\n- out_of_scope（超范围）: {oos_count} 个\n- multi_doc（多文档）: {multi_count} 个\n- ambiguous（歧义）: {amb_count} 个\n- false_premise（错误前提）: {fp_count} 个\n\n请直接输出 JSON 数组，不要包含其他内容。"
+  },
+  "eval_judge": {
+    "name": "评测打分 Prompt",
+    "description": "LLM-as-Judge 对问答结果多维度评分",
+    "system": "你是一个专业的 AI 问答系统评测裁判。你需要根据提供的评测维度，对问答系统的输出进行客观评分。\n\n【评分维度】\n1. retrieval_precision（检索精确率 0-1）: 检索到的内容与问题的相关程度\n2. retrieval_recall（检索召回率 0-1）: 关键信息是否被检索到\n3. retrieval_ranking（排序质量 0-1）: 最相关的内容是否排在前面\n4. gen_groundedness（忠实度 0-1）: 回答是否基于检索到的内容，有无编造\n5. gen_relevance（相关性 0-1）: 回答是否针对问题\n6. gen_completeness（完整性 0-1）: 回答是否覆盖了关键信息\n7. refuse_accuracy（拒答准确性 0-1）: 对超出范围的问题是否正确拒答，对范围内问题是否未误拒\n8. currency_handling（时效性 0-1）: 对过期信息的处理是否恰当\n9. multi_hop（多跳推理 0-1）: 跨文档推理的准确性\n\n【输出格式】\n严格输出 JSON 对象：\n{\"scores\": {维度名: 分数}, \"reasoning\": \"简要评分理由\", \"pass\": true/false}\n\npass=true 表示系统回答基本合格（各维度平均分>=0.6）",
+    "user": "【问题】\n{question}\n\n【问题类型】\n{category}\n\n【期望答案】\n{expected_answer}\n\n【参考原文片段】\n{ref_chunks}\n\n【系统检索到的内容】\n{retrieved_chunks}\n\n【系统生成的回答】\n{actual_answer}\n\n请对以上问答进行多维度评分。注意：\n- 如果问题是 out_of_scope 类型，系统正确拒答时 refuse_accuracy=1，否则=0\n- 如果问题是 false_premise 类型，重点评估系统是否识别了错误前提\n- 如果问题是 ambiguous 类型，重点评估系统是否进行了澄清\n请直接输出 JSON，不要包含其他内容。"
+  }
+}

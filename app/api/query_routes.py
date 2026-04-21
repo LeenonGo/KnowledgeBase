@@ -8,21 +8,11 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.cache import query_cache
 from app.models.schema import QueryRequest, QueryResponse
-from app.models.models import AuditLog, ConversationTurn
-from app.api.deps import get_current_user, require_kb_access, get_accessible_kb_ids
+from app.models.models import ConversationTurn
+from app.api.deps import get_current_user, log_audit, require_kb_access, get_accessible_kb_ids
 
 router = APIRouter(prefix="/api", tags=["问答"])
 
-
-def _log_audit(db, user, action, resource="", detail="", status="success", ip=""):
-    log = AuditLog(
-        user_id=user.get("sub") if user else None,
-        username=user.get("username") if user else "",
-        action=action, resource=resource, detail=detail,
-        ip_address=ip, status=status,
-    )
-    db.add(log)
-    db.commit()
 
 
 def _get_conversation_history(conv_id: str, db: Session, max_turns: int = 3) -> str:
@@ -73,7 +63,7 @@ async def query_knowledge_base(
     cache_key_kb = req.kb_id or "all"
     cached = query_cache.get(search_question, cache_key_kb)
     if cached:
-        _log_audit(db, user, "query", req.question[:100], "缓存命中", "success",
+        log_audit(db, user, "query", req.question[:100], "缓存命中", "success",
                    request.client.host if request.client else "")
         return QueryResponse(**cached)
 
@@ -99,7 +89,7 @@ async def query_knowledge_base(
 
     # ── 5. 拒答处理 ──
     if not docs:
-        _log_audit(db, user, "query", req.question[:100], "未命中", "success",
+        log_audit(db, user, "query", req.question[:100], "未命中", "success",
                    request.client.host if request.client else "")
         refuse = get_refuse_answer()
         result = {"question": req.question, "answer": refuse, "sources": []}
@@ -127,7 +117,7 @@ async def query_knowledge_base(
     result = {"question": req.question, "answer": answer, "sources": sources}
     query_cache.set(search_question, result, cache_key_kb, ttl=3600)
 
-    _log_audit(db, user, "query", req.question[:100],
+    log_audit(db, user, "query", req.question[:100],
                f"命中{len(docs)}条, 来源={sources}", "success",
                request.client.host if request.client else "")
     return QueryResponse(**result)
@@ -162,6 +152,6 @@ async def reindex(
 
     query_cache.clear()
 
-    _log_audit(db, user, "reindex", kb_id or "全部", f"重建{count}个向量", "success",
+    log_audit(db, user, "reindex", kb_id or "全部", f"重建{count}个向量", "success",
                request.client.host if request.client else "")
     return {"message": "索引重建完成", "count": count}

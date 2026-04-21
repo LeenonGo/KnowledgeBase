@@ -37,7 +37,7 @@ const PageLogin = (() => {
 
   function applyRoleAccess(role) {
     const isAdmin = role === 'super_admin';
-    ['menu-users', 'menu-depts', 'menu-perms', 'menu-config', 'menu-quality', 'menu-audit'].forEach(id => {
+    ['menu-users', 'menu-depts', 'menu-perms', 'menu-config', 'menu-quality', 'menu-audit', 'menu-eval'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = isAdmin ? 'block' : 'none';
     });
