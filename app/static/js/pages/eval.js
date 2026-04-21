@@ -34,14 +34,14 @@ const PageEval = (() => {
     };
     tbody.innerHTML = _datasets.map(ds => `
       <tr>
-        <td>${esc(ds.name)}</td>
+        <td><a style="color:#1890ff;cursor:pointer;" onclick="PageEval.viewQuestions('${ds.id}')">${esc(ds.name)}</a></td>
         <td>${esc(ds.kb_name)}</td>
         <td>${ds.question_count}</td>
         <td>${statusMap[ds.status] || ds.status}</td>
         <td>${ds.created_at ? ds.created_at.slice(0, 16) : '-'}</td>
         <td>
-          ${ds.status === 'ready' ? '<button class="btn btn-sm btn-primary" onclick="PageEval.viewQuestions(\'' + ds.id + '\')">查看</button> ' : ''}
-          ${ds.status === 'ready' ? '<button class="btn btn-sm btn-primary" onclick="PageEval.startRun(\'' + ds.id + '\')">评测</button> ' : ''}
+          <button class="btn btn-sm btn-primary" onclick="PageEval.viewQuestions('${ds.id}')">查看</button>
+          ${ds.status === 'ready' ? '<button class="btn btn-sm btn-primary" onclick="PageEval.startRun(\'' + ds.id + '\')">评测</button>' : ''}
           <button class="btn btn-sm btn-danger" onclick="PageEval.deleteDataset('${ds.id}')">删除</button>
         </td>
       </tr>

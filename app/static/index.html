@@ -650,10 +650,7 @@
 
 <!-- ==================== 13. 效果评测 ==================== -->
 <div id="evaluation" class="screen">
-  <div class="screen-title" style="justify-content:space-between;">
-    <span>🧪 效果评测</span>
-    <button class="btn btn-primary" onclick="PageEval.showGenerateModal()">＋ 生成评测集</button>
-  </div>
+  <div class="screen-title">🧪 效果评测</div>
   <div class="tabs">
     <div class="tab active" onclick="UI.switchTab(this,'eval-tab-datasets')">评测集</div>
     <div class="tab" onclick="UI.switchTab(this,'eval-tab-runs');PageEval.loadRuns()">评测记录</div>
@@ -662,7 +659,8 @@
   <div id="eval-tab-datasets">
     <div class="card">
       <div class="flex-between mb-16">
-        <div class="text-muted">评测集：从知识库文档自动生成多类型测试问题，用于系统化评估问答效果</div>
+        <div class="text-muted">从知识库文档自动生成多类型测试问题，用于系统化评估问答效果</div>
+        <button class="btn btn-primary" onclick="PageEval.showGenerateModal()">＋ 生成评测集</button>
       </div>
       <table>
         <tr><th>评测集名称</th><th>知识库</th><th>问题数</th><th>状态</th><th>创建时间</th><th>操作</th></tr>
