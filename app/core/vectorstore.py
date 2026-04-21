@@ -13,11 +13,11 @@ DB_PATH = Path(__file__).parent.parent.parent / "data" / "chroma_db"
 _client = chromadb.PersistentClient(path=str(DB_PATH))
 _collection = _client.get_or_create_collection(
     name="knowledge_base",
-    metadata={"hnsw:space": "cosine", "hnsw:ef": 200, "hnsw:M": 32},
+    metadata={"hnsw:space": "cosine", "hnsw:ef": 500, "hnsw:M": 32},
 )
 _meta = _collection.metadata or {}
-if _meta.get("hnsw:ef") != 200 or _meta.get("hnsw:M") != 32:
-    _collection.modify(metadata={"hnsw:ef": 200, "hnsw:M": 32})
+if _meta.get("hnsw:ef") != 500 or _meta.get("hnsw:M") != 32:
+    _collection.modify(metadata={"hnsw:ef": 500, "hnsw:M": 32})
 
 # ─── BM25 索引缓存 ──────────────────────────────
 from app.core.hybrid_search import BM25Index, rrf_fusion

@@ -137,7 +137,9 @@ def _judge_score(
         result = json.loads(content)
         scores = result.get("scores", {})
         reasoning = result.get("reasoning", "")
-        passed = result.get("passed", False)
+        # 不依赖 LLM 返回的 passed，按平均分自动判定
+        avg = sum(scores.values()) / max(len(scores), 1) if scores else 0
+        passed = avg >= 0.6
 
         # 确保分数在 [0, 1] 范围内
         for k in scores:
