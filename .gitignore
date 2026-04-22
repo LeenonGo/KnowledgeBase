@@ -31,6 +31,12 @@ memory/
 *.swp
 *.swo
 
+# 个人文件
+李娅娅_AI产品.pdf
+李娅娅_AI产品_简历.docx
+gen_resume.py
+memory/resume_draft.md
+
 # OS
 .DS_Store
 Thumbs.db
