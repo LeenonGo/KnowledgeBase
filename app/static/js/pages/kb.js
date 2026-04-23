@@ -115,15 +115,28 @@ const PageKB = (() => {
     } catch (e) { alert('保存失败: ' + e.message); }
   }
 
+  function openCreateKB() {
+    document.getElementById('new-kb-name').value = '';
+    document.getElementById('new-kb-desc').value = '';
+    UI.loadDepts().then(() => {
+      const sel = document.getElementById('new-kb-dept');
+      sel.innerHTML = '<option value="">全部门</option>' +
+        UI.getDeptList().map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+    });
+    UI.showModal('create-kb');
+  }
+
   async function createKB() {
     const name = document.getElementById('new-kb-name').value.trim();
     if (!name) { alert('请输入知识库名称'); return; }
     try {
+      const deptId = document.getElementById('new-kb-dept').value || '';
       await API.request('/api/knowledge-bases', {
         method: 'POST',
         body: {
           name,
           description: document.getElementById('new-kb-desc').value.trim(),
+          department_id: deptId || undefined,
         },
       });
       UI.hideModal();
@@ -210,7 +223,7 @@ const PageKB = (() => {
 
   return {
     loadKBList, openDetail, loadKBDocs, loadKBSettings, saveKBSettings,
-    createKB, deleteKB, deleteDoc,
+    openCreateKB, createKB, deleteKB, deleteDoc,
     loadDeptAccess, showAddDeptAccess, addDeptAccess, removeDeptAccess,
     getCurrentKbId: () => currentKbId,
     getKbList: () => kbList,

@@ -14,6 +14,7 @@
 | LLM | OpenAI 兼容接口（支持 DashScope / Ollama / OpenAI / 自定义） |
 | Embedding | OpenAI 兼容接口（同上） |
 | Reranker | qwen3-vl-rerank（DashScope）/ 兼容 API |
+| OCR | PaddleOCR（PP-StructureV3 版面检测 + 文字识别 + 表格识别） |
 | 中文分词 | jieba（BM25 关键词检索） |
 | 前端 | HTML + CSS + JavaScript（模块化 SPA + Hash 路由） |
 
@@ -71,6 +72,20 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 访问 `http://localhost:8000`，默认管理员：`admin` / `admin123`
 
+### 6. OCR 配置（可选）
+
+PDF 文档解析使用 PaddleOCR，需安装依赖：
+
+```bash
+pip install paddlepaddle paddleocr
+```
+
+模型会在首次使用时自动下载到 `~/.paddlex/official_models/`。支持的功能：
+- **版面检测**：自动识别文字、表格、图片、公式等区域
+- **文字识别**：PP-OCRv5_server 模型
+- **表格识别**：HTML 格式输出，自动转 Markdown
+- **阅读顺序**：双栏/多栏文档自适应排序
+
 ## 智能问答流程
 
 ```
@@ -109,7 +124,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | 仪表盘 | 统计卡片、7天问答趋势、热门知识库、待处理事项 | 全员 |
 | 知识库列表 | 创建/查看/删除知识库 | 全员（删除需 admin） |
 | 知识库详情 | 文档管理、分块查看、部门授权设置 | 查看全员，编辑需 admin |
-| 文档上传 | 三步向导，三种分块策略，同名文件替换确认 | admin/kb_admin |
+| 文档上传 | 三步向导，三种分块策略，同名文件替换确认，PDF OCR 异步处理+按页进度 | admin/kb_admin |
 | 分块查看 | 搜索/排序/折叠/编辑/删除 | 查看全员，编辑需 admin |
 | 智能问答 | 多轮对话、混合检索、预设问题、Markdown 渲染、引用标注、点赞/点踩 | 全员 |
 | 用户管理 | CRUD、筛选、分页 | super_admin |
@@ -159,7 +174,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 |---|---|---|
 | GET/POST | `/api/knowledge-bases` | 知识库列表/创建 |
 | PUT/DELETE | `/api/knowledge-bases/{id}` | 更新/删除知识库 |
-| POST | `/api/upload` | 上传文档（50MB限制，PDF/DOCX/MD/TXT） |
+| POST | `/api/upload` | 上传文档（50MB限制，PDF/DOCX/MD/TXT，PDF 走 OCR 异步处理） |
+| GET | `/api/upload/progress/{task_id}` | 查询 PDF 上传处理进度（按页更新） |
 | GET | `/api/documents?kb_id=xxx` | 文档列表 |
 | DELETE | `/api/documents/{filename}` | 删除文档 |
 | GET | `/api/documents/{filename}/chunks` | 查看分块 |
@@ -232,14 +248,20 @@ knowledge-base/
 │   │   ├── database.py         # 数据库连接
 │   │   ├── embedding.py        # 向量化（重试+缓存）
 │   │   ├── llm.py              # LLM 调用 + 查询改写
-│   │   ├── loader.py           # 文档加载
+│   │   ├── loader.py           # 文档加载（PDF 统一走 OCR）
 │   │   ├── splitter.py         # 文本分块（三种策略）
 │   │   ├── vectorstore.py      # 向量存储 + 混合检索
 │   │   ├── hybrid_search.py    # BM25 + RRF 融合
 │   │   ├── reranker.py         # qwen3-vl-rerank 重排
 │   │   ├── cache.py            # 查询缓存
+│   │   ├── progress.py         # 上传任务进度追踪
 │   │   ├── eval_generator.py   # 评测集生成（LLM）
-│   │   └── eval_runner.py      # 评测执行（检索+生成+Judge评分）
+│   │   ├── eval_runner.py      # 评测执行（检索+生成+Judge评分）
+│   │   └── ocr/                # OCR 模块
+│   │       ├── __init__.py
+│   │       ├── engine.py       # OCREngine 核心引擎
+│   │       ├── postprocess.py  # 后处理（JSON + Markdown）
+│   │       └── utils.py        # 工具函数
 │   ├── models/
 │   │   ├── models.py           # ORM（14 张表，外键级联）
 │   │   └── schema.py           # Pydantic 模型
@@ -271,7 +293,8 @@ knowledge-base/
 │   └── eval_prompts.json       # 评测专用 Prompt 模板
 ├── scripts/
 │   ├── init_db.py              # 数据库初始化
-│   └── migrate_db.py           # 增量迁移
+│   ├── migrate_db.py           # 增量迁移
+│   └── ocr_cli.py              # OCR 命令行工具
 ├── data/
 │   └── chroma_db/              # ChromaDB 持久化数据
 ├── HIGHLIGHTS.md               # 产品亮点
@@ -329,7 +352,7 @@ knowledge-base/
 文档上传/分块/向量化/检索/问答，用户/部门/知识库 CRUD，权限体系，审计日志
 
 ### ✅ P1 — 架构 + 功能
-前后端模块化、安全加固、混合检索（向量+BM25+RRF）、多轮对话、查询改写、qwen3-vl-rerank 重排、查询缓存、用户反馈、文档版本管理、效果评测系统（LLM-as-Judge 多维度评分）
+前后端模块化、安全加固、混合检索（向量+BM25+RRF）、多轮对话、查询改写、qwen3-vl-rerank 重排、查询缓存、用户反馈、文档版本管理、效果评测系统（LLM-as-Judge 多维度评分）、PaddleOCR PDF 解析（版面检测+文字识别+表格识别+按页进度）
 
 ### 🔲 P2 — 增强
 - Redis 分布式缓存

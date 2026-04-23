@@ -52,11 +52,15 @@ async def create_knowledge_base(data: dict, request: Request,
     )
     db.add(kb)
     db.flush()
-    # 自动授权创建者部门
-    db_user = db.query(User).filter(User.id == user["sub"]).first()
-    if db_user and db_user.department_id:
-        from app.models.models import KBDepartmentAccess
-        access = KBDepartmentAccess(kb_id=kb.id, department_id=db_user.department_id,
+    # 部门授权：优先用前端传入的 department_id，否则自动授权创建者部门
+    from app.models.models import KBDepartmentAccess
+    dept_id = data.get("department_id")
+    if not dept_id:
+        db_user = db.query(User).filter(User.id == user["sub"]).first()
+        if db_user and db_user.department_id:
+            dept_id = db_user.department_id
+    if dept_id:
+        access = KBDepartmentAccess(kb_id=kb.id, department_id=dept_id,
                                     role="admin", created_by=user["sub"])
         db.add(access)
     db.commit()
@@ -89,10 +93,11 @@ async def delete_knowledge_base(kb_id: str, request: Request,
     if not kb:
         raise HTTPException(404, "知识库不存在")
     kb.status = "deleted"
-    db.query(Document).filter(Document.kb_id == kb_id, Document.status != "deleted").update({"status": "deleted"})
+    # 物理删除该知识库下的所有文档记录
+    deleted_docs = db.query(Document).filter(Document.kb_id == kb_id).delete()
     db.commit()
     from app.core.vectorstore import delete_kb_documents
-    delete_kb_documents(kb_id)
+    vec_count = delete_kb_documents(kb_id)
     log_audit(db, user, "delete_kb", kb.name, "", "success",
                request.client.host if request.client else "")
     return {"message": "已删除"}

@@ -101,21 +101,20 @@ const PageUpload = (() => {
 
     try {
       const data = await API.upload(fd, pct => {
-        document.getElementById('upload-progress-bar').style.width = pct + '%';
-        document.getElementById('upload-progress-text').textContent = pct + '%';
+        const displayPct = Math.min(pct, 100);
+        document.getElementById('upload-progress-bar').style.width = displayPct + '%';
+        document.getElementById('upload-progress-text').textContent = displayPct + '%';
       });
-      document.getElementById('upload-spinner').style.display = 'none';
-      document.getElementById('upload-status-text').textContent = '✅ 上传完成';
-      document.getElementById('upload-progress-bar').style.width = '100%';
-      document.getElementById('upload-progress-text').textContent = '100%';
-      document.getElementById('upload-result').innerHTML =
-        `<div style="padding:16px;background:#ecfdf5;border-radius:8px;color:#065f46;font-size:15px;">
-          <div style="font-weight:600;margin-bottom:8px;">✅ ${data.filename}</div>
-          <div>${data.message}</div></div>`;
-      document.getElementById('upload-result').style.display = 'block';
-      document.getElementById('upload-actions').style.display = 'flex';
-      selectedFile = null;
-      PageKB.loadKBDocs();
+
+      // PDF 文件：异步处理，轮询进度
+      if (data.task_id) {
+        document.getElementById('upload-status-text').textContent =
+          `⏳ OCR 处理中: 0/${data.total_pages} 页 (0%)`;
+        await _pollProgress(data.task_id, data.total_pages);
+      } else {
+        // 非 PDF：直接完成
+        _showUploadResult(data);
+      }
     } catch (e) {
       document.getElementById('upload-spinner').style.display = 'none';
       document.getElementById('upload-status-text').textContent = '❌ 上传失败';
@@ -123,6 +122,74 @@ const PageUpload = (() => {
         `<div style="padding:16px;background:#fff1f0;border-radius:8px;color:#cf1322;">${e.message}</div>`;
       document.getElementById('upload-result').style.display = 'block';
     }
+  }
+
+  async function _pollProgress(taskId, totalPages) {
+    const bar = document.getElementById('upload-progress-bar');
+    const text = document.getElementById('upload-progress-text');
+    const status = document.getElementById('upload-status-text');
+
+    while (true) {
+      await new Promise(r => setTimeout(r, 1000));
+      try {
+        const resp = await fetch(`/api/upload/progress/${taskId}`, {
+          headers: { 'Authorization': 'Bearer ' + API.getToken() },
+        });
+        if (!resp.ok) throw new Error('进度查询失败');
+        const task = await resp.json();
+
+        const pct = task.percent || 0;
+        bar.style.width = pct + '%';
+        text.textContent = pct + '%';
+
+        if (task.stage === 'processing' && task.current_page) {
+          status.textContent = `⏳ OCR 处理中: 第 ${task.current_page}/${task.total_pages} 页 (${pct}%)`;
+        } else if (task.stage === 'indexing') {
+          status.textContent = '⏳ 写入向量库...';
+        } else {
+          status.textContent = task.message || '处理中...';
+        }
+
+        if (task.done) {
+          if (task.error) {
+            document.getElementById('upload-spinner').style.display = 'none';
+            status.textContent = '❌ 处理失败';
+            document.getElementById('upload-result').innerHTML =
+              `<div style="padding:16px;background:#fff1f0;border-radius:8px;color:#cf1322;">${task.error}</div>`;
+            document.getElementById('upload-result').style.display = 'block';
+          } else {
+            _showUploadResult(task.result);
+          }
+          return;
+        }
+      } catch (e) {
+        // 轮询出错，继续重试
+        console.error('进度轮询错误:', e);
+      }
+    }
+  }
+
+  function _showUploadResult(data) {
+    document.getElementById('upload-spinner').style.display = 'none';
+    document.getElementById('upload-status-text').textContent = data.warnings ? '⚠️ 上传完成（有警告）' : '✅ 上传完成';
+    document.getElementById('upload-progress-bar').style.width = '100%';
+    document.getElementById('upload-progress-text').textContent = '100%';
+
+    let resultHtml = `<div style="padding:16px;border-radius:8px;font-size:15px;${data.warnings ? 'background:#fff7ed;color:#9a3412;' : 'background:#ecfdf5;color:#065f46;'}">`
+      + `<div style="font-weight:600;margin-bottom:8px;">${data.warnings ? '⚠️' : '✅'} ${data.filename}</div>`
+      + `<div>${data.message}</div>`;
+    if (data.warnings && data.warnings.length) {
+      resultHtml += '<ul style="margin:8px 0 0;padding-left:20px;">'
+        + data.warnings.map(w => `<li>${w}</li>`).join('')
+        + '</ul>';
+    }
+    resultHtml += '</div>';
+
+    document.getElementById('upload-result').innerHTML = resultHtml;
+    document.getElementById('upload-result').style.display = 'block';
+    document.getElementById('upload-actions').style.display = 'flex';
+    selectedFile = null;
+    PageKB.loadKBDocs();
   }
 
   function reset() {

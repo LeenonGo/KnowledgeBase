@@ -2,6 +2,8 @@
 
 import hashlib
 import shutil
+import threading
+import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -17,6 +19,83 @@ from app.api.deps import get_current_user, log_audit, require_kb_access, get_acc
 router = APIRouter(prefix="/api", tags=["文档"])
 
 UPLOAD_DIR = Path(__file__).parent.parent.parent / "data" / "uploads"
+
+
+def _process_pdf_background(
+    task_id: str,
+    file_path: str,
+    filename: str,
+    kb_id: str,
+    file_hash: str,
+    uploader_id: str,
+    file_size: int,
+    chunk_size: int,
+    chunk_overlap: int,
+    chunk_strategy: str,
+    heading_level: int,
+):
+    """后台线程：处理 PDF 文档（OCR + 分块 + 向量化）"""
+    from app.core import progress
+    try:
+        from app.core.splitter import load_and_split
+        from app.core.vectorstore import add_documents
+
+        def on_page(current, total):
+            pct = int(current / total * 100)
+            progress.update(task_id,
+                stage="processing",
+                current_page=current,
+                total_pages=total,
+                percent=pct,
+                message=f"OCR 处理中: 第 {current}/{total} 页 ({pct}%)",
+            )
+
+        progress.update(task_id, stage="processing", message="OCR 处理中...")
+
+        # load_and_split 需要支持 progress_callback
+        chunks, warnings = load_and_split(
+            str(file_path),
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            strategy=chunk_strategy,
+            heading_level=heading_level,
+            progress_callback=on_page,
+        )
+
+        if not chunks:
+            progress.finish(task_id, error="文档内容为空或无法解析")
+            return
+
+        progress.update(task_id, stage="indexing", percent=95, message="写入向量库...")
+        count = add_documents(chunks, filename, kb_id=kb_id)
+
+        # 写入 DB
+        from app.core.database import SessionLocal
+        db = SessionLocal()
+        try:
+            doc = Document(
+                filename=filename, original_name=filename,
+                file_hash=file_hash, file_size=file_size,
+                chunk_count=count, kb_id=kb_id,
+                uploader_id=uploader_id, status="indexed",
+                chunking_strategy=chunk_strategy, chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
+            db.add(doc)
+            db.commit()
+        finally:
+            db.close()
+
+        resp = {"filename": filename, "chunks": count,
+                "message": f"文档已处理，共 {count} 个文本块"}
+        if warnings:
+            resp["warnings"] = warnings
+        progress.finish(task_id, result=resp)
+
+    except ValueError as e:
+        progress.finish(task_id, error=str(e))
+    except Exception as e:
+        progress.finish(task_id, error=str(e))
 
 
 
@@ -53,8 +132,18 @@ async def upload_document(
 
     file_hash = hashlib.sha256(content).hexdigest()
 
-    # 检查同 KB 内同名文件 → 版本替换
+    # 清理同 KB 内同名的已删除记录（物理删除，释放唯一约束）
     from app.core.vectorstore import delete_document
+    deleted_same = db.query(Document).filter(
+        Document.kb_id == kb_id, Document.filename == file.filename,
+        Document.status == "deleted"
+    ).all()
+    for d in deleted_same:
+        db.delete(d)
+    if deleted_same:
+        db.commit()
+
+    # 检查同 KB 内同名文件 → 版本替换
     same_name = db.query(Document).filter(
         Document.kb_id == kb_id, Document.filename == file.filename,
         Document.status != "deleted"
@@ -79,10 +168,39 @@ async def upload_document(
     with open(file_path, "wb") as f:
         f.write(content)
 
+    # PDF 文件：异步处理，返回 task_id
+    if file_ext == ".pdf":
+        from app.core.progress import create_task
+        from app.core.ocr import OCREngine
+
+        task_id = uuid.uuid4().hex[:16]
+        try:
+            engine = OCREngine(device="cpu")
+            total_pages = engine.pdf_page_count(str(file_path))
+        except Exception:
+            total_pages = 0
+
+        create_task(task_id, total_pages=total_pages)
+
+        # 后台线程处理
+        t = threading.Thread(
+            target=_process_pdf_background,
+            args=(task_id, file_path, file.filename, kb_id,
+                  file_hash, user.get("sub"), file_path.stat().st_size,
+                  chunk_size, chunk_overlap, chunk_strategy, heading_level),
+            daemon=True,
+        )
+        t.start()
+
+        return {"task_id": task_id, "total_pages": total_pages,
+                "filename": file.filename,
+                "message": f"文件已上传，共 {total_pages} 页，正在 OCR 处理..."}
+
+    # 非 PDF 文件：同步处理
     try:
         from app.core.splitter import load_and_split
         from app.core.vectorstore import add_documents
-        chunks = load_and_split(str(file_path), chunk_size=chunk_size,
+        chunks, warnings = load_and_split(str(file_path), chunk_size=chunk_size,
                                 chunk_overlap=chunk_overlap, strategy=chunk_strategy,
                                 heading_level=heading_level)
         if not chunks:
@@ -90,6 +208,10 @@ async def upload_document(
         count = add_documents(chunks, file.filename, kb_id=kb_id)
     except HTTPException:
         raise
+    except ValueError as e:
+        log_audit(db, user, "upload", file.filename, str(e), "failure",
+                   request.client.host if request.client else "")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         log_audit(db, user, "upload", file.filename, str(e), "failure",
                    request.client.host if request.client else "")
@@ -109,8 +231,23 @@ async def upload_document(
     log_audit(db, user, "upload", file.filename,
                f"kb={kb_id}, {count}块, 策略={chunk_strategy}", "success",
                request.client.host if request.client else "")
-    return {"filename": file.filename, "chunks": count,
+    resp = {"filename": file.filename, "chunks": count,
             "message": f"文档已处理，共 {count} 个文本块"}
+    if warnings:
+        resp["warnings"] = warnings
+    return resp
+
+
+@router.get("/upload/progress/{task_id}")
+async def get_upload_progress(task_id: str):
+    """查询上传任务进度"""
+    from app.core.progress import get, cleanup
+    task = get(task_id)
+    if not task:
+        raise HTTPException(404, "任务不存在")
+    if task["done"] and task.get("result"):
+        cleanup(task_id)
+    return task
 
 
 @router.get("/documents")
@@ -158,11 +295,11 @@ async def remove_document(
     if count == 0:
         raise HTTPException(404, "文档不存在")
 
-    q = db.query(Document).filter(Document.filename == filename, Document.status != "deleted")
+    # 物理删除文档记录
+    q = db.query(Document).filter(Document.filename == filename)
     if kb_id:
         q = q.filter(Document.kb_id == kb_id)
-    for doc in q.all():
-        doc.status = "deleted"
+    deleted_count = q.delete()
     db.commit()
 
     file_path = UPLOAD_DIR / filename

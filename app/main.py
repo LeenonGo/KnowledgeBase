@@ -54,9 +54,13 @@ STATIC_DIR = Path(__file__).parent / "static"
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"未处理异常 {request.method} {request.url.path}: {exc}", exc_info=True)
+    # 数据库重复等已知错误，返回具体信息
+    detail = str(exc)
+    if "Duplicate entry" in detail or "UNIQUE constraint" in detail:
+        return JSONResponse(status_code=400, content={"detail": "文件已存在，请勿重复上传"})
     return JSONResponse(
         status_code=500,
-        content={"detail": "服务器内部错误，请稍后重试"},
+        content={"detail": f"服务器内部错误: {detail[:200]}"},
     )
 
 

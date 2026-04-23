@@ -181,8 +181,10 @@ def load_and_split(
     chunk_overlap: int = 50,
     strategy: str = "semantic",
     heading_level: int = 2,
-) -> list[str]:
-    """加载文档并分块"""
-    text = load_document(file_path)
-    return split_text(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap,
-                      strategy=strategy, heading_level=heading_level)
+    progress_callback=None,
+) -> tuple[list[str], list[str]]:
+    """加载文档并分块，返回 (分块列表, 警告列表)"""
+    text, warnings = load_document(file_path, progress_callback=progress_callback)
+    chunks = split_text(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap,
+                        strategy=strategy, heading_level=heading_level)
+    return chunks, warnings
