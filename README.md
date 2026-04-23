@@ -237,3 +237,16 @@ knowledge-base/
 **Phase 7 — OCR 与异步处理**
 - PaddleOCR PDF 解析（版面检测+文字识别+表格识别）
 - 异步上传按页进度、级联删除修复、错误提示优化
+
+---
+
+## 待办功能
+
+- [ ] 润色 Query（拼写纠错、同义扩展、关键词提取）
+- [ ] Agent / Function Calling（LLM 自主决策调用工具）
+- [ ] 数据源同步（飞书/Confluence/Git 自动导入）
+- [ ] 更多文档格式（Excel/PPT/CSV）
+- [ ] API 开放 + Bot 发布（API Key / Widget / Webhook）
+- [ ] 多 KB 路由 + 工作流编排
+- [ ] 知识图谱增强（实体抽取 + 图谱检索）
+- [ ] Prompt 在线调试 + A/B 测试
