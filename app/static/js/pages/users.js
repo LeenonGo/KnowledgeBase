@@ -101,6 +101,14 @@ const PageUsers = (() => {
     const editId = document.getElementById('edit-user-id').value;
     const name = document.getElementById('new-user-name').value.trim();
     if (!name) { alert('请填写姓名'); return; }
+    // 校验密码复杂度（新建用户时）
+    if (!editId) {
+      const pw = document.getElementById('new-user-password').value;
+      if (pw) {
+        const err = typeof validatePassword === 'function' ? validatePassword(pw) : '';
+        if (err) { alert(err); return; }
+      }
+    }
     try {
       if (editId) {
         await API.request(`/api/users/${editId}`, {
@@ -116,12 +124,13 @@ const PageUsers = (() => {
       } else {
         const username = document.getElementById('new-user-username').value.trim();
         if (!username) { alert('请填写用户名'); return; }
+        const pw = document.getElementById('new-user-password').value;
         await API.request('/api/users', {
           method: 'POST',
           body: {
             username, display_name: name,
             email: document.getElementById('new-user-email').value,
-            password: document.getElementById('new-user-password').value || '123456',
+            password: pw || 'admin123',
             position: document.getElementById('new-user-position').value,
             department_id: document.getElementById('new-user-dept').value || null,
             role: document.getElementById('new-user-role').value,

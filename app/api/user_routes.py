@@ -36,12 +36,20 @@ async def get_users(page: int = 1, page_size: int = 10, role: str = None,
 async def create_user(data: dict, request: Request,
                       db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     from werkzeug.security import generate_password_hash
+    from app.api.auth_routes import validate_password_strength
     if db.query(User).filter(User.username == data["username"]).first():
         raise HTTPException(400, "用户名已存在")
+    pw = data.get("password", "")
+    if pw:
+        err = validate_password_strength(pw)
+        if err:
+            raise HTTPException(400, err)
+    else:
+        pw = "admin123"  # 默认密码（首次登录强制改密场景）
     new_user = User(
         username=data["username"], display_name=data["display_name"],
         email=data.get("email", ""),
-        password_hash=generate_password_hash(data.get("password", "123456")),
+        password_hash=generate_password_hash(pw),
         department_id=data.get("department_id") or None,
         position=data.get("position", ""), role=data.get("role", "user"),
         status="active",
@@ -64,6 +72,10 @@ async def update_user(user_id: str, data: dict, request: Request,
             setattr(target, field, data[field] or None if field == "department_id" else data[field])
     if "password" in data and data["password"]:
         from werkzeug.security import generate_password_hash
+        from app.api.auth_routes import validate_password_strength
+        err = validate_password_strength(data["password"])
+        if err:
+            raise HTTPException(400, err)
         target.password_hash = generate_password_hash(data["password"])
     db.commit()
     log_audit(db, user, "update_user", target.username,

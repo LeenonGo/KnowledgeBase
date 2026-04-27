@@ -114,7 +114,7 @@ async def upload_document(
     require_kb_access(db, user, kb_id, "editor")
 
     # 文件格式校验
-    ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".md", ".txt"}
+    ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".md", ".txt", ".xlsx", ".xls", ".csv", ".pptx"}
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(400, f"不支持的文件格式: {file_ext}，支持: {', '.join(ALLOWED_EXTENSIONS)}")

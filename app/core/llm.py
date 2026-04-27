@@ -1,6 +1,7 @@
 """LLM 调用 — 支持 Ollama / OpenAI 兼容接口，Prompt 可配置"""
 
 import json
+import re
 from pathlib import Path
 
 from openai import OpenAI
@@ -136,3 +137,46 @@ def get_refuse_answer() -> str:
     """获取拒答话术"""
     prompt = get_prompt("refuse")
     return prompt.get("answer", DEFAULT_PROMPTS["refuse"]["answer"])
+
+
+def polish_query(question: str) -> dict:
+    """
+    润色查询：拼写纠错 + 同义扩展 + 关键词提取。
+    返回 {"corrected": str, "expanded": str, "keywords": list[str]}
+    失败时返回原始问题，不影响正常流程。
+    """
+    import json as _json
+    try:
+        client, model, cfg = get_llm_client()
+
+        prompt = get_prompt("polish")
+        system_prompt = prompt.get("system", "")
+        user_template = prompt.get("user", "用户查询：{question}\n\n请输出优化结果 JSON：")
+
+        user_prompt = user_template.format(question=question)
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=256,
+            temperature=0.3,
+        )
+
+        raw = response.choices[0].message.content.strip()
+        # 提取 JSON（兼容 markdown 代码块包裹）
+        if raw.startswith("```"):
+            raw = re.sub(r'^```\w*\n?', '', raw)
+            raw = re.sub(r'\n?```$', '', raw)
+        result = _json.loads(raw)
+
+        return {
+            "corrected": result.get("corrected", question),
+            "expanded": result.get("expanded", question),
+            "keywords": result.get("keywords", []),
+        }
+    except Exception as e:
+        print(f"[QueryPolish] 润色失败，降级到原始查询: {e}")
+        return {"corrected": question, "expanded": question, "keywords": []}

@@ -33,11 +33,33 @@
     <a onclick="Router.navigate('evaluation')" id="menu-eval">🧪 效果评测</a>
     <a onclick="Router.navigate('sys-config')" id="menu-config">⚙️ 系统配置</a>
   </div>
-  <div style="padding:12px 20px;border-top:1px solid rgba(255,255,255,.1);margin-top:auto;position:absolute;bottom:0;width:100%;">
-    <div style="padding:8px 20px;font-size:12px;color:rgba(255,255,255,.45);border-top:1px solid rgba(255,255,255,.1);margin-top:8px;">👤 <span id="current-user"></span></div>
-    <a onclick="PageLogin.logout()" style="padding:0 20px;border:none;color:rgba(255,255,255,.5);font-size:12px;cursor:pointer;">🚪 退出登录</a>
-  </div>
 </nav>
+
+<!-- Top Header Bar -->
+<header class="top-header" id="top-header" style="display:none;">
+  <div class="top-header-left"></div>
+  <div class="top-header-right">
+    <div class="user-avatar-wrap" id="user-avatar-wrap" onclick="toggleUserDropdown()">
+      <div class="avatar" id="header-avatar">A</div>
+      <span class="header-username" id="header-username">admin</span>
+      <span class="header-role" id="header-role">super_admin</span>
+      <span class="dropdown-arrow">▾</span>
+    </div>
+    <div class="user-dropdown" id="user-dropdown" style="display:none;">
+      <div class="dropdown-user-info">
+        <div class="avatar avatar-lg" id="dropdown-avatar">A</div>
+        <div>
+          <div class="dropdown-name" id="dropdown-name">admin</div>
+          <div class="dropdown-role" id="dropdown-role">super_admin</div>
+        </div>
+      </div>
+      <div class="dropdown-divider"></div>
+      <div class="dropdown-item" onclick="showChangePasswordModal()">🔒 修改密码</div>
+      <div class="dropdown-divider"></div>
+      <div class="dropdown-item dropdown-item-danger" onclick="PageLogin.logout()">🚪 退出登录</div>
+    </div>
+  </div>
+</header>
 
 <div class="main" id="main-area">
 
@@ -190,7 +212,7 @@
         <div class="text">拖拽文件到此处，或点击选择文件</div>
         <div class="hint">支持 PDF、Word、Markdown、TXT · 单文件 ≤ 50MB</div>
       </div>
-      <input type="file" id="file-input" style="display:none;" accept=".pdf,.docx,.doc,.md,.txt">
+      <input type="file" id="file-input" style="display:none;" accept=".pdf,.docx,.doc,.md,.txt,.xlsx,.xls,.csv,.pptx">
       <div id="selected-files" style="margin-top:16px;"></div>
       <div style="margin-top:20px;text-align:right;">
         <button class="btn btn-primary" id="step1-next" onclick="PageUpload.goStep(2)" disabled>下一步 →</button>
@@ -794,7 +816,7 @@
       <div class="form-group"><label>显示姓名 *</label><input class="input" id="new-user-name" placeholder="请输入姓名"></div>
     </div>
     <div class="form-group" id="password-field">
-      <label>密码</label><input class="input" type="password" id="new-user-password" placeholder="留空则默认 123456">
+      <label>密码</label><input class="input" type="password" id="new-user-password" placeholder="留空则默认 admin123，需含字母+数字，8位以上">
     </div>
     <div class="form-row">
       <div class="form-group"><label>邮箱</label><input class="input" type="email" id="new-user-email" placeholder="请输入邮箱"></div>
@@ -911,6 +933,17 @@
     <div id="eval-res-details"></div>
   </div>
   <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">关闭</button></div>
+</div>
+
+<!-- 修改密码弹窗 -->
+<div id="modal-change-password" class="modal" style="display:none;width:450px;">
+  <div class="modal-header"><span>🔒 修改密码</span><button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label>当前密码</label><input class="input" type="password" id="cp-old-password" placeholder="请输入当前密码"></div>
+    <div class="form-group"><label>新密码</label><input class="input" type="password" id="cp-new-password" placeholder="请输入新密码" oninput="checkPasswordStrength(this.value)"><div id="cp-hint" class="text-muted" style="margin-top:4px;">需包含字母+数字，最少 8 位</div><div id="cp-strength" style="margin-top:4px;font-size:12px;"></div></div>
+    <div class="form-group"><label>确认新密码</label><input class="input" type="password" id="cp-confirm-password" placeholder="请再次输入新密码"></div>
+  </div>
+  <div class="modal-footer"><button class="btn" onclick="UI.hideModal()">取消</button><button class="btn btn-primary" onclick="doChangePassword()">确认修改</button></div>
 </div>
 
 </div>

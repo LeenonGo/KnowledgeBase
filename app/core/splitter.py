@@ -85,6 +85,28 @@ def _split_structural(text: str, chunk_size: int = 1024, heading_level: int = 2)
     return chunks
 
 
+# ─── 策略 1.5：按标题切分（不合并，每块一个 ##）───
+
+def _split_heading(text: str, chunk_size: int = 500, **kwargs) -> list[str]:
+    """按 ## 标题切分，每块独立，超长块按句子二次拆分"""
+    if not text.strip():
+        return []
+    pattern = re.compile(r'^(#{1,6})\s+(.+)$', re.MULTILINE)
+    headings = list(pattern.finditer(text))
+    if not headings:
+        return _split_fixed(text, chunk_size, chunk_overlap=0)
+    chunks = []
+    for i, m in enumerate(headings):
+        start = m.start()
+        end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
+        section = text[start:end].strip()
+        if len(section) <= chunk_size:
+            chunks.append(section)
+        else:
+            chunks.extend(_split_fixed(section, chunk_size, chunk_overlap=0))
+    return [c for c in chunks if c.strip()]
+
+
 # ─── 策略 3：语义感知分块 ────────────────────────
 
 _SENTENCE_PATTERN = re.compile(r'(?<=[。！？.!?])\s*|(?<=\n)')
@@ -121,13 +143,13 @@ def _split_semantic(text: str, chunk_size: int = 500, chunk_overlap: int = 50) -
 
         # 单句超长：当前块结束，超长句单独成块
         if sent_len > chunk_size and current_sents:
-            chunks.append("".join(current_sents))
+            chunks.append("\n".join(current_sents))
             current_sents = []
             current_len = 0
 
         # 加入当前句会超限：当前块结束
         if current_sents and current_len + sent_len > chunk_size:
-            chunks.append("".join(current_sents))
+            chunks.append("\n".join(current_sents))
             overlap_start = max(0, len(current_sents) - overlap_sents)
             current_sents = current_sents[overlap_start:]
             current_len = sum(len(s) for s in current_sents)
@@ -136,7 +158,7 @@ def _split_semantic(text: str, chunk_size: int = 500, chunk_overlap: int = 50) -
         current_len += sent_len
 
     if current_sents:
-        chunks.append("".join(current_sents))
+        chunks.append("\n".join(current_sents))
 
     return chunks
 
@@ -147,6 +169,7 @@ _STRATEGIES = {
     "fixed": _split_fixed,
     "structural": _split_structural,
     "semantic": _split_semantic,
+    "heading": _split_heading,
 }
 
 
@@ -184,6 +207,13 @@ def load_and_split(
     progress_callback=None,
 ) -> tuple[list[str], list[str]]:
     """加载文档并分块，返回 (分块列表, 警告列表)"""
+    from pathlib import Path
+    ext = Path(file_path).suffix.lower()
+    
+    # Excel/CSV 自动使用 heading 策略（每条记录独立一块）
+    if ext in (".xlsx", ".xls", ".csv"):
+        strategy = "heading"
+    
     text, warnings = load_document(file_path, progress_callback=progress_callback)
     chunks = split_text(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap,
                         strategy=strategy, heading_level=heading_level)

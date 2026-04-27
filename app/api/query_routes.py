@@ -59,13 +59,19 @@ async def query_knowledge_base(
         except Exception as e:
             print(f"[QueryRewrite] 改写失败，使用原始问题: {e}")
 
-    # ── 3. 查缓存 ──
+    # ── 3. 查缓存（用原始问题做 key，确保缓存命中）──
     cache_key_kb = req.kb_id or "all"
-    cached = query_cache.get(search_question, cache_key_kb)
+    cached = query_cache.get(req.question, cache_key_kb)
     if cached:
         log_audit(db, user, "query", req.question[:100], "缓存命中", "success",
                    request.client.host if request.client else "")
         return QueryResponse(**cached)
+
+    # ── 3.5 Query 润色（缓存未命中时才执行，节省 LLM 调用）──
+    from app.core.llm import polish_query
+    polished = polish_query(search_question)
+    search_question = polished.get("expanded") or polished.get("corrected", search_question)
+    print(f"[QueryPolish] expanded={search_question[:80]}")
 
     # ── 4. 检索 ──
     if req.kb_id:
@@ -93,7 +99,7 @@ async def query_knowledge_base(
                    request.client.host if request.client else "")
         refuse = get_refuse_answer()
         result = {"question": req.question, "answer": refuse, "sources": []}
-        query_cache.set(search_question, result, cache_key_kb, ttl=300)
+        query_cache.set(req.question, result, cache_key_kb, ttl=300)
         return QueryResponse(**result)
 
     # ── 6. 拼上下文 + 生成回答 ──
@@ -115,7 +121,7 @@ async def query_knowledge_base(
     answer = generate_answer(req.question, context, history=history)
 
     result = {"question": req.question, "answer": answer, "sources": sources}
-    query_cache.set(search_question, result, cache_key_kb, ttl=3600)
+    query_cache.set(req.question, result, cache_key_kb, ttl=3600)
 
     log_audit(db, user, "query", req.question[:100],
                f"命中{len(docs)}条, 来源={sources}", "success",

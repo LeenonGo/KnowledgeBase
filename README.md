@@ -24,6 +24,7 @@
 | LLM / Embedding | OpenAI 兼容接口（DashScope / Ollama / 自定义） |
 | Reranker | qwen3-vl-rerank |
 | OCR | PaddleOCR（版面检测 + 文字识别 + 表格识别） |
+| 文档解析 | PyMuPDF(PDF)、python-docx(Word)、openpyxl/xlrd(Excel)、python-pptx(PPT)、jieba(中文分词) |
 | 前端 | HTML + CSS + JavaScript（SPA + Hash 路由） |
 
 ---
@@ -62,9 +63,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | 仪表盘 | 统计卡片、7天趋势、热门知识库 | 全员 |
 | 知识库列表 | 创建/查看/删除，部门选择 | 全员（删除需 admin） |
 | 知识库详情 | 文档管理、分块查看、部门授权 | 查看全员，编辑需 admin |
-| 文档上传 | 三步向导、三种分块策略、PDF OCR 异步处理+按页进度 | admin/kb_admin |
+| 文档上传 | 三步向导、多种分块策略、PDF OCR 异步处理+按页进度、支持 PDF/Word/Excel/CSV/PPT/TXT/Markdown | admin/kb_admin |
 | 分块查看 | 搜索/排序/折叠/编辑/删除 | 查看全员，编辑需 admin |
-| 智能问答 | 多轮对话、混合检索、预设问题、Markdown 渲染、点赞/点踩 | 全员 |
+| 智能问答 | 多轮对话、混合检索、Query 润色、预设问题、Markdown 渲染、点赞/点踩 | 全员 |
 | 用户管理 | CRUD、筛选、分页 | super_admin |
 | 部门管理 | 树形结构 | super_admin |
 | 审计日志 | 操作记录筛选 | super_admin |
@@ -78,7 +79,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ```
 用户提问 → JWT认证 → 权限校验 → 查询改写(多轮时) → 查缓存
-  → Embedding向量化 → 向量检索(ChromaDB) + BM25检索(jieba)
+  → Query润色(纠错+扩展+关键词) → Embedding向量化 → 向量检索(ChromaDB) + BM25检索(jieba)
   → RRF融合 → qwen3-vl-rerank重排 → LLM生成回答 → 写缓存 → 返回
 ```
 
@@ -248,15 +249,36 @@ knowledge-base/
 - PaddleOCR PDF 解析（版面检测+文字识别+表格识别）
 - 异步上传按页进度、级联删除修复、错误提示优化
 
+**Phase 8 — Query 润色与多格式支持（2026-04-27）**
+- Query 润色：LLM 拼写纠错 + 同义扩展 + 关键词提取，检索前自动优化查询
+- 多格式支持：Excel（.xlsx/.xls）、CSV、PowerPoint（.pptx）文档解析
+- Excel 分块优化：每条记录独立 ## 标题，heading 策略不合并，确保检索粒度精确
+- BM25 索引按 kb_id 隔离，修复跨知识库检索泄露
+- 缓存 key 改用原始问题，润色逻辑移至缓存未命中后
+- 密码复杂度校验 + 修改密码功能
+- 运维手册 v1.0
+
 ---
 
 ## 待办功能
 
-- [ ] 润色 Query（拼写纠错、同义扩展、关键词提取）
+### 产品功能
+
+- [x] 润色 Query（拼写纠错、同义扩展、关键词提取）
+- [x] 更多文档格式（Excel/PPT/CSV）
 - [ ] Agent / Function Calling（LLM 自主决策调用工具）
 - [ ] 数据源同步（飞书/Confluence/Git 自动导入）
-- [ ] 更多文档格式（Excel/PPT/CSV）
 - [ ] API 开放 + Bot 发布（API Key / Widget / Webhook）
 - [ ] 多 KB 路由 + 工作流编排
 - [ ] 知识图谱增强（实体抽取 + 图谱检索）
 - [ ] Prompt 在线调试 + A/B 测试
+
+### 系统优化 & 安全加固
+
+- [x] 用户名和角色显示移到右上角，点击头像出现下拉菜单（修改密码、退出登录）
+- [x] 密码复杂度要求：字母+数字，最少 8 位
+- [x] 运维手册（部署、扩缩容、故障排查、数据恢复流程）
+- [ ] JWT 过期时间 + 刷新机制（access_token + refresh_token 双 token）
+- [ ] 告警：OOM、磁盘满、LLM API 不可用时要有告警
+- [ ] 缓存层：查询缓存接 Redis，支持多实例部署
+- [ ] MySQL 定时备份脚本 + cron 配置

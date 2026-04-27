@@ -19,24 +19,28 @@ _meta = _collection.metadata or {}
 if _meta.get("hnsw:ef") != 500 or _meta.get("hnsw:M") != 32:
     _collection.modify(metadata={"hnsw:ef": 500, "hnsw:M": 32})
 
-# ─── BM25 索引缓存 ──────────────────────────────
+# ─── BM25 索引缓存（按 kb_id 隔离）──
 from app.core.hybrid_search import BM25Index, rrf_fusion
 
 _bm25_index: BM25Index | None = None
 _bm25_dirty = True
 _bm25_doc_count = 0
+_bm25_kb_id = None  # 记录当前索引对应的 kb_id
 
 
 def _get_bm25_index(kb_id: str = None) -> BM25Index:
-    """获取 BM25 索引（懒构建，文档数变化时重建）"""
-    global _bm25_index, _bm25_dirty, _bm25_doc_count
-    current_count = _collection.count()
-    if _bm25_index is None or _bm25_dirty or current_count != _bm25_doc_count:
+    """获取 BM25 索引（懒构建，按 kb_id 隔离）"""
+    global _bm25_index, _bm25_dirty, _bm25_doc_count, _bm25_kb_id
+    
+    if kb_id:
+        results = _collection.get(where={"kb_id": kb_id})
+    else:
+        results = _collection.get()
+    current_count = len(results["ids"])
+    
+    if (_bm25_index is None or _bm25_dirty 
+            or _bm25_kb_id != kb_id or current_count != _bm25_doc_count):
         _bm25_index = BM25Index()
-        if kb_id:
-            results = _collection.get(where={"kb_id": kb_id})
-        else:
-            results = _collection.get()
         docs = []
         for i in range(len(results["ids"])):
             meta = results["metadatas"][i] if results["metadatas"] else {}
@@ -48,6 +52,7 @@ def _get_bm25_index(kb_id: str = None) -> BM25Index:
         _bm25_index.build(docs)
         _bm25_dirty = False
         _bm25_doc_count = current_count
+        _bm25_kb_id = kb_id
     return _bm25_index
 
 
