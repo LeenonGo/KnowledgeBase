@@ -69,7 +69,7 @@ def get_llm_client() -> tuple:
     base_url = cfg.get("base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1")
     api_key = cfg.get("api_key", "")
     model = cfg.get("model", "qwen3.6-plus")
-    client = OpenAI(base_url=base_url, api_key=api_key)
+    client = OpenAI(base_url=base_url, api_key=api_key, timeout=30)
     return client, model, cfg
 
 
@@ -180,3 +180,113 @@ def polish_query(question: str) -> dict:
     except Exception as e:
         print(f"[QueryPolish] 润色失败，降级到原始查询: {e}")
         return {"corrected": question, "expanded": question, "keywords": []}
+
+
+# ─── Agent 模式 ─────────────────────────────────
+
+def generate_answer_agent(
+    question: str,
+    context: str,
+    history: str = "",
+    tools: list = None,
+    tool_context: dict = None,
+) -> str:
+    """
+    Agent 模式问答：支持 Tool-Call 循环。
+    LLM 自主决定是否调用工具，最多 5 轮工具调用。
+    """
+    from app.core.tools import execute_tool
+
+    client, model, cfg = get_llm_client()
+    max_tokens = cfg.get("max_tokens", 2048)
+    temperature = cfg.get("temperature", 0.7)
+
+    # Agent 模式使用专用 prompt，鼓励调用工具而非依赖上下文
+    agent_system = (
+        "你是一个智能知识库助手。你可以使用工具来查找信息、列出知识库、查看文档等。\n\n"
+        "规则：\n"
+        "1. 根据用户问题，主动调用合适的工具来获取信息\n"
+        "2. 如果问题涉及知识库内容，先用 search_kb 检索\n"
+        "3. 如果用户问有哪些知识库，调用 list_kb\n"
+        "4. 如果需要查看完整文档，调用 get_doc_content\n"
+        "5. 如果用户要求总结文档，调用 summarize_doc\n"
+        "6. 工具返回的结果是你获取到的信息，必须将结果完整呈现给用户，不要说'如上所示'或'根据工具结果'，直接展示内容\n"
+        "7. 回答必须标注信息来源\n"
+        "8. 工具找不到相关信息时，诚实告知用户"
+    )
+
+    user_prompt = f"用户问题：{question}\n\n对话历史：{history or '无'}"
+
+    messages = [
+        {"role": "system", "content": agent_system},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    max_rounds = 5
+    db = tool_context.get("db") if tool_context else None
+    user_info = tool_context.get("user") if tool_context else None
+
+    for round_num in range(max_rounds):
+        kwargs = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if tools and db and user_info:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+
+        try:
+            response = client.chat.completions.create(**kwargs)
+        except Exception as e:
+            print(f"[Agent] LLM 调用失败: {e}")
+            return f"抱歉，AI 服务暂时不可用，请稍后重试。({e})"
+        msg = response.choices[0].message
+
+        # 没有工具调用 → 直接返回回答
+        if not msg.tool_calls:
+            return msg.content
+
+        # 有工具调用 → 逐个执行
+        messages.append({
+            "role": "assistant",
+            "content": msg.content or "",
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    }
+                }
+                for tc in msg.tool_calls
+            ],
+        })
+
+        for tc in msg.tool_calls:
+            func_name = tc.function.name
+            try:
+                func_args = json.loads(tc.function.arguments)
+            except json.JSONDecodeError:
+                func_args = {}
+
+            print(f"[Agent] Round {round_num + 1}: {func_name}({json.dumps(func_args, ensure_ascii=False)[:100]})")
+
+            result = execute_tool(func_name, func_args, db, user_info)
+
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": result[:8000],  # 截断避免超长
+            })
+
+    # 超过最大轮次 → 强制最后一次无工具调用
+    final_resp = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+    return final_resp.choices[0].message.content

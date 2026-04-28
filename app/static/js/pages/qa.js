@@ -62,6 +62,7 @@ const PageQA = (() => {
       const body = { question, top_k: topK, use_hybrid: useHybrid, conv_id: convId, use_reranker: false };
       body.use_rewrite = document.getElementById('qa-rewrite')?.checked ?? false;
       body.use_polish = document.getElementById('qa-polish')?.checked ?? false;
+      body.use_agent = document.getElementById('qa-agent')?.checked ?? false;
       const kbId = document.getElementById('qa-kb-filter')?.value || '';
       if (kbId) body.kb_id = kbId;
 
@@ -252,7 +253,14 @@ const PageQA = (() => {
     }
   }
 
-  return { askQuestion, askPreset, newChat, feedback, loadConversationList, loadConversation, deleteConversation };
+  function reset() {
+    currentConvId = null;
+    lastTurnId = null;
+    const msgs = document.getElementById('qa-messages');
+    if (msgs) msgs.innerHTML = '';
+  }
+
+  return { askQuestion, askPreset, newChat, feedback, loadConversationList, loadConversation, deleteConversation, reset };
 })();
 
 Router.on('qa-chat', () => PageQA.loadConversationList());

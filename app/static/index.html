@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RAG 知识库管理系统</title>
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/style.css?v=15">
 </head>
 <body>
 
@@ -324,6 +324,7 @@
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-hybrid" checked> 混合检索</label>
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-rewrite"> 查询改写</label>
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-polish"> Query润色</label>
+          <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-agent" checked> Agent模式</label>
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox"> 显示检索过程</label>
         </div>
       </div>
@@ -952,22 +953,22 @@
 
 <!-- ============= JavaScript ============= -->
 <!-- 核心模块 -->
-<script src="/js/api.js?v=12"></script>
-<script src="/js/router.js?v=12"></script>
-<script src="/js/components/ui.js?v=12"></script>
+<script src="/js/api.js?v=15"></script>
+<script src="/js/router.js?v=15"></script>
+<script src="/js/components/ui.js?v=15"></script>
 <!-- 页面模块 -->
-<script src="/js/pages/auth.js?v=12"></script>
-<script src="/js/pages/dashboard.js?v=12"></script>
-<script src="/js/pages/kb.js?v=12"></script>
-<script src="/js/pages/upload.js?v=12"></script>
-<script src="/js/pages/qa.js?v=12"></script>
-<script src="/js/pages/users.js?v=12"></script>
-<script src="/js/pages/depts.js?v=12"></script>
-<script src="/js/pages/audit.js?v=12"></script>
-<script src="/js/pages/config.js?v=12"></script>
-<script src="/js/pages/quality.js?v=12"></script>
-<script src="/js/pages/chunks.js?v=12"></script>
-<script src="/js/pages/eval.js?v=12"></script>
+<script src="/js/pages/auth.js?v=15"></script>
+<script src="/js/pages/dashboard.js?v=15"></script>
+<script src="/js/pages/kb.js?v=15"></script>
+<script src="/js/pages/upload.js?v=15"></script>
+<script src="/js/pages/qa.js?v=15"></script>
+<script src="/js/pages/users.js?v=15"></script>
+<script src="/js/pages/depts.js?v=15"></script>
+<script src="/js/pages/audit.js?v=15"></script>
+<script src="/js/pages/config.js?v=15"></script>
+<script src="/js/pages/quality.js?v=15"></script>
+<script src="/js/pages/chunks.js?v=15"></script>
+<script src="/js/pages/eval.js?v=15"></script>
 <!-- 初始化 -->
 <script>
   document.addEventListener('DOMContentLoaded', () => {

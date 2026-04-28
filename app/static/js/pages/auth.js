@@ -19,7 +19,8 @@ const PageLogin = (() => {
       });
       localStorage.setItem('kb_token', data.token);
       localStorage.setItem('kb_user', JSON.stringify(data.user));
-      showApp();
+      // 刷新页面确保所有状态完全重置
+      window.location.reload();
     } catch (e) {
       alert(e.message);
     }
@@ -56,6 +57,7 @@ const PageLogin = (() => {
 
   function logout() {
     API.clearAuth();
+    if (typeof PageQA !== 'undefined' && PageQA.reset) PageQA.reset();
     document.getElementById('sidebar').style.display = 'none';
     document.getElementById('top-header').style.display = 'none';
     document.body.classList.remove('has-header');

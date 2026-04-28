@@ -49,8 +49,9 @@ async def query_knowledge_base(
 
     # ── 2. 查缓存（用原始问题做 key，改写和润色前先查缓存）──
     search_question = req.question
-    cache_key_kb = f"{req.kb_id or 'all'}:{'rw' if req.use_rewrite else 'nrw'}:{'pl' if req.use_polish else 'npl'}"
-    cached = query_cache.get(req.question, cache_key_kb)
+    cache_key_kb = f"{req.kb_id or 'all'}:{'rw' if req.use_rewrite else 'nrw'}:{'pl' if req.use_polish else 'npl'}:{'ag' if req.use_agent else 'nag'}"
+    _uid = user.get("sub")
+    cached = query_cache.get(req.question, cache_key_kb, user_id=_uid)
     if cached:
         log_audit(db, user, "query", req.question[:100], "缓存命中", "success",
                    request.client.host if request.client else "")
@@ -68,7 +69,7 @@ async def query_knowledge_base(
             print(f"[QueryRewrite] 改写失败，使用原始问题: {e}")
 
     # ── 3.5 Query 润色（可选）──
-    from app.core.llm import generate_answer, get_refuse_answer
+    from app.core.llm import generate_answer, generate_answer_agent, get_refuse_answer
     search_keywords = None
     if req.use_polish:
         from app.core.llm import polish_query
@@ -106,7 +107,7 @@ async def query_knowledge_base(
                    request.client.host if request.client else "")
         refuse = get_refuse_answer()
         result = {"question": req.question, "answer": refuse, "sources": []}
-        query_cache.set(req.question, result, cache_key_kb, ttl=300)
+        query_cache.set(req.question, result, cache_key_kb, ttl=300, user_id=user.get("sub"))
         return QueryResponse(**result)
 
     # ── 6. 拼上下文 + 生成回答 ──
@@ -125,10 +126,22 @@ async def query_knowledge_base(
 
     context = "\n\n".join(context_parts)
     sources = list(set(d["source"] for d in docs))
-    answer = generate_answer(req.question, context, history=history)
+
+    # ── 6.5 Agent 模式 or 普通模式 ──
+    if req.use_agent:
+        from app.core.tools import TOOL_DEFINITIONS
+        # Agent 模式：不注入检索 context，让 LLM 主动调工具
+        agent_context = "（请使用可用工具来查找信息回答用户问题）"
+        answer = generate_answer_agent(
+            req.question, agent_context, history=history,
+            tools=TOOL_DEFINITIONS,
+            tool_context={"db": db, "user": user},
+        )
+    else:
+        answer = generate_answer(req.question, context, history=history)
 
     result = {"question": req.question, "answer": answer, "sources": sources}
-    query_cache.set(req.question, result, cache_key_kb, ttl=3600)
+    query_cache.set(req.question, result, cache_key_kb, ttl=3600, user_id=_uid)
 
     log_audit(db, user, "query", req.question[:100],
                f"命中{len(docs)}条, 来源={sources}", "success",

@@ -66,17 +66,29 @@ def get_kb_role(db: Session, user: dict, kb_id: str) -> str | None:
     best_role = None
     levels = {"admin": 3, "editor": 2, "viewer": 1}
 
-    # 部门授权
+    # 部门授权（含父部门继承）
     if dept_id:
-        da = db.query(KBDepartmentAccess).filter(
-            KBDepartmentAccess.kb_id == kb_id,
-            KBDepartmentAccess.department_id == dept_id,
-        ).first()
-        if da:
-            lv = levels.get(da.role, 0)
-            if lv > best_level:
-                best_level = lv
-                best_role = da.role
+        from app.models.models import Department
+        dept = db.query(Department.path).filter(Department.id == dept_id).first()
+        if dept and dept.path:
+            path_parts = dept.path.strip("/").split("/")
+            dept_ids = set()
+            current_path = ""
+            for part in path_parts:
+                current_path += "/" + part
+                d = db.query(Department.id).filter(Department.path == current_path).first()
+                if d:
+                    dept_ids.add(d.id)
+            if dept_ids:
+                rows = db.query(KBDepartmentAccess).filter(
+                    KBDepartmentAccess.kb_id == kb_id,
+                    KBDepartmentAccess.department_id.in_(dept_ids),
+                ).all()
+                for da in rows:
+                    lv = levels.get(da.role, 0)
+                    if lv > best_level:
+                        best_level = lv
+                        best_role = da.role
 
     # 个人授权
     from app.models.models import KBUserAccess
@@ -106,7 +118,8 @@ def require_kb_access(db: Session, user: dict, kb_id: str, min_role: str = "view
 
 
 def get_accessible_kb_ids(db: Session, user: dict) -> list[str] | None:
-    """返回用户可访问的 kb_id 列表，super_admin 返回 None（全部）"""
+    """返回用户可访问的 kb_id 列表，super_admin 返回 None（全部）。
+    子部门自动继承父部门的 KB 权限。"""
     if user.get("role") == "super_admin":
         return None
 
@@ -114,12 +127,25 @@ def get_accessible_kb_ids(db: Session, user: dict) -> list[str] | None:
 
     kb_ids = set()
 
-    # 部门授权
+    # 部门授权（含父部门继承）
     if dept_id:
-        rows = db.query(KBDepartmentAccess.kb_id).filter(
-            KBDepartmentAccess.department_id == dept_id
-        ).all()
-        kb_ids.update(r[0] for r in rows)
+        from app.models.models import Department
+        dept = db.query(Department.path).filter(Department.id == dept_id).first()
+        if dept and dept.path:
+            # 获取本部门及所有父部门的 ID
+            path_parts = dept.path.strip("/").split("/")
+            dept_ids = set()
+            current_path = ""
+            for part in path_parts:
+                current_path += "/" + part
+                d = db.query(Department.id).filter(Department.path == current_path).first()
+                if d:
+                    dept_ids.add(d.id)
+            if dept_ids:
+                rows = db.query(KBDepartmentAccess.kb_id).filter(
+                    KBDepartmentAccess.department_id.in_(dept_ids)
+                ).all()
+                kb_ids.update(r[0] for r in rows)
 
     # 个人授权
     from app.models.models import KBUserAccess

@@ -11,6 +11,7 @@
 - **反馈闭环**：用户 👍👎 + 质量监控，持续优化有数据支撑
 - **效果评测**：LLM-as-Judge 9 维度自动评分
 - **OCR 解析**：PaddleOCR 版面检测 + 文字识别 + 表格识别
+- **Agent 模式**（v4.0 新增）：LLM 自主决策工具调用，支持跨知识库对比、文档总结等多步骤推理，工具层权限代理确保零越权
 
 ---
 
@@ -22,7 +23,7 @@
 | 数据库 | MySQL + SQLAlchemy 2.0 |
 | 向量数据库 | ChromaDB（按 kb_id 隔离） |
 | LLM / Embedding | OpenAI 兼容接口（DashScope / Ollama / 自定义） |
-| Reranker | qwen3-vl-rerank |
+| Reranker | qwen3-rerank |
 | OCR | PaddleOCR（版面检测 + 文字识别 + 表格识别） |
 | 文档解析 | PyMuPDF(PDF)、python-docx(Word)、openpyxl/xlrd(Excel)、python-pptx(PPT)、jieba(中文分词) |
 | 前端 | HTML + CSS + JavaScript（SPA + Hash 路由） |
@@ -80,7 +81,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 用户提问 → JWT认证 → 权限校验 → 查询改写(多轮时) → 查缓存
   → Query润色(纠错+扩展+关键词) → Embedding向量化 → 向量检索(ChromaDB) + BM25检索(jieba)
-  → RRF融合 → qwen3-vl-rerank重排 → LLM生成回答 → 写缓存 → 返回
+  → RRF融合 → qwen3-rerank重排 → LLM生成回答 → 写缓存 → 返回
 ```
 
 | 步骤 | 说明 | 代码位置 |
@@ -89,8 +90,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | 向量检索 | ChromaDB 语义相似度匹配 | `core/vectorstore.py` |
 | BM25 检索 | jieba 中文分词 + BM25 关键词匹配 | `core/hybrid_search.py` |
 | RRF 融合 | Reciprocal Rank Fusion 合并两路结果 | `core/hybrid_search.py` |
-| 重排序 | qwen3-vl-rerank 对结果二次排序 | `core/reranker.py` |
-| 回答生成 | LLM 基于检索上下文生成回答 | `core/llm.py` |
+| 重排序 | qwen3-rerank 对结果二次排序 | `core/reranker.py` |
+
 
 ---
 
@@ -102,6 +103,32 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - 事实型（40%）、超范围（20%）、多文档（15%）、歧义（15%）、错误前提（10%）
 
 **9 维度评分**：检索精确率、检索召回率、排序质量、忠实度、相关性、完整性、拒答准确性、时效性、多跳推理
+
+---
+
+## Agent 模式（v4.0 新增）
+
+LLM 自主决策工具调用，支持多步骤推理。开启后 Agent 自主决定调用哪些工具、以什么顺序组合。
+
+**工具列表：**
+| 工具 | 功能 | 权限 |
+|---|---|---|
+| search_kb | 知识库语义检索 | viewer |
+| list_kb | 列出可访问知识库 | 自动过滤 |
+| get_doc_content | 获取文档全文 | viewer |
+| summarize_doc | 文档摘要生成 | viewer |
+| list_docs | 列出知识库文档 | viewer |
+
+**执行流程：** 用户提问 → LLM 判断是否需要工具 → Tool-Call 循环（最多 5 轮）→ 生成回答
+
+**安全设计：**
+- 每个工具独立执行权限校验，不信任 LLM 参数
+- user/db 不暴露给 LLM，无法伪造身份
+- list_kb 仅返回有权限的知识库
+- 循环上限 5 轮，防止 token 消耗失控
+- 所有工具调用记录审计日志
+
+详细设计见 [PRD v4.0](docs/RAG知识库管理系统_PRD_v4.0.docx) 和 [设计方案 v4.0](docs/RAG知识库管理系统_整体设计方案_v4.0.docx)
 
 ---
 
@@ -258,6 +285,17 @@ knowledge-base/
 - 密码复杂度校验 + 修改密码功能
 - 运维手册 v1.0
 
+**Phase 9 — Agent 智能化（v4.0，Phase 1+2 已完成）**
+- ✅ Agent / Function Calling：LLM 自主决策工具调用，Tool-Call 循环（最多5轮）
+- ✅ 5 个工具：search_kb / list_kb / list_docs / get_doc_content / summarize_doc
+- ✅ 权限安全：工具层权限代理 + 部门权限继承 + 缓存按用户隔离
+- ✅ Agent 专用 Prompt：鼓励工具调用，完整呈现工具结果
+- ✅ summarize_doc：读取全文调用 LLM 生成结构化摘要
+- ✅ get_doc_content：支持 max_chars 参数，最大 30000 字符
+- ⏳ MCP Server 拆分（长期目标）
+- ⏳ 联网搜索补全
+- ⏳ 多 Agent 协作
+
 ---
 
 ## 待办功能
@@ -266,7 +304,8 @@ knowledge-base/
 
 - [x] 润色 Query（拼写纠错、同义扩展、关键词提取）
 - [x] 更多文档格式（Excel/PPT/CSV）
-- [ ] Agent / Function Calling（LLM 自主决策调用工具）
+- [x] keywords 喂给 BM25 + Reranker URL 修复 + 缓存逻辑重构 + 缓存按用户隔离
+- [x] Agent / Function Calling（LLM 自主决策调用工具）—— Phase 1+2 已完成，5 个工具
 - [ ] 数据源同步（飞书/Confluence/Git 自动导入）
 - [ ] API 开放 + Bot 发布（API Key / Widget / Webhook）
 - [ ] 多 KB 路由 + 工作流编排

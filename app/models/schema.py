@@ -12,6 +12,7 @@ class QueryRequest(BaseModel):
     use_reranker: bool = False
     use_rewrite: bool = False
     use_polish: bool = False
+    use_agent: bool = False  # Agent 模式（Function Calling）
     history: str | None = None  # 多轮对话上下文
     conv_id: str | None = None  # 对话 ID（自动获取 history）
 

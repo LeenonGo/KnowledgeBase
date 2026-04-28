@@ -20,14 +20,14 @@ class QueryCache:
         self._default_ttl = default_ttl
         self._max_size = max_size
 
-    def _make_key(self, question: str, kb_id: str = None) -> str:
-        """生成缓存 key"""
-        raw = f"{kb_id or 'all'}::{question}"
+    def _make_key(self, question: str, kb_id: str = None, user_id: str = None) -> str:
+        """生成缓存 key — 包含 user_id 防止跨用户缓存泄露"""
+        raw = f"{user_id or 'anon'}::{kb_id or 'all'}::{question}"
         return hashlib.md5(raw.encode()).hexdigest()
 
-    def get(self, question: str, kb_id: str = None) -> Any | None:
+    def get(self, question: str, kb_id: str = None, user_id: str = None) -> Any | None:
         """获取缓存"""
-        key = self._make_key(question, kb_id)
+        key = self._make_key(question, kb_id, user_id)
         with self._lock:
             if key not in self._cache:
                 return None
@@ -37,9 +37,9 @@ class QueryCache:
                 return None
             return value
 
-    def set(self, question: str, value: Any, kb_id: str = None, ttl: int = None):
+    def set(self, question: str, value: Any, kb_id: str = None, ttl: int = None, user_id: str = None):
         """设置缓存"""
-        key = self._make_key(question, kb_id)
+        key = self._make_key(question, kb_id, user_id)
         expire = time.time() + (ttl or self._default_ttl)
         with self._lock:
             # 超过最大条数时清理过期项
