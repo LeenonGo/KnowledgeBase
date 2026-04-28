@@ -78,8 +78,38 @@ async def log_requests(request: Request, call_next):
 
 app.include_router(router)
 
-# 静态文件（CSS/JS）— 必须在 catch-all 之前
-app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+
+# ─── 静态文件（自动版本号）────────────────────────
+
+import hashlib as _hashlib
+import re as _re
+from fastapi.responses import HTMLResponse
+
+
+def _file_ver(filepath: Path) -> str:
+    if filepath.exists():
+        return _hashlib.md5(str(filepath.stat().st_mtime).encode()).hexdigest()[:8]
+    return "0"
+
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_index():
+    """首页 — 自动注入文件版本号，告别手动改 ?v="""
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+
+    def _inject_ver(match):
+        tag_attr = match.group(1)  # href= or src=
+        path = match.group(2)       # /js/xxx.js or /style.css
+        ver = _file_ver(STATIC_DIR / path.lstrip("/"))
+        return f'{tag_attr}"{path}?v={ver}"'
+
+    # 先去掉旧的 ?v=XX，再注入新版本号
+    html = _re.sub(r"\?v=\d+", "", html)
+    html = _re.sub(r'(href=|src=)"(/js/[^"?]*|/style\.css)"', _inject_ver, html)
+    return HTMLResponse(html)
+
+
+app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=False), name="static")
 
 
 if __name__ == "__main__":

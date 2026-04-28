@@ -47,11 +47,14 @@ async def query_knowledge_base(
     if req.conv_id and not history:
         history = _get_conversation_history(req.conv_id, db)
 
-    # ── 2. 查缓存（用原始问题做 key，改写和润色前先查缓存）──
+    # ── 2. 查缓存 ──
     search_question = req.question
-    cache_key_kb = f"{req.kb_id or 'all'}:{'rw' if req.use_rewrite else 'nrw'}:{'pl' if req.use_polish else 'npl'}:{'ag' if req.use_agent else 'nag'}"
     _uid = user.get("sub")
-    cached = query_cache.get(req.question, cache_key_kb, user_id=_uid)
+    _cache_key = query_cache.make_key(
+        req.question, kb_id=req.kb_id, user_id=_uid,
+        use_agent=req.use_agent, use_polish=req.use_polish, use_rewrite=req.use_rewrite,
+    )
+    cached = query_cache.get(_cache_key)
     if cached:
         log_audit(db, user, "query", req.question[:100], "缓存命中", "success",
                    request.client.host if request.client else "")
@@ -107,7 +110,7 @@ async def query_knowledge_base(
                    request.client.host if request.client else "")
         refuse = get_refuse_answer()
         result = {"question": req.question, "answer": refuse, "sources": []}
-        query_cache.set(req.question, result, cache_key_kb, ttl=300, user_id=user.get("sub"))
+        query_cache.set(_cache_key, result, ttl=300)
         return QueryResponse(**result)
 
     # ── 6. 拼上下文 + 生成回答 ──
@@ -141,7 +144,7 @@ async def query_knowledge_base(
         answer = generate_answer(req.question, context, history=history)
 
     result = {"question": req.question, "answer": answer, "sources": sources}
-    query_cache.set(req.question, result, cache_key_kb, ttl=3600, user_id=_uid)
+    query_cache.set(_cache_key, result, ttl=3600)
 
     log_audit(db, user, "query", req.question[:100],
                f"命中{len(docs)}条, 来源={sources}", "success",
