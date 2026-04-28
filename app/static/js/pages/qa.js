@@ -59,7 +59,9 @@ const PageQA = (() => {
 
       const topK = parseInt(document.getElementById('qa-topk').value) || 5;
       const useHybrid = document.getElementById('qa-hybrid')?.checked ?? true;
-      const body = { question, top_k: topK, use_hybrid: useHybrid, conv_id: convId, use_reranker: true };
+      const body = { question, top_k: topK, use_hybrid: useHybrid, conv_id: convId, use_reranker: false };
+      body.use_rewrite = document.getElementById('qa-rewrite')?.checked ?? false;
+      body.use_polish = document.getElementById('qa-polish')?.checked ?? false;
       const kbId = document.getElementById('qa-kb-filter')?.value || '';
       if (kbId) body.kb_id = kbId;
 
@@ -73,6 +75,8 @@ const PageQA = (() => {
         answer += '<div style="margin-top:8px;">' +
           data.sources.map(s => `<span class="source-tag">📎 ${s}</span>`).join(' ') + '</div>';
       }
+      const latencySec = (latency / 1000).toFixed(1);
+      answer += `<div style="margin-top:4px;font-size:11px;color:#bbb;">⏱ ${latencySec}s</div>`;
 
       const msgId = addMessage('assistant', answer);
 

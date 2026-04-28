@@ -138,6 +138,7 @@ def query(
     kb_id: str = None,
     use_hybrid: bool = True,
     use_reranker: bool = False,
+    keywords: list[str] = None,
 ) -> list[dict]:
     """
     语义检索，支持混合检索（向量 + BM25 + RRF）。
@@ -177,9 +178,12 @@ def query(
     if not use_hybrid:
         return vector_results[:top_k]
 
-    # BM25 检索
+    # BM25 检索 — 拼接 keywords 提升关键词命中率
     bm25_idx = _get_bm25_index(kb_id)
-    bm25_results = bm25_idx.search(question, top_k=top_k * 2)
+    bm25_text = question
+    if keywords:
+        bm25_text = question + " " + " ".join(keywords)
+    bm25_results = bm25_idx.search(bm25_text, top_k=top_k * 2)
 
     # RRF 融合
     fused = rrf_fusion(vector_results, bm25_results, k=60, top_k=top_k)

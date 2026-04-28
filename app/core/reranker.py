@@ -61,10 +61,9 @@ def rerank(query: str, documents: list[dict], top_k: int = 5) -> list[dict]:
 
     try:
         # DashScope Reranker API 格式
-        if base_url.rstrip('/').endswith('/v1'):
-            url = f"{base_url.rstrip('/')}/rerank"
-        else:
-            url = f"{base_url.rstrip('/')}/v1/rerank"
+        url = base_url.rstrip('/')
+        if not url.endswith('/rerank') and not url.endswith('/reranks'):
+            url = f"{url}/v1/rerank"
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",

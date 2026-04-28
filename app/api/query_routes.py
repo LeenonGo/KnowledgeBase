@@ -41,16 +41,24 @@ async def query_knowledge_base(
     user: dict = Depends(get_current_user), db: Session = Depends(get_db),
 ):
     from app.core.vectorstore import query as vector_query
-    from app.core.llm import generate_answer, get_refuse_answer, rewrite_query
 
     # ── 1. 获取对话历史 ──
     history = req.history or ""
     if req.conv_id and not history:
         history = _get_conversation_history(req.conv_id, db)
 
-    # ── 2. 查询改写（有历史时） ──
+    # ── 2. 查缓存（用原始问题做 key，改写和润色前先查缓存）──
     search_question = req.question
-    if history:
+    cache_key_kb = f"{req.kb_id or 'all'}:{'rw' if req.use_rewrite else 'nrw'}:{'pl' if req.use_polish else 'npl'}"
+    cached = query_cache.get(req.question, cache_key_kb)
+    if cached:
+        log_audit(db, user, "query", req.question[:100], "缓存命中", "success",
+                   request.client.host if request.client else "")
+        return QueryResponse(**cached)
+
+    # ── 3. 查询改写 + 润色（缓存未命中时才执行）──
+    if history and req.use_rewrite:
+        from app.core.llm import rewrite_query
         try:
             rewritten = rewrite_query(req.question, history)
             if rewritten and rewritten != req.question and len(rewritten) > 5:
@@ -59,37 +67,36 @@ async def query_knowledge_base(
         except Exception as e:
             print(f"[QueryRewrite] 改写失败，使用原始问题: {e}")
 
-    # ── 3. 查缓存（用原始问题做 key，确保缓存命中）──
-    cache_key_kb = req.kb_id or "all"
-    cached = query_cache.get(req.question, cache_key_kb)
-    if cached:
-        log_audit(db, user, "query", req.question[:100], "缓存命中", "success",
-                   request.client.host if request.client else "")
-        return QueryResponse(**cached)
-
-    # ── 3.5 Query 润色（缓存未命中时才执行，节省 LLM 调用）──
-    from app.core.llm import polish_query
-    polished = polish_query(search_question)
-    search_question = polished.get("expanded") or polished.get("corrected", search_question)
-    print(f"[QueryPolish] expanded={search_question[:80]}")
+    # ── 3.5 Query 润色（可选）──
+    from app.core.llm import generate_answer, get_refuse_answer
+    search_keywords = None
+    if req.use_polish:
+        from app.core.llm import polish_query
+        polished = polish_query(search_question)
+        search_question = polished.get("expanded") or polished.get("corrected", search_question)
+        search_keywords = polished.get("keywords") or None
+    print(f"[QueryPolish] expanded={search_question[:80]} keywords={search_keywords}")
 
     # ── 4. 检索 ──
     if req.kb_id:
         require_kb_access(db, user, req.kb_id, "viewer")
         docs = vector_query(search_question, top_k=req.top_k, kb_id=req.kb_id,
-                            use_hybrid=req.use_hybrid, use_reranker=req.use_reranker)
+                            use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
+                            keywords=search_keywords)
     else:
         accessible_ids = get_accessible_kb_ids(db, user)
         if accessible_ids is None:
             docs = vector_query(search_question, top_k=req.top_k,
-                                use_hybrid=req.use_hybrid, use_reranker=req.use_reranker)
+                                use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
+                                keywords=search_keywords)
         elif not accessible_ids:
             docs = []
         else:
             all_docs = []
             for kb_id in accessible_ids:
                 all_docs.extend(vector_query(search_question, top_k=req.top_k, kb_id=kb_id,
-                                             use_hybrid=req.use_hybrid, use_reranker=req.use_reranker))
+                                             use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
+                                             keywords=search_keywords))
             all_docs.sort(key=lambda x: x.get("distance", 0))
             docs = all_docs[:req.top_k]
 
