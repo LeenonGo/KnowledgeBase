@@ -40,7 +40,6 @@ async def query_knowledge_base(
     request: Request, req: QueryRequest,
     user: dict = Depends(get_current_user), db: Session = Depends(get_db),
 ):
-    from app.core.vectorstore import query as vector_query
 
     # ── 1. 获取对话历史 ──
     history = req.history or ""
@@ -82,27 +81,18 @@ async def query_knowledge_base(
     print(f"[QueryPolish] expanded={search_question[:80]} keywords={search_keywords}")
 
     # ── 4. 检索 ──
+    from app.core.vectorstore import search_accessible
     if req.kb_id:
         require_kb_access(db, user, req.kb_id, "viewer")
-        docs = vector_query(search_question, top_k=req.top_k, kb_id=req.kb_id,
-                            use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
-                            keywords=search_keywords)
+        docs = search_accessible(search_question, top_k=req.top_k, kb_id=req.kb_id,
+                                 use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
+                                 keywords=search_keywords)
     else:
         accessible_ids = get_accessible_kb_ids(db, user)
-        if accessible_ids is None:
-            docs = vector_query(search_question, top_k=req.top_k,
-                                use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
-                                keywords=search_keywords)
-        elif not accessible_ids:
-            docs = []
-        else:
-            all_docs = []
-            for kb_id in accessible_ids:
-                all_docs.extend(vector_query(search_question, top_k=req.top_k, kb_id=kb_id,
-                                             use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
-                                             keywords=search_keywords))
-            all_docs.sort(key=lambda x: x.get("distance", 0))
-            docs = all_docs[:req.top_k]
+        docs = search_accessible(search_question, top_k=req.top_k,
+                                 accessible_ids=accessible_ids,
+                                 use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
+                                 keywords=search_keywords)
 
     # ── 5. 拒答处理 ──
     if not docs:

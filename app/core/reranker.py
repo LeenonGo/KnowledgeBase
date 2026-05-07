@@ -1,34 +1,8 @@
 """重排模型 — 支持 qwen3-vl-rerank 等 Reranker API"""
 
-import json
-from pathlib import Path
-
 import httpx
 
-CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "models.json"
-
-# 配置缓存
-_config_cache = None
-_config_mtime = 0
-
-
-def _load_config() -> dict:
-    global _config_cache, _config_mtime
-    if CONFIG_PATH.exists():
-        mtime = CONFIG_PATH.stat().st_mtime
-        if _config_cache is not None and mtime == _config_mtime:
-            return _config_cache
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            _config_cache = json.load(f)
-            _config_mtime = mtime
-        return _config_cache
-    return {}
-
-
-def get_reranker_config() -> dict:
-    """获取重排模型配置"""
-    cfg = _load_config().get("reranker", {})
-    return cfg
+from app.core.config import get_reranker_config
 
 
 def is_reranker_enabled() -> bool:

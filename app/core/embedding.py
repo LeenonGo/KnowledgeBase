@@ -1,34 +1,15 @@
 """Embedding 调用 — 支持 Ollama / OpenAI 兼容接口，动态读取配置"""
 
-import json
 import time
-from pathlib import Path
 
 from openai import OpenAI
 
-CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "models.json"
-
-# ─── 配置缓存（#5） ─────────────────────────────
-_config_cache = None
-_config_mtime = 0
-
-
-def _load_config() -> dict:
-    global _config_cache, _config_mtime
-    if CONFIG_PATH.exists():
-        mtime = CONFIG_PATH.stat().st_mtime
-        if _config_cache is not None and mtime == _config_mtime:
-            return _config_cache
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            _config_cache = json.load(f)
-            _config_mtime = mtime
-        return _config_cache
-    return {}
+from app.core.config import get_embedding_config
 
 
 def get_embedding_client() -> tuple:
     """获取 Embedding 客户端和模型配置"""
-    cfg = _load_config().get("embedding", {})
+    cfg = get_embedding_config()
     base_url = cfg.get("base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1")
     api_key = cfg.get("api_key", "")
     model = cfg.get("model", "text-embedding-v3")
@@ -76,10 +57,10 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
                     failed_batches += 1
                     print(f"[Embedding] 批次 {i // BATCH_SIZE + 1} 已重试 {MAX_RETRIES} 次，放弃: {e}")
 
-    if failed_batches > 0 and len(all_embeddings) == 0:
-        raise RuntimeError(f"所有 {failed_batches} 个批次均失败，无法完成向量化")
-
     if failed_batches > 0:
-        print(f"[Embedding] 警告: {failed_batches} 个批次失败，成功向量化 {len(all_embeddings)}/{len(texts)} 条")
+        raise RuntimeError(
+            f"向量化部分失败: {failed_batches}/{(len(texts) - 1) // BATCH_SIZE + 1} 个批次失败，"
+            f"成功 {len(all_embeddings)}/{len(texts)} 条。请检查 Embedding API 配置后重试。"
+        )
 
     return all_embeddings

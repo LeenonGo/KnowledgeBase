@@ -19,46 +19,66 @@ _meta = _collection.metadata or {}
 if _meta.get("hnsw:ef") != 500 or _meta.get("hnsw:M") != 32:
     _collection.modify(metadata={"hnsw:ef": 500, "hnsw:M": 32})
 
-# ─── BM25 索引缓存（按 kb_id 隔离）──
+# ─── BM25 索引缓存（按 kb_id 隔离，线程安全）──
+import threading as _threading
 from app.core.hybrid_search import BM25Index, rrf_fusion
 
-_bm25_index: BM25Index | None = None
-_bm25_dirty = True
-_bm25_doc_count = 0
-_bm25_kb_id = None  # 记录当前索引对应的 kb_id
+# 每个 kb_id 独立索引，避免全量扫描
+_bm25_indexes: dict[str, BM25Index] = {}  # kb_id -> BM25Index
+_bm25_doc_counts: dict[str, int] = {}      # kb_id -> doc_count
+_bm25_dirty: set[str] = set()               # 脏的 kb_id 集合
+_bm25_lock = _threading.Lock()
+
+# BM25 索引最大文档数限制（防内存爆炸）
+_BM25_MAX_DOCS = 50000
 
 
 def _get_bm25_index(kb_id: str = None) -> BM25Index:
-    """获取 BM25 索引（懒构建，按 kb_id 隔离）"""
-    global _bm25_index, _bm25_dirty, _bm25_doc_count, _bm25_kb_id
-    
+    """获取 BM25 索引（懒构建，按 kb_id 隔离，线程安全）"""
+    key = kb_id or "__all__"
+
+    with _bm25_lock:
+        if key in _bm25_indexes and key not in _bm25_dirty:
+            return _bm25_indexes[key]
+
     if kb_id:
         results = _collection.get(where={"kb_id": kb_id})
     else:
         results = _collection.get()
     current_count = len(results["ids"])
-    
-    if (_bm25_index is None or _bm25_dirty 
-            or _bm25_kb_id != kb_id or current_count != _bm25_doc_count):
-        _bm25_index = BM25Index()
+
+    with _bm25_lock:
+        # double-check
+        if (key in _bm25_indexes and key not in _bm25_dirty
+                and _bm25_doc_counts.get(key) == current_count):
+            return _bm25_indexes[key]
+
         docs = []
         for i in range(len(results["ids"])):
+            if i >= _BM25_MAX_DOCS:
+                print(f"[BM25] KB={key} 文档数({current_count})超过上限{_BM25_MAX_DOCS}")
+                break
             meta = results["metadatas"][i] if results["metadatas"] else {}
             docs.append({
                 "text": results["documents"][i],
                 "source": meta.get("source", ""),
                 "kb_id": meta.get("kb_id", ""),
             })
-        _bm25_index.build(docs)
-        _bm25_dirty = False
-        _bm25_doc_count = current_count
-        _bm25_kb_id = kb_id
-    return _bm25_index
+        idx = BM25Index()
+        idx.build(docs)
+        _bm25_indexes[key] = idx
+        _bm25_doc_counts[key] = current_count
+        _bm25_dirty.discard(key)
+        return idx
 
 
-def _mark_dirty():
-    global _bm25_dirty
-    _bm25_dirty = True
+def _mark_dirty(kb_id: str = None):
+    """标记指定 kb 的 BM25 索引需要重建"""
+    with _bm25_lock:
+        key = kb_id or "__all__"
+        _bm25_dirty.add(key)
+        if kb_id:
+            _bm25_dirty.add("__all__")
 
 
 def add_documents(chunks: list[str], filename: str, kb_id: str = "default") -> int:
@@ -76,7 +96,7 @@ def add_documents(chunks: list[str], filename: str, kb_id: str = "default") -> i
         embeddings=embeddings,
         metadatas=metadatas,
     )
-    _mark_dirty()
+    _mark_dirty(kb_id)
     return len(chunks)
 
 
@@ -118,7 +138,7 @@ def delete_document(filename: str, kb_id: str = None) -> int:
     ids = results["ids"]
     if ids:
         _collection.delete(ids=ids)
-        _mark_dirty()
+        _mark_dirty(kb_id)
     return len(ids)
 
 
@@ -128,7 +148,7 @@ def delete_kb_documents(kb_id: str) -> int:
     ids = results["ids"]
     if ids:
         _collection.delete(ids=ids)
-        _mark_dirty()
+        _mark_dirty(kb_id)
     return len(ids)
 
 
@@ -222,9 +242,10 @@ def update_chunk(chunk_id: str, new_text: str) -> dict:
     old = _collection.get(ids=[chunk_id])
     if not old["ids"]:
         raise ValueError("分块不存在")
+    kb_id = (old["metadatas"] or [{}])[0].get("kb_id")
     new_embedding = embed_texts([new_text])[0]
     _collection.update(ids=[chunk_id], documents=[new_text], embeddings=[new_embedding])
-    _mark_dirty()
+    _mark_dirty(kb_id)
     return {"id": chunk_id, "char_count": len(new_text)}
 
 
@@ -233,8 +254,9 @@ def delete_chunk(chunk_id: str) -> bool:
     old = _collection.get(ids=[chunk_id])
     if not old["ids"]:
         return False
+    kb_id = (old["metadatas"] or [{}])[0].get("kb_id")
     _collection.delete(ids=[chunk_id])
-    _mark_dirty()
+    _mark_dirty(kb_id)
     return True
 
 
@@ -250,5 +272,51 @@ def reindex_kb(kb_id: str = None) -> int:
 
     new_embeddings = embed_texts(results["documents"])
     _collection.update(ids=results["ids"], embeddings=new_embeddings)
-    _mark_dirty()
+    _mark_dirty(kb_id)
     return len(results["ids"])
+
+
+def search_accessible(
+    question: str,
+    top_k: int = 5,
+    kb_id: str = None,
+    accessible_ids: list[str] | None = None,
+    use_hybrid: bool = True,
+    use_reranker: bool = False,
+    keywords: list[str] = None,
+) -> list[dict]:
+    """
+    统一搜索入口 — 自动处理权限过滤。
+
+    Args:
+        question: 查询文本
+        top_k: 返回数量
+        kb_id: 指定知识库（为 None 则搜索所有可访问的）
+        accessible_ids: 用户可访问的 KB 列表（None=全部，[]=无）
+        use_hybrid: 是否混合检索
+        use_reranker: 是否重排
+        keywords: 润色关键词
+    Returns:
+        检索结果列表
+    """
+    if kb_id:
+        return query(question, top_k=top_k, kb_id=kb_id,
+                     use_hybrid=use_hybrid, use_reranker=use_reranker,
+                     keywords=keywords)
+
+    if accessible_ids is None:
+        # super_admin，搜索全部
+        return query(question, top_k=top_k, use_hybrid=use_hybrid,
+                     use_reranker=use_reranker, keywords=keywords)
+
+    if not accessible_ids:
+        return []
+
+    # 遍历所有可访问 KB，合并排序
+    all_docs = []
+    for kid in accessible_ids:
+        all_docs.extend(query(question, top_k=top_k, kb_id=kid,
+                              use_hybrid=use_hybrid, use_reranker=use_reranker,
+                              keywords=keywords))
+    all_docs.sort(key=lambda x: x.get("distance", 0))
+    return all_docs[:top_k]

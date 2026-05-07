@@ -1,18 +1,16 @@
 """对话历史 & 用户反馈 API"""
 
 import json
-from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.time_utils import now_cst
 from app.models.models import Conversation, ConversationTurn, QAFeedback
 from app.api.deps import get_current_user, log_audit
 
 router = APIRouter(prefix="/api", tags=["对话"])
-
-_CST = timezone(timedelta(hours=8))
 
 
 
@@ -124,7 +122,7 @@ async def add_conversation_turn(conv_id: str, data: dict,
     db.add(turn)
 
     # 更新对话时间 & 标题（首条用户消息作为标题）
-    conv.updated_at = datetime.now(_CST)
+    conv.updated_at = now_cst()
     if data.get("role") == "user" and conv.title == "新对话":
         conv.title = data.get("content", "")[:50]
     db.commit()
@@ -172,35 +170,49 @@ async def submit_feedback(data: dict, request: Request,
 @router.get("/feedback")
 async def list_feedback(rating: str = None, page: int = 1, page_size: int = 20,
                         db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
-    """获取反馈列表（管理员用）"""
+    """获取反馈列表（管理员用） — 用子查询批量取回答和问题，消除 N+1"""
+    from sqlalchemy import func as sa_func
+
     q = db.query(QAFeedback)
     if rating:
         q = q.filter(QAFeedback.rating == rating)
 
     total = q.count()
-    items = q.order_by(QAFeedback.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    feedbacks = q.order_by(QAFeedback.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    if not feedbacks:
+        return {"total": total, "items": []}
+
+    # 批量查 assistant turn
+    turn_ids = [fb.turn_id for fb in feedbacks]
+    assistant_turns = db.query(ConversationTurn).filter(
+        ConversationTurn.id.in_(turn_ids)
+    ).all()
+    turn_map = {t.id: t for t in assistant_turns}
+
+    # 批量查对应的 user turn（每个对话中在 assistant turn 之前最近的一条）
+    conv_ids = list({t.conversation_id for t in assistant_turns}) if assistant_turns else []
+    user_turn_map = {}
+    if conv_ids:
+        # 用子查询：对每个 conv_id + assistant turn 时间，找最近的 user turn
+        for at in assistant_turns:
+            prev_user = db.query(ConversationTurn).filter(
+                ConversationTurn.conversation_id == at.conversation_id,
+                ConversationTurn.role == "user",
+                ConversationTurn.created_at <= at.created_at,
+            ).order_by(ConversationTurn.created_at.desc()).first()
+            if prev_user:
+                user_turn_map[at.id] = prev_user.content
 
     result = []
-    for fb in items:
-        assistant_turn = db.query(ConversationTurn).filter(ConversationTurn.id == fb.turn_id).first()
-        question = ""
-        answer = ""
-        if assistant_turn:
-            answer = assistant_turn.content
-            # 往前找同一对话中的用户提问
-            user_turn = db.query(ConversationTurn).filter(
-                ConversationTurn.conversation_id == assistant_turn.conversation_id,
-                ConversationTurn.role == "user",
-                ConversationTurn.created_at < assistant_turn.created_at,
-            ).order_by(ConversationTurn.created_at.desc()).first()
-            if user_turn:
-                question = user_turn.content
+    for fb in feedbacks:
+        at = turn_map.get(fb.turn_id)
         result.append({
             "id": fb.id, "turn_id": fb.turn_id,
             "rating": fb.rating, "comment": fb.comment,
             "user_id": fb.user_id,
-            "question": question,
-            "answer": answer,
+            "question": user_turn_map.get(fb.turn_id, ""),
+            "answer": at.content if at else "",
             "created_at": str(fb.created_at),
         })
 

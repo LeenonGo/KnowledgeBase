@@ -1,20 +1,20 @@
-"""数据模型定义"""
+"""数据模型定义 — 含输入校验"""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class QueryRequest(BaseModel):
     """问答请求"""
-    question: str
-    top_k: int = 5
+    question: str = Field(..., min_length=1, max_length=2000, description="用户问题")
+    top_k: int = Field(default=5, ge=1, le=20, description="返回结果数")
     kb_id: str | None = None
     use_hybrid: bool = True
     use_reranker: bool = False
     use_rewrite: bool = False
     use_polish: bool = False
-    use_agent: bool = False  # Agent 模式（Function Calling）
-    history: str | None = None  # 多轮对话上下文
-    conv_id: str | None = None  # 对话 ID（自动获取 history）
+    use_agent: bool = False
+    history: str | None = Field(default=None, max_length=10000, description="多轮对话上下文")
+    conv_id: str | None = None
 
 
 class QueryResponse(BaseModel):

@@ -27,13 +27,20 @@ else:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     DATABASE_URL = f"sqlite:///{DB_PATH}"
 
-engine = create_engine(
-    DATABASE_URL,
-    echo=False,
-    pool_size=10,
-    max_overflow=20,
-    pool_recycle=3600,
-)
+_engine_kwargs = {
+    "echo": False,
+}
+
+# MySQL 才用连接池参数 + 预检测
+if DB_TYPE == "mysql":
+    _engine_kwargs.update({
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_recycle": 3600,
+        "pool_pre_ping": True,  # 检测死连接，避免 MySQL 超时断连后取到坏连接
+    })
+
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 

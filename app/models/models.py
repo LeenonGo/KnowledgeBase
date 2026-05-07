@@ -87,7 +87,7 @@ class Document(Base):
     file_hash = Column(String(64), nullable=False, comment="SHA-256 内容哈希")
     file_size = Column(Integer, default=0)
     chunk_count = Column(Integer, default=0)
-    kb_id = Column(String(32), ForeignKey("knowledge_base.id"), nullable=False)
+    kb_id = Column(String(32), ForeignKey("knowledge_base.id", ondelete="CASCADE"), nullable=False)
     uploader_id = Column(String(32), ForeignKey("user.id"), nullable=True)
     status = Column(String(16), default="indexed")  # indexing / indexed / failed / superseded / deleted
     chunking_strategy = Column(String(32), default="fixed")
@@ -130,7 +130,7 @@ class KBUserAccess(Base):
     __tablename__ = "kb_user_access"
 
     id = Column(String(32), primary_key=True, default=gen_id)
-    kb_id = Column(String(32), ForeignKey("knowledge_base.id"), nullable=False)
+    kb_id = Column(String(32), ForeignKey("knowledge_base.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(String(32), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(16), default="viewer", comment="admin / editor / viewer")
     created_by = Column(String(32), nullable=True)
@@ -153,6 +153,10 @@ class Conversation(Base):
     status = Column(String(16), default="active")  # active / closed
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("ix_conv_user", "user_id"),
+    )
 
 
 # ─── 对话轮次 ─────────────────────────────────────
@@ -185,6 +189,11 @@ class QAFeedback(Base):
     comment = Column(Text, default="")
     created_at = Column(DateTime, default=_now)
 
+    __table_args__ = (
+        Index("ix_feedback_user", "user_id"),
+        Index("ix_feedback_turn", "turn_id"),
+    )
+
 
 # ─── 审计日志 ─────────────────────────────────────
 class AuditLog(Base):
@@ -211,7 +220,7 @@ class EvalDataset(Base):
     __tablename__ = "eval_dataset"
 
     id = Column(String(32), primary_key=True, default=gen_id)
-    kb_id = Column(String(32), ForeignKey("knowledge_base.id"), nullable=False)
+    kb_id = Column(String(32), ForeignKey("knowledge_base.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(256), default="")
     question_count = Column(Integer, default=0)
     status = Column(String(16), default="ready")  # generating / ready / error

@@ -135,7 +135,7 @@ def execute_tool(
 def _search_kb(args: dict, db: Session, user: dict) -> str:
     """知识库检索"""
     from app.api.deps import require_kb_access, get_accessible_kb_ids
-    from app.core.vectorstore import query as vector_query
+    from app.core.vectorstore import search_accessible
 
     keywords = args.get("keywords", "")
     kb_id = args.get("kb_id")
@@ -145,19 +145,15 @@ def _search_kb(args: dict, db: Session, user: dict) -> str:
 
     if kb_id:
         require_kb_access(db, user, kb_id, "viewer")
-        docs = vector_query(keywords, top_k=5, kb_id=kb_id, use_hybrid=True)
+        docs = search_accessible(keywords, top_k=5, kb_id=kb_id, use_hybrid=True)
     else:
         accessible_ids = get_accessible_kb_ids(db, user)
         if accessible_ids is None:
-            docs = vector_query(keywords, top_k=5, use_hybrid=True)
+            docs = search_accessible(keywords, top_k=5, use_hybrid=True)
         elif not accessible_ids:
             return "你当前没有可访问的知识库"
         else:
-            all_docs = []
-            for kid in accessible_ids:
-                all_docs.extend(vector_query(keywords, top_k=5, kb_id=kid, use_hybrid=True))
-            all_docs.sort(key=lambda x: x.get("distance", 0))
-            docs = all_docs[:5]
+            docs = search_accessible(keywords, top_k=5, accessible_ids=accessible_ids, use_hybrid=True)
 
     if not docs:
         return f"未找到与「{keywords}」相关的内容"

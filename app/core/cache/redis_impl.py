@@ -42,10 +42,22 @@ class RedisCache:
         self._client.delete(key)
 
     def clear(self):
-        keys = self._client.keys(self._prefix + "*")
-        if keys:
-            self._client.delete(*keys)
+        """清空缓存 — 用 SCAN 迭代删除，避免 KEYS 阻塞 Redis"""
+        cursor = 0
+        while True:
+            cursor, keys = self._client.scan(cursor=cursor, match=self._prefix + "*", count=100)
+            if keys:
+                self._client.delete(*keys)
+            if cursor == 0:
+                break
 
     def stats(self) -> dict:
-        keys = self._client.keys(self._prefix + "*")
-        return {"backend": "redis", "total": len(keys), "active": len(keys), "expired": 0}
+        """统计信息 — 用 SCAN 计数，避免 KEYS 阻塞"""
+        total = 0
+        cursor = 0
+        while True:
+            cursor, keys = self._client.scan(cursor=cursor, match=self._prefix + "*", count=100)
+            total += len(keys)
+            if cursor == 0:
+                break
+        return {"backend": "redis", "total": total, "active": total, "expired": 0}

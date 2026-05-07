@@ -1,6 +1,8 @@
 """文档上传/查询/分块 API"""
 
+import atexit
 import hashlib
+import os
 import shutil
 import threading
 import uuid
@@ -8,6 +10,21 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 _CST = timezone(timedelta(hours=8))
+
+# 后台线程跟踪 — atexit 时等待完成，避免进程退出丢失任务
+_active_bg_threads: list[threading.Thread] = []
+_bg_threads_lock = threading.Lock()
+
+
+def _wait_bg_threads():
+    """进程退出时等待所有后台任务完成"""
+    with _bg_threads_lock:
+        threads = list(_active_bg_threads)
+    for t in threads:
+        t.join(timeout=30)  # 最多等 30 秒
+
+
+atexit.register(_wait_bg_threads)
 
 from fastapi import APIRouter, HTTPException, Depends, Request, File, UploadFile, Form
 from sqlalchemy.orm import Session
@@ -165,6 +182,10 @@ async def upload_document(
     if same_hash:
         raise HTTPException(400, f"内容相同的文件已存在: {same_hash.filename}")
 
+    # 用 UUID 重命名存储到磁盘，避免同名冲突和路径穿越
+    storage_name = f"{uuid.uuid4().hex}{file_ext}"
+    file_path = UPLOAD_DIR / storage_name
+
     with open(file_path, "wb") as f:
         f.write(content)
 
@@ -182,21 +203,33 @@ async def upload_document(
 
         create_task(task_id, total_pages=total_pages)
 
-        # 后台线程处理
+        # 后台线程处理 — file_path 是 UUID 存储路径，file.filename 是原始文件名（用作 source）
+        def _bg_wrapper(*args):
+            try:
+                _process_pdf_background(*args)
+            finally:
+                with _bg_threads_lock:
+                    try:
+                        _active_bg_threads.remove(t)
+                    except ValueError:
+                        pass
+
         t = threading.Thread(
-            target=_process_pdf_background,
-            args=(task_id, file_path, file.filename, kb_id,
+            target=_bg_wrapper,
+            args=(task_id, str(file_path), file.filename, kb_id,
                   file_hash, user.get("sub"), file_path.stat().st_size,
                   chunk_size, chunk_overlap, chunk_strategy, heading_level),
             daemon=True,
         )
+        with _bg_threads_lock:
+            _active_bg_threads.append(t)
         t.start()
 
         return {"task_id": task_id, "total_pages": total_pages,
                 "filename": file.filename,
                 "message": f"文件已上传，共 {total_pages} 页，正在 OCR 处理..."}
 
-    # 非 PDF 文件：同步处理
+    # 非 PDF 文件：同步处理（file_path 是 UUID 存储路径）
     try:
         from app.core.splitter import load_and_split
         from app.core.vectorstore import add_documents

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.models import User
-from app.api.deps import get_current_user, log_audit
+from app.api.deps import get_current_user, log_audit, invalidate_user_cache
 
 router = APIRouter(prefix="/api", tags=["用户"])
 
@@ -78,6 +78,9 @@ async def update_user(user_id: str, data: dict, request: Request,
             raise HTTPException(400, err)
         target.password_hash = generate_password_hash(data["password"])
     db.commit()
+    # 状态变更时使缓存失效
+    if "status" in data:
+        invalidate_user_cache(user_id)
     log_audit(db, user, "update_user", target.username,
                json.dumps(data, ensure_ascii=False), "success",
                request.client.host if request.client else "")
@@ -92,6 +95,7 @@ async def delete_user(user_id: str, request: Request,
         raise HTTPException(404, "用户不存在")
     target.status = "disabled"
     db.commit()
+    invalidate_user_cache(user_id)
     log_audit(db, user, "delete_user", target.username, "禁用", "success",
                request.client.host if request.client else "")
     return {"message": "已禁用"}
