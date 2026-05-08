@@ -156,6 +156,7 @@ LLM 自主决策工具调用，支持多步骤推理。开启后 Agent 自主决
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/api/query` | 语义问答 |
+| POST | `/api/query/stream` | 流式问答（SSE） |
 | GET/POST | `/api/conversations` | 对话列表/创建 |
 | GET/POST | `/api/conversations/{id}/turns` | 对话轮次 |
 | POST/GET | `/api/feedback` | 提交/查看反馈 |
@@ -171,6 +172,8 @@ LLM 自主决策工具调用，支持多步骤推理。开启后 Agent 自主决
 ### 配置 & 统计 & 评测
 | 方法 | 路径 | 说明 |
 |---|---|---|
+| GET | `/api/cache/stats` | 查询缓存统计 |
+| POST | `/api/cache/clear` | 清空查询缓存 |
 | GET/POST | `/api/config/models` | 模型配置 |
 | GET/POST | `/api/config/prompts` | Prompt 模板 |
 | GET | `/api/stats/dashboard` | 仪表盘统计 |
@@ -284,6 +287,13 @@ knowledge-base/
 - 缓存 key 改用原始问题，润色逻辑移至缓存未命中后
 - 密码复杂度校验 + 修改密码功能
 - 运维手册 v1.0
+
+**Phase 10 — 流式问答与前端修复（2026-05-08）**
+- 修复 `/api/query/stream` 路由：恢复流式问答 SSE 接口（此前被错误映射为缓存统计）
+- 修复前端认证：`API.token` → `API.getToken()`，流式请求携带正确 Token
+- 修复 SSE 解析器：`indexOf` 配对改为索引遍历，解决多事件同 buffer 时 data 行错位
+- 默认 top_k 从 5 调至 10，确保多步骤内容完整检索
+- 新增 `/api/cache/stats`（GET）和 `/api/cache/clear`（POST）缓存管理接口
 
 **Phase 9 — Agent 智能化（v4.0，Phase 1+2 已完成）**
 - ✅ Agent / Function Calling：LLM 自主决策工具调用，Tool-Call 循环（最多5轮）

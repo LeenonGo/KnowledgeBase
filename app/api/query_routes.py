@@ -3,6 +3,7 @@
 import json
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -140,6 +141,94 @@ async def query_knowledge_base(
                f"命中{len(docs)}条, 来源={sources}", "success",
                request.client.host if request.client else "")
     return QueryResponse(**result)
+
+
+@router.post("/query/stream")
+async def query_stream(
+    request: Request, req: QueryRequest,
+    user: dict = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    """流式问答"""
+    from app.core.llm import generate_answer_stream, get_refuse_answer
+    from app.core.vectorstore import search_accessible
+
+    # ── 1. 获取对话历史 ──
+    history = req.history or ""
+    if req.conv_id and not history:
+        history = _get_conversation_history(req.conv_id, db)
+
+    # ── 2. 查询改写 + 润色 ──
+    search_question = req.question
+    if history and req.use_rewrite:
+        from app.core.llm import rewrite_query
+        try:
+            rewritten = rewrite_query(req.question, history)
+            if rewritten and rewritten != req.question and len(rewritten) > 5:
+                search_question = rewritten
+        except Exception as e:
+            print(f"[QueryRewrite] 改写失败: {e}")
+
+    search_keywords = None
+    if req.use_polish:
+        from app.core.llm import polish_query
+        polished = polish_query(search_question)
+        search_question = polished.get("expanded") or polished.get("corrected", search_question)
+        search_keywords = polished.get("keywords") or None
+
+    # ── 3. 检索 ──
+    if req.kb_id:
+        require_kb_access(db, user, req.kb_id, "viewer")
+        docs = search_accessible(search_question, top_k=req.top_k, kb_id=req.kb_id,
+                                 use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
+                                 keywords=search_keywords)
+    else:
+        accessible_ids = get_accessible_kb_ids(db, user)
+        docs = search_accessible(search_question, top_k=req.top_k,
+                                 accessible_ids=accessible_ids,
+                                 use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
+                                 keywords=search_keywords)
+
+    # ── 4. 拒答处理 ──
+    if not docs:
+        refuse = get_refuse_answer()
+        async def refuse_gen():
+            yield 'event: token\ndata: ' + json.dumps(refuse) + '\n\n'
+            done_data = json.dumps({'sources': []})
+            yield 'event: done\ndata: ' + done_data + '\n\n'
+        return StreamingResponse(refuse_gen(), media_type="text/event-stream")
+
+    # ── 5. 拼上下文 ──
+    MAX_CONTEXT_CHARS = 3000
+    context_parts = []
+    total_chars = 0
+    for d in docs:
+        part = f'[来源: {d["source"]}]\n{d["text"]}'
+        if total_chars + len(part) > MAX_CONTEXT_CHARS:
+            remaining = MAX_CONTEXT_CHARS - total_chars
+            if remaining > 100:
+                context_parts.append(part[:remaining] + "...")
+            break
+        context_parts.append(part)
+        total_chars += len(part)
+
+    context = "\n\n".join(context_parts)
+    sources = list(set(d["source"] for d in docs))
+
+    # ── 6. 流式生成 ──
+    async def stream_gen():
+        try:
+            for event in generate_answer_stream(req.question, context, history=history):
+                if event['type'] == 'token':
+                    yield 'event: token\ndata: ' + json.dumps(event['content']) + '\n\n'
+                elif event['type'] == 'source':
+                    src_data = json.dumps({'source': event['source']})
+                    yield 'event: source\ndata: ' + src_data + '\n\n'
+            done_data = json.dumps({'sources': sources})
+            yield 'event: done\ndata: ' + done_data + '\n\n'
+        except Exception as e:
+            yield 'event: error\ndata: ' + json.dumps(str(e)) + '\n\n'
+
+    return StreamingResponse(stream_gen(), media_type="text/event-stream")
 
 
 @router.get("/cache/stats")

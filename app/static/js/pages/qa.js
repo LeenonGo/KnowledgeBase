@@ -32,7 +32,6 @@ const PageQA = (() => {
     const loadingId = addMessage('loading', '正在检索知识库并生成回答，请稍候...');
 
     try {
-      // 创建对话
       const convId = await ensureConversation();
 
       // 保存用户消息
@@ -42,13 +41,13 @@ const PageQA = (() => {
         });
       }
 
-      // 获取多轮上下文（最近 3 轮）
+      // 多轮上下文
       let history = '';
       if (convId) {
         try {
           const convData = await API.request(`/api/conversations/${convId}/turns`);
           const turns = convData.turns || [];
-          const recent = turns.slice(-6); // 最近 3 轮 = 6 条消息
+          const recent = turns.slice(-6);
           if (recent.length > 1) {
             history = recent.slice(0, -1).map(t =>
               `${t.role === 'user' ? '用户' : '助手'}: ${t.content}`
@@ -57,7 +56,7 @@ const PageQA = (() => {
         } catch {}
       }
 
-      const topK = parseInt(document.getElementById('qa-topk').value) || 5;
+      const topK = parseInt(document.getElementById('qa-topk').value) || 10;
       const useHybrid = document.getElementById('qa-hybrid')?.checked ?? true;
       const body = { question, top_k: topK, use_hybrid: useHybrid, conv_id: convId, use_reranker: false };
       body.use_rewrite = document.getElementById('qa-rewrite')?.checked ?? false;
@@ -66,37 +65,117 @@ const PageQA = (() => {
       const kbId = document.getElementById('qa-kb-filter')?.value || '';
       if (kbId) body.kb_id = kbId;
 
-      const startTime = Date.now();
-      const data = await API.request('/api/query', { method: 'POST', body });
-      const latency = Date.now() - startTime;
-
+      // ── 流式请求 ──
       removeMessage(loadingId);
-      let answer = data.answer || '未获取到回答';
-      if (data.sources && data.sources.length) {
-        answer += '<div style="margin-top:8px;">' +
-          data.sources.map(s => `<span class="source-tag">📎 ${s}</span>`).join(' ') + '</div>';
-      }
-      const latencySec = (latency / 1000).toFixed(1);
-      answer += `<div style="margin-top:4px;font-size:11px;color:#bbb;">⏱ ${latencySec}s</div>`;
+      const msgId = addMessage('assistant', '<span id="streaming-text"></span>');
+      const msgEl = document.getElementById(msgId);
+      const bubble = msgEl?.querySelector('.bubble');
+      const textEl = document.getElementById('streaming-text');
+      const startTime = Date.now();
 
-      const msgId = addMessage('assistant', answer);
+      // 收集的来源
+      const detectedSources = new Set();
+      const sourcesEl = document.createElement('div');
+      sourcesEl.className = 'source-tags-row';
 
-      // 保存助手回复
-      if (convId) {
-        try {
-          const turnData = await API.request(`/api/conversations/${convId}/turns`, {
-            method: 'POST',
-            body: {
-              role: 'assistant', content: data.answer || '',
-              sources: data.sources || [], latency_ms: latency,
-            },
+      try {
+        const resp = await fetch('/api/query/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': API.getToken() ? `Bearer ${API.getToken()}` : '' },
+          body: JSON.stringify(body),
+        });
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalSources = [];
+        let assistantContent = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // 保留不完整的行
+
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (!line.startsWith('event:')) continue;
+            const eventType = line.slice(6).trim();
+            const dataLine = (i + 1 < lines.length) ? lines[i + 1] : '';
+            if (!dataLine.startsWith('data:')) continue;
+            i++; // 跳过 data 行
+            const dataStr = dataLine.slice(5).trim();
+            let data;
+            try { data = JSON.parse(dataStr); } catch { continue; }
+
+            if (eventType === 'token') {
+              assistantContent += data;
+              textEl.textContent = assistantContent;
+              // 流式渲染 Markdown
+              if (bubble) {
+                bubble.innerHTML = UI.md2html(assistantContent);
+                bubble.appendChild(sourcesEl);
+              }
+            } else if (eventType === 'source') {
+              if (!detectedSources.has(data.source)) {
+                detectedSources.add(data.source);
+                const tag = document.createElement('span');
+                tag.className = 'source-tag';
+                tag.textContent = '📎 ' + data.source;
+                tag.style.cursor = 'pointer';
+                tag.title = '点击查看来源';
+                sourcesEl.appendChild(tag);
+              }
+            } else if (eventType === 'done') {
+              finalSources = data.sources || [];
+            }
+          }
+        }
+
+        const latency = Date.now() - startTime;
+        const latencySec = (latency / 1000).toFixed(1);
+
+        // 补充末尾残留 buffer
+        if (buffer.startsWith('data:')) {
+          try { assistantContent += JSON.parse(buffer.slice(5)); } catch {}
+        }
+
+        // 结束时：未检测到来源时用检索到的 sources
+        if (!detectedSources.size && finalSources.length) {
+          finalSources.forEach(s => {
+            const tag = document.createElement('span');
+            tag.className = 'source-tag';
+            tag.textContent = '📎 ' + s;
+            tag.style.cursor = 'pointer';
+            sourcesEl.appendChild(tag);
           });
-          lastTurnId = turnData.id;
-          // 把 turn_id 存到消息元素上
-          const msgEl = document.getElementById(msgId);
-          if (msgEl) msgEl.dataset.turnId = turnData.id;
-        } catch {}
+        }
+
+        // 追加耗时标签
+        const metaEl = document.createElement('div');
+        metaEl.style.cssText = 'font-size:11px;color:#bbb;margin-top:4px;';
+        metaEl.textContent = `⏱ ${latencySec}s`;
+        bubble?.appendChild(metaEl);
+
+        // 记录到数据库
+        if (convId) {
+          try {
+            const turnData = await API.request(`/api/conversations/${convId}/turns`, {
+              method: 'POST',
+              body: { role: 'assistant', content: assistantContent,
+                      sources: [...detectedSources],
+                      latency_ms: latency },
+            });
+            if (msgEl) msgEl.dataset.turnId = turnData.id;
+          } catch {}
+        }
+
+      } catch (e) {
+        textEl.textContent = '❌ 请求失败：' + e.message;
       }
+
     } catch (e) {
       removeMessage(loadingId);
       addMessage('assistant', '❌ 请求失败：' + e.message);
