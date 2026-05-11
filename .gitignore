@@ -40,3 +40,12 @@ memory/resume_draft.md
 # OS
 .DS_Store
 Thumbs.db
+
+# OpenClaw internal
+DREAMS.md
+HEARTBEAT.md
+AGENTS.md
+SOUL.md
+USER.md
+TOOLS.md
+IDENTITY.md
