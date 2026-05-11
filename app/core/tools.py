@@ -102,6 +102,23 @@ TOOL_DEFINITIONS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "搜索互联网获取最新信息。当知识库中没有相关内容或用户需要最新信息时使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "搜索查询关键词"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
 ]
 
 
@@ -125,6 +142,8 @@ def execute_tool(
             return _list_docs(arguments, db, user)
         elif name == "summarize_doc":
             return _summarize_doc(arguments, db, user)
+        elif name == "web_search":
+            return _web_search(arguments)
         else:
             return f"未知工具: {name}"
     except Exception as e:
@@ -280,3 +299,14 @@ def _summarize_doc(args: dict, db: Session, user: dict) -> str:
         return f"文档「{filename}」摘要：\n\n{summary}"
     except Exception as e:
         return f"生成摘要失败: {e}"
+
+
+def _web_search(args: dict) -> str:
+    """联网搜索"""
+    from app.core.web_search import web_search as _do_search
+
+    query = args.get("query", "")
+    if not query:
+        return "搜索关键词不能为空"
+
+    return _do_search(query, num_results=5)

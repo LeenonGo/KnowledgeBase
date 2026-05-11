@@ -187,6 +187,42 @@ def migrate():
                 else:
                     print(f"  ❌ {table_name}: {e}")
 
+        # ── 4. 全链路 Trace 表 ──
+        print("\n📋 检查 Trace 相关表...")
+        trace_tables = [
+            ("trace", """CREATE TABLE IF NOT EXISTS `trace` (
+                id VARCHAR(32) PRIMARY KEY,
+                user_id VARCHAR(32),
+                question TEXT,
+                total_duration_ms INT DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX ix_trace_user (user_id),
+                INDEX ix_trace_time (created_at)
+            )"""),
+            ("trace_span", """CREATE TABLE IF NOT EXISTS `trace_span` (
+                id VARCHAR(32) PRIMARY KEY,
+                trace_id VARCHAR(32) NOT NULL,
+                name VARCHAR(128) NOT NULL,
+                duration_ms INT DEFAULT 0,
+                input_preview TEXT,
+                output_preview TEXT,
+                seq INT DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX ix_span_trace (trace_id)
+            )"""),
+        ]
+        for table_name, ddl in trace_tables:
+            try:
+                conn.execute(text(ddl))
+                conn.commit()
+                print(f"  ✅ {table_name}")
+            except Exception as e:
+                err = str(e).lower()
+                if "already exists" in err or "duplicate" in err:
+                    print(f"  ⏭️  {table_name}（已存在）")
+                else:
+                    print(f"  ❌ {table_name}: {e}")
+
     print("\n✅ 迁移完成")
 
 

@@ -176,3 +176,68 @@ table tr:hover td{background:#fafafa}
 .dropdown-item-danger:hover{background:#fff1f0;color:#ff4d4f}
 /* Adjust main content for header */
 body.has-header .main{padding-top:76px}
+
+
+/* ===== 引用标注 ===== */
+.cite-ref {
+  display: inline-block;
+  background: #e6f7ff;
+  color: #1890ff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin: 0 1px;
+  border: 1px solid #91d5ff;
+  transition: all .15s;
+  text-decoration: none;
+  line-height: 1.4;
+}
+.cite-ref:hover {
+  background: #1890ff;
+  color: #fff;
+  transform: scale(1.1);
+}
+
+
+/* ===== Agent 推理链 ===== */
+.agent-chain {
+  margin-bottom: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 13px;
+}
+.agent-chain.collapsed .agent-chain-body { display: none; }
+.agent-chain.collapsed .chain-toggle { transform: rotate(-90deg); }
+.agent-chain-header {
+  background: #f8fafc;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+.agent-chain-header:hover { background: #f1f5f9; }
+.chain-toggle { font-size: 10px; transition: transform .2s; }
+.agent-chain-body { padding: 8px; }
+.chain-step {
+  padding: 6px 10px;
+  margin: 4px 0;
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+}
+.chain-thought { background: #fefce8; border-left: 3px solid #eab308; }
+.chain-action { background: #eff6ff; border-left: 3px solid #3b82f6; }
+.chain-observe { background: #f0fdf4; border-left: 3px solid #22c55e; }
+.chain-icon { font-size: 14px; }
+.chain-label { font-weight: 600; font-size: 12px; color: #374151; min-width: 80px; }
+.chain-content { flex: 1; color: #6b7280; font-size: 12px; line-height: 1.5; word-break: break-all; }

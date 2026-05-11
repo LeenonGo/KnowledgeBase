@@ -62,6 +62,7 @@ const PageQA = (() => {
       body.use_rewrite = document.getElementById('qa-rewrite')?.checked ?? false;
       body.use_polish = document.getElementById('qa-polish')?.checked ?? false;
       body.use_agent = document.getElementById('qa-agent')?.checked ?? false;
+      body.use_web_search = document.getElementById('qa-web-search')?.checked ?? false;
       const kbId = document.getElementById('qa-kb-filter')?.value || '';
       if (kbId) body.kb_id = kbId;
 
@@ -89,6 +90,7 @@ const PageQA = (() => {
         const decoder = new TextDecoder();
         let buffer = '';
         let finalSources = [];
+        let finalCitations = [];
         let assistantContent = '';
 
         while (true) {
@@ -118,6 +120,32 @@ const PageQA = (() => {
                 bubble.innerHTML = UI.md2html(assistantContent);
                 bubble.appendChild(sourcesEl);
               }
+            } else if (eventType === 'thought' && chainContainer) {
+              const chainBody = chainContainer.querySelector('.agent-chain-body');
+              const stepEl = document.createElement('div');
+              stepEl.className = 'chain-step chain-thought';
+              stepEl.innerHTML = `<span class="chain-icon">💭</span><span class="chain-label">思考 Step ${data.step}</span><div class="chain-content">${data.content}</div>`;
+              chainBody.appendChild(stepEl);
+            } else if (eventType === 'action' && chainContainer) {
+              const chainBody = chainContainer.querySelector('.agent-chain-body');
+              const stepEl = document.createElement('div');
+              stepEl.className = 'chain-step chain-action';
+              stepEl.innerHTML = `<span class="chain-icon">⚡</span><span class="chain-label">调用 ${data.tool}</span><div class="chain-content"><code>${JSON.stringify(data.arguments)}</code></div>`;
+              chainBody.appendChild(stepEl);
+            } else if (eventType === 'observe' && chainContainer) {
+              const chainBody = chainContainer.querySelector('.agent-chain-body');
+              const stepEl = document.createElement('div');
+              stepEl.className = 'chain-step chain-observe';
+              stepEl.innerHTML = `<span class="chain-icon">👁️</span><span class="chain-label">观察</span><div class="chain-content">${data.content.substring(0, 300)}</div>`;
+              chainBody.appendChild(stepEl);
+            } else if (eventType === 'answer' && isAgentMode) {
+              assistantContent = data.content || '';
+              finalSources = data.sources || [];
+              textEl.textContent = assistantContent;
+              if (bubble) {
+                bubble.innerHTML = UI.md2html(assistantContent);
+                bubble.appendChild(sourcesEl);
+              }
             } else if (eventType === 'source') {
               if (!detectedSources.has(data.source)) {
                 detectedSources.add(data.source);
@@ -130,6 +158,7 @@ const PageQA = (() => {
               }
             } else if (eventType === 'done') {
               finalSources = data.sources || [];
+              finalCitations = data.citations || [];
             }
           }
         }
@@ -140,6 +169,20 @@ const PageQA = (() => {
         // 补充末尾残留 buffer
         if (buffer.startsWith('data:')) {
           try { assistantContent += JSON.parse(buffer.slice(5)); } catch {}
+        }
+
+        // 渲染引用标注 [1][2][3] 可点击 + hover 显示原文
+        if (finalCitations.length && bubble) {
+          let html = bubble.innerHTML;
+          // 将 [数字] 替换为可点击的引用标签
+          html = html.replace(/\[(\d+)\]/g, (match, num) => {
+            const cite = finalCitations.find(c => c.index === parseInt(num));
+            if (!cite) return match;
+            const preview = (cite.text_preview || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            return `<sup class="cite-ref" data-cite-id="${cite.citation_id}" data-source="${cite.source}" data-preview="${preview}" title="来源: ${cite.source}\n${preview.substring(0,100)}..." onclick="showCiteDetail(this)">[${num}]</sup>`;
+          });
+          bubble.innerHTML = html;
+          bubble.appendChild(sourcesEl);
         }
 
         // 结束时：未检测到来源时用检索到的 sources
@@ -339,7 +382,30 @@ const PageQA = (() => {
     if (msgs) msgs.innerHTML = '';
   }
 
-  return { askQuestion, askPreset, newChat, feedback, loadConversationList, loadConversation, deleteConversation, reset };
+  function showCiteDetail(el) {
+    const source = el.dataset.source || '';
+    const preview = el.dataset.preview || '';
+    const citeId = el.dataset.citeId || '';
+    // 创建浮动引用详情卡片
+    let card = document.getElementById('cite-detail-card');
+    if (card) card.remove();
+    card = document.createElement('div');
+    card.id = 'cite-detail-card';
+    card.style.cssText = 'position:fixed;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;box-shadow:0 4px 20px rgba(0,0,0,.15);max-width:420px;min-width:280px;font-size:13px;';
+    card.innerHTML = `<div style="font-weight:600;margin-bottom:8px;color:#1890ff;">📄 ${source}</div><div style="color:#666;line-height:1.6;max-height:150px;overflow-y:auto;">${preview}</div><div style="margin-top:8px;font-size:11px;color:#bbb;">ID: ${citeId}</div>`;
+    document.body.appendChild(card);
+    // 定位
+    const rect = el.getBoundingClientRect();
+    card.style.left = Math.min(rect.left, window.innerWidth - 440) + 'px';
+    card.style.top = (rect.bottom + 8) + 'px';
+    // 点击其他地方关闭
+    const closeHandler = (e) => { if (!card.contains(e.target) && e.target !== el) { card.remove(); document.removeEventListener('click', closeHandler); }};
+    setTimeout(() => document.addEventListener('click', closeHandler), 10);
+  }
+
+  window.showCiteDetail = showCiteDetail;
+
+  return { askQuestion, askPreset, newChat, feedback, loadConversationList, loadConversation, deleteConversation, reset, showCiteDetail };
 })();
 
 Router.on('qa-chat', () => PageQA.loadConversationList());

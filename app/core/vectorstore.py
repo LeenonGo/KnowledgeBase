@@ -186,14 +186,21 @@ def query(
         print(f"[VectorStore] 向量检索失败: {e}")
         vec_results_raw = {"documents": [[]], "metadatas": [[]], "distances": [[]]}
 
+    # 获取向量库 ID 列表（用于引用标注）
+    vec_ids = vec_results_raw.get("ids", [[]])[0] if vec_results_raw.get("ids") else []
+
     vector_results = []
     if vec_results_raw["documents"] and vec_results_raw["documents"][0]:
         for i in range(len(vec_results_raw["documents"][0])):
-            vector_results.append({
+            meta = vec_results_raw["metadatas"][0][i] if vec_results_raw["metadatas"] else {}
+            result = {
                 "text": vec_results_raw["documents"][0][i],
-                "source": vec_results_raw["metadatas"][0][i]["source"],
+                "source": meta.get("source", ""),
                 "distance": vec_results_raw["distances"][0][i],
-            })
+                "vectorstore_id": vec_ids[i] if i < len(vec_ids) else "",
+                "kb_id": meta.get("kb_id", ""),
+            }
+            vector_results.append(result)
 
     if not use_hybrid:
         return vector_results[:top_k]
@@ -300,14 +307,16 @@ def search_accessible(
         检索结果列表
     """
     if kb_id:
-        return query(question, top_k=top_k, kb_id=kb_id,
+        results = query(question, top_k=top_k, kb_id=kb_id,
                      use_hybrid=use_hybrid, use_reranker=use_reranker,
                      keywords=keywords)
+        return _attach_citation_meta(results)
 
     if accessible_ids is None:
         # super_admin，搜索全部
-        return query(question, top_k=top_k, use_hybrid=use_hybrid,
+        results = query(question, top_k=top_k, use_hybrid=use_hybrid,
                      use_reranker=use_reranker, keywords=keywords)
+        return _attach_citation_meta(results)
 
     if not accessible_ids:
         return []
@@ -319,4 +328,14 @@ def search_accessible(
                               use_hybrid=use_hybrid, use_reranker=use_reranker,
                               keywords=keywords))
     all_docs.sort(key=lambda x: x.get("distance", 0))
-    return all_docs[:top_k]
+    return _attach_citation_meta(all_docs[:top_k])
+
+
+def _attach_citation_meta(docs: list[dict]) -> list[dict]:
+    """为检索结果附加引用元数据（citation_id, chunk_index）"""
+    for i, doc in enumerate(docs):
+        kid = doc.get("kb_id", "default")
+        vid = doc.get("vectorstore_id", "")
+        doc["citation_id"] = f"cite_{kid}_{vid[:8]}" if vid else f"cite_{kid}_{i}"
+        doc["chunk_index"] = i + 1
+    return docs

@@ -13,8 +13,16 @@ class QueryRequest(BaseModel):
     use_rewrite: bool = False
     use_polish: bool = False
     use_agent: bool = False
+    use_web_search: bool = Field(default=False, description="是否启用联网搜索")
     history: str | None = Field(default=None, max_length=10000, description="多轮对话上下文")
     conv_id: str | None = None
+
+
+class CitationItem(BaseModel):
+    index: int = Field(..., description="引用序号")
+    citation_id: str = Field(default="", description="引用唯一标识")
+    source: str = Field(default="", description="来源文档名")
+    text_preview: str = Field(default="", description="原文摘要预览")
 
 
 class QueryResponse(BaseModel):
@@ -22,6 +30,7 @@ class QueryResponse(BaseModel):
     question: str
     answer: str
     sources: list[str]
+    citations: list[CitationItem] = Field(default_factory=list, description="引用标注列表")
 
 
 class UploadResponse(BaseModel):

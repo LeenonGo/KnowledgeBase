@@ -299,3 +299,38 @@ class EvalResult(Base):
     __table_args__ = (
         Index("ix_eval_res_run", "run_id"),
     )
+
+
+# ─── 全链路 Trace ─────────────────────────────────
+class Trace(Base):
+    __tablename__ = "trace"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    user_id = Column(String(32), nullable=True)
+    question = Column(Text, default="")
+    total_duration_ms = Column(Integer, default=0)
+    created_at = Column(DateTime, default=_now)
+
+    spans = relationship("TraceSpan", backref="trace", lazy="joined")
+
+    __table_args__ = (
+        Index("ix_trace_user", "user_id"),
+        Index("ix_trace_time", "created_at"),
+    )
+
+
+class TraceSpan(Base):
+    __tablename__ = "trace_span"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    trace_id = Column(String(32), ForeignKey("trace.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(128), nullable=False)
+    duration_ms = Column(Integer, default=0)
+    input_preview = Column(Text, default="")
+    output_preview = Column(Text, default="")
+    seq = Column(Integer, default=0)
+    created_at = Column(DateTime, default=_now)
+
+    __table_args__ = (
+        Index("ix_span_trace", "trace_id"),
+    )

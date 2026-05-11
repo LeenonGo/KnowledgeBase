@@ -41,6 +41,11 @@ async def query_knowledge_base(
     request: Request, req: QueryRequest,
     user: dict = Depends(get_current_user), db: Session = Depends(get_db),
 ):
+    from app.core.trace import TraceContext
+
+    # ── 全链路 Trace ──
+    trace = TraceContext(user_id=user.get("sub"), question=req.question, db=db)
+    trace.__enter__()
 
     # ── 1. 获取对话历史 ──
     history = req.history or ""
@@ -97,45 +102,71 @@ async def query_knowledge_base(
 
     # ── 5. 拒答处理 ──
     if not docs:
+        # 联网搜索兜底（非 Agent 模式下）
+        if req.use_web_search and not req.use_agent:
+            from app.core.web_search import web_search as _web_search
+            web_result = _web_search(req.question)
+            if web_result and "未配置" not in web_result:
+                answer = generate_answer(req.question, web_result, history=history)
+                trace.span("web_search", input=req.question[:200], output=web_result[:200])
+                trace.__exit__(None, None, None)
+                result = {"question": req.question, "answer": answer, "sources": ["互联网搜索"], "citations": []}
+                return QueryResponse(**result)
         log_audit(db, user, "query", req.question[:100], "未命中", "success",
                    request.client.host if request.client else "")
         refuse = get_refuse_answer()
-        result = {"question": req.question, "answer": refuse, "sources": []}
+        result = {"question": req.question, "answer": refuse, "sources": [], "citations": []}
         query_cache.set(_cache_key, result, ttl=300)
+        trace.__exit__(None, None, None)
         return QueryResponse(**result)
 
-    # ── 6. 拼上下文 + 生成回答 ──
+    # ── 6. 拼上下文 + 生成回答（带引用标注）──
+    from app.core.llm import format_context_with_citations, parse_citations
     MAX_CONTEXT_CHARS = 3000
-    context_parts = []
-    total_chars = 0
-    for d in docs:
-        part = f'[来源: {d["source"]}]\n{d["text"]}'
-        if total_chars + len(part) > MAX_CONTEXT_CHARS:
-            remaining = MAX_CONTEXT_CHARS - total_chars
-            if remaining > 100:
-                context_parts.append(part[:remaining] + "...")
-            break
-        context_parts.append(part)
-        total_chars += len(part)
 
-    context = "\n\n".join(context_parts)
+    context, citation_map = format_context_with_citations(docs)
+    if len(context) > MAX_CONTEXT_CHARS:
+        context = context[:MAX_CONTEXT_CHARS] + "..."
+
     sources = list(set(d["source"] for d in docs))
 
     # ── 6.5 Agent 模式 or 普通模式 ──
     if req.use_agent:
         from app.core.tools import TOOL_DEFINITIONS
         # Agent 模式：不注入检索 context，让 LLM 主动调工具
+        agent_tools = list(TOOL_DEFINITIONS)
+        # 联网搜索工具（按需添加）
+        if req.use_web_search:
+            agent_tools.append({
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "description": "搜索互联网获取最新信息，当知识库中没有相关内容时使用",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"query": {"type": "string", "description": "搜索关键词"}},
+                        "required": ["query"],
+                    },
+                },
+            })
         agent_context = "（请使用可用工具来查找信息回答用户问题）"
         answer = generate_answer_agent(
             req.question, agent_context, history=history,
-            tools=TOOL_DEFINITIONS,
+            tools=agent_tools,
             tool_context={"db": db, "user": user},
         )
+        citations = []
     else:
         answer = generate_answer(req.question, context, history=history)
+        # 解析引用标注 [C1] → [1]
+        answer, citations = parse_citations(answer, citation_map)
 
-    result = {"question": req.question, "answer": answer, "sources": sources}
+    result = {"question": req.question, "answer": answer, "sources": sources, "citations": citations}
     query_cache.set(_cache_key, result, ttl=3600)
+
+    trace.span("retrieval", input=req.question[:200], output=f"命中{len(docs)}条")
+    trace.span("generation", input=context[:200], output=answer[:200])
+    trace.__exit__(None, None, None)
 
     log_audit(db, user, "query", req.question[:100],
                f"命中{len(docs)}条, 来源={sources}", "success",
@@ -190,46 +221,106 @@ async def query_stream(
 
     # ── 4. 拒答处理 ──
     if not docs:
+        # 联网搜索兜底
+        if req.use_web_search:
+            from app.core.web_search import web_search as _web_search
+            web_result = _web_search(req.question)
+            if web_result and "未配置" not in web_result:
+                answer = generate_answer(req.question, web_result, history=history)
+                async def web_gen():
+                    for ch in [answer[i:i+50] for i in range(0, len(answer), 50)]:
+                        yield 'event: token\ndata: ' + json.dumps(ch) + '\n\n'
+                    done_data = json.dumps({'sources': ['互联网搜索'], 'citations': []})
+                    yield 'event: done\ndata: ' + done_data + '\n\n'
+                return StreamingResponse(web_gen(), media_type="text/event-stream")
         refuse = get_refuse_answer()
         async def refuse_gen():
             yield 'event: token\ndata: ' + json.dumps(refuse) + '\n\n'
-            done_data = json.dumps({'sources': []})
+            done_data = json.dumps({'sources': [], 'citations': []})
             yield 'event: done\ndata: ' + done_data + '\n\n'
         return StreamingResponse(refuse_gen(), media_type="text/event-stream")
 
-    # ── 5. 拼上下文 ──
+    # ── 5. 拼上下文（带引用标注）──
+    from app.core.llm import format_context_with_citations, parse_citations
     MAX_CONTEXT_CHARS = 3000
-    context_parts = []
-    total_chars = 0
-    for d in docs:
-        part = f'[来源: {d["source"]}]\n{d["text"]}'
-        if total_chars + len(part) > MAX_CONTEXT_CHARS:
-            remaining = MAX_CONTEXT_CHARS - total_chars
-            if remaining > 100:
-                context_parts.append(part[:remaining] + "...")
-            break
-        context_parts.append(part)
-        total_chars += len(part)
 
-    context = "\n\n".join(context_parts)
+    context, citation_map = format_context_with_citations(docs)
+    if len(context) > MAX_CONTEXT_CHARS:
+        context = context[:MAX_CONTEXT_CHARS] + "..."
+
     sources = list(set(d["source"] for d in docs))
 
     # ── 6. 流式生成 ──
     async def stream_gen():
         try:
+            full_answer = ""
             for event in generate_answer_stream(req.question, context, history=history):
                 if event['type'] == 'token':
+                    full_answer += event['content']
                     yield 'event: token\ndata: ' + json.dumps(event['content']) + '\n\n'
                 elif event['type'] == 'source':
                     src_data = json.dumps({'source': event['source']})
                     yield 'event: source\ndata: ' + src_data + '\n\n'
-            done_data = json.dumps({'sources': sources})
+            # 解析引用标注并随 done 事件返回
+            _, citations = parse_citations(full_answer, citation_map)
+            done_data = json.dumps({'sources': sources, 'citations': citations})
             yield 'event: done\ndata: ' + done_data + '\n\n'
         except Exception as e:
             yield 'event: error\ndata: ' + json.dumps(str(e)) + '\n\n'
 
     return StreamingResponse(stream_gen(), media_type="text/event-stream")
 
+
+
+
+@router.post("/query/agent/stream")
+async def agent_query_stream(
+    request: Request, req: QueryRequest,
+    user: dict = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    """Agent 模式流式问答 — 推理链可视化"""
+    from app.core.llm import generate_answer_agent_stream, get_refuse_answer
+    from app.core.vectorstore import search_accessible
+    from app.core.tools import TOOL_DEFINITIONS
+
+    # 获取对话历史
+    history = req.history or ""
+    if req.conv_id and not history:
+        history = _get_conversation_history(req.conv_id, db)
+
+    # 权限检查
+    if req.kb_id:
+        require_kb_access(db, user, req.kb_id, "viewer")
+
+    async def agent_stream_gen():
+        try:
+            agent_context = "（请使用可用工具来查找信息回答用户问题）"
+            for event in generate_answer_agent_stream(
+                req.question, agent_context, history=history,
+                tools=TOOL_DEFINITIONS,
+                tool_context={"db": db, "user": user},
+            ):
+                event_type = event["type"]
+                if event_type == "thought":
+                    data = json.dumps({"step": event["step"], "content": event["content"]})
+                    yield f"event: thought\ndata: {data}\n\n"
+                elif event_type == "action":
+                    data = json.dumps({"step": event["step"], "tool": event["tool"],
+                                       "arguments": event["arguments"]})
+                    yield f"event: action\ndata: {data}\n\n"
+                elif event_type == "observe":
+                    data = json.dumps({"step": event["step"], "content": event["content"]})
+                    yield f"event: observe\ndata: {data}\n\n"
+                elif event_type == "answer":
+                    data = json.dumps({"content": event["content"], "sources": event.get("sources", [])})
+                    yield f"event: answer\ndata: {data}\n\n"
+                elif event_type == "error":
+                    data = json.dumps({"content": event["content"]})
+                    yield f"event: error\ndata: {data}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: " + json.dumps(str(e)) + "\n\n"
+
+    return StreamingResponse(agent_stream_gen(), media_type="text/event-stream")
 
 @router.get("/cache/stats")
 async def get_cache_stats(user: dict = Depends(get_current_user)):
