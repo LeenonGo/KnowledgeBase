@@ -295,34 +295,63 @@ knowledge-base/
 - 默认 top_k 从 5 调至 10，确保多步骤内容完整检索
 - 新增 `/api/cache/stats`（GET）和 `/api/cache/clear`（POST）缓存管理接口
 
-**Phase 9 — Agent 智能化（v4.0，Phase 1+2 已完成）**
+**Phase 9 — Agent 智能化 v4.0（Phase 1+2 已完成）**
 - ✅ Agent / Function Calling：LLM 自主决策工具调用，Tool-Call 循环（最多5轮）
 - ✅ 5 个工具：search_kb / list_kb / list_docs / get_doc_content / summarize_doc
 - ✅ 权限安全：工具层权限代理 + 部门权限继承 + 缓存按用户隔离
 - ✅ Agent 专用 Prompt：鼓励工具调用，完整呈现工具结果
 - ✅ summarize_doc：读取全文调用 LLM 生成结构化摘要
 - ✅ get_doc_content：支持 max_chars 参数，最大 30000 字符
-- ⏳ MCP Server 拆分（长期目标）
-- ⏳ 联网搜索补全
-- ⏳ 多 Agent 协作
+
+**Phase 11 — Agent 全面升级 v5.0（规划中）**
+- ⏳ 引用标注（Citation）：回答中精确标注 [1][2][3] 引用来源，点击跳转原文高亮段落
+- ⏳ Agent 推理链可视化：前端展示 Thought → Action → Observation 完整推理过程
+- ⏳ 规划与分解（Planning）：复杂问题自动拆解为子任务，支持 Plan-and-Execute 范式
+- ⏳ 长期记忆层：会话记忆（用户偏好）+ 知识记忆（高频问答自动沉淀 FAQ）
+- ⏳ 工具生态扩展：web_search / code_interpreter / http_request / chart_generator / calculator
+- ⏳ 工具插件化注册：支持用户自定义工具，Tool Registry 热加载
+- ⏳ 联网搜索补全：知识库无结果时自动搜索外部信息
+- ⏳ Self-RAG 自适应检索：LLM 自行判断是否需要检索、检索结果是否有用
+- ⏳ Prompt 调试工作台：可视化编辑 + 实时预览 + A/B 测试 + 版本管理
+- ⏳ 知识库健康度看板：覆盖率、热点分析、孤岛检测、质量趋势
+- ⏳ 多 Agent 协作：路由 Agent + 检索 Agent + 分析 Agent + 写作 Agent 协同
+- ⏳ 知识图谱增强：实体抽取 + 关系图谱 + 多跳推理检索
+- ⏳ 全链路 Trace：query → 改写 → 检索 → 重排 → 生成，每步耗时可查
 
 ---
 
 ## 待办功能
 
-### 产品功能
+### 🔥 P0 — 核心智能化（v5.0 优先实施）
 
-- [x] 润色 Query（拼写纠错、同义扩展、关键词提取）
-- [x] 更多文档格式（Excel/PPT/CSV）
-- [x] keywords 喂给 BM25 + Reranker URL 修复 + 缓存逻辑重构 + 缓存按用户隔离
-- [x] Agent / Function Calling（LLM 自主决策调用工具）—— Phase 1+2 已完成，5 个工具
-- [ ] 数据源同步（飞书/Confluence/Git 自动导入）
-- [ ] API 开放 + Bot 发布（API Key / Widget / Webhook）
-- [ ] 多 KB 路由 + 工作流编排
-- [ ] 知识图谱增强（实体抽取 + 图谱检索）
-- [ ] Prompt 在线调试 + A/B 测试
+- [ ] **引用标注（Citation）**：回答中精确引用原文段落 [1][2][3]，支持点击查看原文上下文
+- [ ] **Agent 推理链可视化**：前端展示完整的 Thought → Action → Observation 循环过程
+- [ ] **联网搜索工具**：web_search 工具，知识库无结果时自动搜索外部信息补全
+- [ ] **工具插件化注册**：Tool Registry 机制，支持热加载自定义工具
 
-### 系统优化 & 安全加固
+### ⭐ P1 — 深度智能化
+
+- [ ] **规划与分解（Planning）**：复杂问题自动拆解为子任务，ReAct / Plan-and-Execute 范式
+- [ ] **长期记忆层**：会话记忆（用户偏好）+ 知识记忆（高频问答沉淀 FAQ）
+- [ ] **Self-RAG 自适应检索**：LLM 自行判断是否需要检索，根据问题复杂度调整检索深度
+- [ ] **更多 Agent 工具**：code_interpreter / http_request / chart_generator / calculator
+
+### ⭐ P2 — 产品体验
+
+- [ ] **Prompt 调试工作台**：可视化编辑 system prompt，实时预览 + A/B 测试 + 版本管理
+- [ ] **知识库健康度看板**：文档覆盖率、热点分析、孤岛检测、质量趋势
+- [ ] **对话管理增强**：对话置顶/标签/导出 Markdown/PDF/分享只读链接
+- [ ] **反馈闭环增强**：差评自动触发重新检索分析，好评沉淀 FAQ
+
+### 💡 P3 — 架构演进
+
+- [ ] **多 Agent 协作**：路由 Agent + 检索 Agent + 分析 Agent + 写作 Agent
+- [ ] **知识图谱增强**：实体抽取 + 关系图谱 + GraphRAG 多跳推理
+- [ ] **全链路 Trace**：对标 Langfuse，query→改写→检索→重排→生成每步可查
+- [ ] **数据源同步**：飞书 / Confluence / Git 自动导入
+- [ ] **API 开放 + Bot 发布**：API Key / Widget / Webhook 对外提供问答能力
+
+### 🛡️ 系统优化 & 安全加固
 
 - [x] 用户名和角色显示移到右上角，点击头像出现下拉菜单（修改密码、退出登录）
 - [x] 密码复杂度要求：字母+数字，最少 8 位
