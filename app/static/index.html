@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RAG 知识库管理系统</title>
-<link rel="stylesheet" href="/style.css?v=15">
+<link rel="stylesheet" href="/style.css?v=17">
 </head>
 <body>
 
@@ -291,16 +291,7 @@
         <div class="chat-item active"><div class="title">新对话</div><div class="meta">刚刚</div></div>
       </div>
       <div style="padding:12px;border-top:1px solid #f0f0f0;">
-        <div class="form-group" style="margin-bottom:8px;">
-          <label style="font-size:12px;">搜索范围</label>
-          <select class="select" id="qa-kb-filter" style="font-size:12px;width:100%;">
-            <option value="">全部知识库</option>
-          </select>
-        </div>
-        <div class="form-group" style="margin-bottom:0;">
-          <label style="font-size:12px;">Top-K</label>
-          <input class="input" type="number" value="10" id="qa-topk" style="font-size:12px;" min="1" max="20">
-        </div>
+        <div style="font-size:11px;color:#999;">筛选和检索设置已移至输入框上方</div>
       </div>
     </div>
     <div class="chat-main">
@@ -316,17 +307,27 @@
         </div>
       </div>
       <div class="chat-input-area">
-        <div class="chat-input-row">
-          <textarea class="chat-input" id="qa-input" placeholder="输入问题，Enter 发送..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();PageQA.askQuestion()}"></textarea>
-          <button class="btn btn-primary" style="height:44px;" onclick="PageQA.askQuestion()" id="qa-send-btn">发送</button>
-        </div>
-        <div class="chat-actions">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #f0f0f0;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:12px;color:#666;">知识库</label>
+            <select class="select" id="qa-kb-filter" style="font-size:12px;min-width:140px;height:30px;">
+              <option value="">全部知识库</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:12px;color:#666;">Top-K</label>
+            <input class="input" type="number" value="10" id="qa-topk" style="font-size:12px;width:56px;height:30px;" min="1" max="20">
+          </div>
+          <div style="flex:1;"></div>
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-hybrid" checked> 混合检索</label>
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-rewrite"> 查询改写</label>
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-polish"> Query润色</label>
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-agent" checked> Agent模式</label>
-          <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-web-search"> 🌐 联网搜索</label>
-          <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox"> 显示检索过程</label>
+          <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-web-search"> 🌐 联网</label>
+        </div>
+        <div class="chat-input-row">
+          <textarea class="chat-input" id="qa-input" placeholder="输入问题，Enter 发送..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();PageQA.askQuestion()}"></textarea>
+          <button class="btn btn-primary" style="height:44px;" onclick="PageQA.askQuestion()" id="qa-send-btn">发送</button>
         </div>
       </div>
     </div>
@@ -604,8 +605,9 @@
       <div class="flex-between mb-16">
         <h3>📝 Prompt 模板管理</h3>
         <div class="flex gap-8">
-          <select class="select" id="prompt-selector" onchange="loadPromptEditor()">
+          <select class="select" id="prompt-selector" onchange="PageConfig.loadPromptEditor()">
             <option value="qa">问答主 Prompt</option>
+            <option value="agent">Agent 模式 Prompt</option>
             <option value="rewrite">查询改写 Prompt</option>
             <option value="refuse">拒答话术</option>
           </select>
@@ -634,6 +636,14 @@
           <label>用户 Prompt 模板</label>
           <textarea class="input" id="prompt-rewrite-user" rows="5" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
           <div class="text-muted">变量: {history}=对话历史 {question}=当前问题</div>
+        </div>
+      </div>
+
+      <div id="prompt-agent-panel" style="display:none;">
+        <div class="form-group">
+          <label>Agent 系统 Prompt（System）</label>
+          <textarea class="input" id="prompt-agent-system" rows="12" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+          <div class="text-muted">Agent Function Calling 模式的系统提示词，控制 LLM 如何调用工具</div>
         </div>
       </div>
 
@@ -954,22 +964,22 @@
 
 <!-- ============= JavaScript ============= -->
 <!-- 核心模块 -->
-<script src="/js/api.js?v=15"></script>
-<script src="/js/router.js?v=15"></script>
-<script src="/js/components/ui.js?v=15"></script>
+<script src="/js/api.js?v=17"></script>
+<script src="/js/router.js?v=17"></script>
+<script src="/js/components/ui.js?v=17"></script>
 <!-- 页面模块 -->
-<script src="/js/pages/auth.js?v=15"></script>
-<script src="/js/pages/dashboard.js?v=15"></script>
-<script src="/js/pages/kb.js?v=15"></script>
-<script src="/js/pages/upload.js?v=15"></script>
-<script src="/js/pages/qa.js?v=15"></script>
-<script src="/js/pages/users.js?v=15"></script>
-<script src="/js/pages/depts.js?v=15"></script>
-<script src="/js/pages/audit.js?v=15"></script>
-<script src="/js/pages/config.js?v=15"></script>
-<script src="/js/pages/quality.js?v=15"></script>
-<script src="/js/pages/chunks.js?v=15"></script>
-<script src="/js/pages/eval.js?v=15"></script>
+<script src="/js/pages/auth.js?v=17"></script>
+<script src="/js/pages/dashboard.js?v=17"></script>
+<script src="/js/pages/kb.js?v=17"></script>
+<script src="/js/pages/upload.js?v=17"></script>
+<script src="/js/pages/qa.js?v=17"></script>
+<script src="/js/pages/users.js?v=17"></script>
+<script src="/js/pages/depts.js?v=17"></script>
+<script src="/js/pages/audit.js?v=17"></script>
+<script src="/js/pages/config.js?v=17"></script>
+<script src="/js/pages/quality.js?v=17"></script>
+<script src="/js/pages/chunks.js?v=17"></script>
+<script src="/js/pages/eval.js?v=17"></script>
 <!-- 初始化 -->
 <script>
   document.addEventListener('DOMContentLoaded', () => {

@@ -179,7 +179,7 @@ def _search_kb(args: dict, db: Session, user: dict) -> str:
 
     results = []
     for i, d in enumerate(docs, 1):
-        results.append(f"[结果{i} 来源:{d['source']}]\n{d['text'][:500]}")
+        results.append(f"[C{i} 来源:{d['source']}]\n{d['text'][:500]}")
     return "\n\n".join(results)
 
 

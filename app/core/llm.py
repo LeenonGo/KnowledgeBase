@@ -307,18 +307,8 @@ def generate_answer_agent(
     temperature = cfg.get("temperature", 0.7)
 
     # Agent 模式使用专用 prompt，鼓励调用工具而非依赖上下文
-    agent_system = (
-        "你是一个智能知识库助手。你可以使用工具来查找信息、列出知识库、查看文档等。\n\n"
-        "规则：\n"
-        "1. 根据用户问题，主动调用合适的工具来获取信息\n"
-        "2. 如果问题涉及知识库内容，先用 search_kb 检索\n"
-        "3. 如果用户问有哪些知识库，调用 list_kb\n"
-        "4. 如果需要查看完整文档，调用 get_doc_content\n"
-        "5. 如果用户要求总结文档，调用 summarize_doc\n"
-        "6. 工具返回的结果是你获取到的信息，必须将结果完整呈现给用户，不要说'如上所示'或'根据工具结果'，直接展示内容\n"
-        "7. 回答必须标注信息来源\n"
-        "8. 工具找不到相关信息时，诚实告知用户"
-    )
+    agent_prompt = get_prompt("agent")
+    agent_system = agent_prompt.get("system", "你是一个智能知识库助手，请使用工具来回答问题。")
 
     user_prompt = f"用户问题：{question}\n\n对话历史：{history or '无'}"
 
@@ -330,6 +320,7 @@ def generate_answer_agent(
     max_rounds = 5
     db = tool_context.get("db") if tool_context else None
     user_info = tool_context.get("user") if tool_context else None
+    collected_sources = []  # 收集工具返回的来源信息
 
     for round_num in range(max_rounds):
         kwargs = {
@@ -414,18 +405,8 @@ def generate_answer_agent_stream(
     max_tokens = cfg.get("max_tokens", 2048)
     temperature = cfg.get("temperature", 0.7)
 
-    agent_system = (
-        "你是一个智能知识库助手。你可以使用工具来查找信息、列出知识库、查看文档等。\n\n"
-        "规则：\n"
-        "1. 根据用户问题，主动调用合适的工具来获取信息\n"
-        "2. 如果问题涉及知识库内容，先用 search_kb 检索\n"
-        "3. 如果用户问有哪些知识库，调用 list_kb\n"
-        "4. 如果需要查看完整文档，调用 get_doc_content\n"
-        "5. 如果用户要求总结文档，调用 summarize_doc\n"
-        "6. 工具返回的结果是你获取到的信息，必须将结果完整呈现给用户，不要说'如上所示'或'根据工具结果'，直接展示内容\n"
-        "7. 回答必须标注信息来源\n"
-        "8. 工具找不到相关信息时，诚实告知用户"
-    )
+    agent_prompt = get_prompt("agent")
+    agent_system = agent_prompt.get("system", "你是一个智能知识库助手，请使用工具来回答问题。")
 
     user_prompt = f"用户问题：{question}\n\n对话历史：{history or '无'}"
 
@@ -437,11 +418,13 @@ def generate_answer_agent_stream(
     max_rounds = 5
     db = tool_context.get("db") if tool_context else None
     user_info = tool_context.get("user") if tool_context else None
+    collected_sources = []  # 收集工具返回的来源
+    collected_citation_map = {}  # 引用映射 C1 -> {source, text_preview}
 
     for round_num in range(max_rounds):
-        # 生成思考步骤
-        yield {"type": "thought", "step": round_num + 1,
-               "content": f"分析问题，决定第 {round_num + 1} 步操作..."}
+        # 生成思考步骤（占位）
+        _label = '开始分析问题' if round_num == 0 else f'继续第 {round_num + 1} 步操作'
+        yield {"type": "thought", "step": round_num + 1, "content": f"{_label}..."}
 
         kwargs = {
             "model": model,
@@ -465,7 +448,7 @@ def generate_answer_agent_stream(
         if not msg.tool_calls:
             yield {"type": "thought", "step": round_num + 1,
                    "content": msg.content[:200] if msg.content else "准备回答"}
-            yield {"type": "answer", "content": msg.content or "", "sources": []}
+            yield {"type": "answer", "content": msg.content or "", "sources": collected_sources}
             return
 
         # 有工具调用 → 逐个执行
@@ -502,6 +485,21 @@ def generate_answer_agent_stream(
             yield {"type": "observe", "step": round_num + 1,
                    "content": result[:500]}
 
+            # 从工具结果中提取来源和引用信息
+            import re as _re
+            for _src in _re.findall(r'来源:([^\]\n]+)', result):
+                _src = _src.strip().rstrip(']')
+                if _src and _src not in collected_sources:
+                    collected_sources.append(_src)
+            # 解析 [C数字 来源:xxx] 格式，构建引用映射
+            for _m in _re.finditer(r'\[C(\d+) 来源:([^\]]+)\]\n(.{0,200})', result):
+                _key = f"C{_m.group(1)}"
+                if _key not in collected_citation_map:
+                    collected_citation_map[_key] = {
+                        "source": _m.group(2).strip(),
+                        "text_preview": _m.group(3).strip(),
+                    }
+
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc.id,
@@ -515,4 +513,5 @@ def generate_answer_agent_stream(
         max_tokens=max_tokens,
         temperature=temperature,
     )
-    yield {"type": "answer", "content": final_resp.choices[0].message.content, "sources": []}
+    _final_answer = final_resp.choices[0].message.content or ""
+    yield {"type": "answer", "content": _final_answer, "sources": collected_sources}

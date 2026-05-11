@@ -92,6 +92,9 @@ const PageConfig = (() => {
         document.getElementById('prompt-rewrite-system').value = prompts.rewrite.system || '';
         document.getElementById('prompt-rewrite-user').value = prompts.rewrite.user || '';
       }
+      if (prompts.agent) {
+        document.getElementById('prompt-agent-system').value = prompts.agent.system || '';
+      }
       if (prompts.refuse) {
         document.getElementById('prompt-refuse-answer').value = prompts.refuse.answer || '';
       }
@@ -101,6 +104,7 @@ const PageConfig = (() => {
   function loadPromptEditor() {
     const type = document.getElementById('prompt-selector').value;
     document.getElementById('prompt-qa-panel').style.display = type === 'qa' ? 'block' : 'none';
+    document.getElementById('prompt-agent-panel').style.display = type === 'agent' ? 'block' : 'none';
     document.getElementById('prompt-rewrite-panel').style.display = type === 'rewrite' ? 'block' : 'none';
     document.getElementById('prompt-refuse-panel').style.display = type === 'refuse' ? 'block' : 'none';
   }
@@ -114,6 +118,9 @@ const PageConfig = (() => {
       rewrite: {
         system: document.getElementById('prompt-rewrite-system').value,
         user: document.getElementById('prompt-rewrite-user').value,
+      },
+      agent: {
+        system: document.getElementById('prompt-agent-system').value,
       },
       refuse: { answer: document.getElementById('prompt-refuse-answer').value },
     };

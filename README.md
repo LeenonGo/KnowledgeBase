@@ -303,7 +303,7 @@ knowledge-base/
 - ✅ summarize_doc：读取全文调用 LLM 生成结构化摘要
 - ✅ get_doc_content：支持 max_chars 参数，最大 30000 字符
 
-**Phase 11 — Agent 全面升级 v5.0（规划中）**
+**Phase 11 — Agent 全面升级 v5.0（阶段一已完成）**
 - ⏳ 引用标注（Citation）：回答中精确标注 [1][2][3] 引用来源，点击跳转原文高亮段落
 - ⏳ Agent 推理链可视化：前端展示 Thought → Action → Observation 完整推理过程
 - ⏳ 规划与分解（Planning）：复杂问题自动拆解为子任务，支持 Plan-and-Execute 范式
@@ -324,10 +324,10 @@ knowledge-base/
 
 ### 🔥 P0 — 核心智能化（v5.0 优先实施）
 
-- [ ] **引用标注（Citation）**：回答中精确引用原文段落 [1][2][3]，支持点击查看原文上下文
-- [ ] **Agent 推理链可视化**：前端展示完整的 Thought → Action → Observation 循环过程
-- [ ] **联网搜索工具**：web_search 工具，知识库无结果时自动搜索外部信息补全
-- [ ] **工具插件化注册**：Tool Registry 机制，支持热加载自定义工具
+- [x] **引用标注（Citation）**：回答中精确引用原文段落 [C1][C2]，hover 弹出原文上下文（非 Agent 模式）
+- [x] **Agent 推理链可视化**：前端实时展示 Thought → Action → Observation 循环过程
+- [x] **联网搜索工具**：web_search 工具（SerpAPI），知识库无结果时自动搜索外部信息补全（需配置 SERP_API_KEY）
+- [x] **全链路 Trace**：每次问答记录完整链路 span 和耗时，/api/traces 接口可查询
 
 ### ⭐ P1 — 深度智能化
 

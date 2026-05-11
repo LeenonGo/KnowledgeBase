@@ -261,13 +261,20 @@ async def query_stream(
                 elif event['type'] == 'source':
                     src_data = json.dumps({'source': event['source']})
                     yield 'event: source\ndata: ' + src_data + '\n\n'
-            # 解析引用标注并随 done 事件返回
-            _, citations = parse_citations(full_answer, citation_map)
-            done_data = json.dumps({'sources': sources, 'citations': citations})
+            # 直接从 citation_map 构建 citations（不改文本，前端统一处理替换）
+            _cites = []
+            for _k, _v in citation_map.items():
+                _num = int(_k[1:]) if _k[1:].isdigit() else 0
+                _cites.append({"index": _num, "source": _v.get("source", ""), "text_preview": _v.get("text_preview", "")})
+            _cites.sort(key=lambda x: x["index"])
+            done_data = json.dumps({'sources': sources, 'citations': _cites})
             yield 'event: done\ndata: ' + done_data + '\n\n'
         except Exception as e:
             yield 'event: error\ndata: ' + json.dumps(str(e)) + '\n\n'
 
+    log_audit(db, user, "query", req.question[:100],
+              f"流式问答, kb={req.kb_id or '全部'}", "success",
+              request.client.host if request.client else "")
     return StreamingResponse(stream_gen(), media_type="text/event-stream")
 
 
@@ -295,9 +302,15 @@ async def agent_query_stream(
     async def agent_stream_gen():
         try:
             agent_context = "（请使用可用工具来查找信息回答用户问题）"
+            # 组装工具列表：基础工具 + 可选联网搜索
+            agent_tools = list(TOOL_DEFINITIONS)
+            if req.use_web_search:
+                from app.core.tools import TOOL_DEFINITIONS as _TD
+                # web_search 已在 TOOL_DEFINITIONS 中，无需重复添加
+                pass
             for event in generate_answer_agent_stream(
                 req.question, agent_context, history=history,
-                tools=TOOL_DEFINITIONS,
+                tools=agent_tools,
                 tool_context={"db": db, "user": user},
             ):
                 event_type = event["type"]
@@ -312,7 +325,7 @@ async def agent_query_stream(
                     data = json.dumps({"step": event["step"], "content": event["content"]})
                     yield f"event: observe\ndata: {data}\n\n"
                 elif event_type == "answer":
-                    data = json.dumps({"content": event["content"], "sources": event.get("sources", [])})
+                    data = json.dumps({"content": event["content"], "sources": event.get("sources", []), "citations": event.get("citations", [])})
                     yield f"event: answer\ndata: {data}\n\n"
                 elif event_type == "error":
                     data = json.dumps({"content": event["content"]})
@@ -320,6 +333,9 @@ async def agent_query_stream(
         except Exception as e:
             yield f"event: error\ndata: " + json.dumps(str(e)) + "\n\n"
 
+    log_audit(db, user, "query", req.question[:100],
+              f"Agent流式问答, kb={req.kb_id or '全部'}", "success",
+              request.client.host if request.client else "")
     return StreamingResponse(agent_stream_gen(), media_type="text/event-stream")
 
 @router.get("/cache/stats")
