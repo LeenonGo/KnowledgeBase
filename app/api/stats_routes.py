@@ -107,3 +107,81 @@ async def get_quality_stats(db: Session = Depends(get_db), user: dict = Depends(
         "today_queries": today_queries,
         "no_result_rate": no_result_rate,
     }
+
+
+@router.get("/stats/kb-health")
+async def get_kb_health_stats(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    """知识库健康度统计"""
+    from app.models.models import KnowledgeBase, Document
+    from app.api.deps import get_accessible_kb_ids
+
+    accessible_ids = get_accessible_kb_ids(db, user)
+    if accessible_ids is None:
+        kbs = db.query(KnowledgeBase).filter(KnowledgeBase.status != "deleted").all()
+    elif not accessible_ids:
+        return {"knowledge_bases": [], "overall": {}}
+    else:
+        kbs = db.query(KnowledgeBase).filter(
+            KnowledgeBase.id.in_(accessible_ids), KnowledgeBase.status != "deleted"
+        ).all()
+
+    kb_stats = []
+    total_docs = 0
+    total_chunks = 0
+
+    for kb in kbs:
+        docs = db.query(Document).filter(
+            Document.kb_id == kb.id, Document.status.in_(["indexed", "active"])
+        ).all()
+        doc_count = len(docs)
+        chunk_count = sum(d.chunk_count or 0 for d in docs)
+        total_chars = sum(d.file_size or 0 for d in docs)
+        total_docs += doc_count
+        total_chunks += chunk_count
+
+        # 格式分布
+        ext_dist = {}
+        for d in docs:
+            ext = (d.filename or "").rsplit(".", 1)[-1].lower() if "." in (d.filename or "") else "unknown"
+            ext_dist[ext] = ext_dist.get(ext, 0) + 1
+
+        # 查询频率（近 7 天）
+        seven_days_ago = datetime.now(_CST) - timedelta(days=7)
+        query_count = db.query(AuditLog).filter(
+            AuditLog.action == "query",
+            AuditLog.detail.like(f"%kb={kb.id}%") if kb.id else False,
+            AuditLog.created_at >= seven_days_ago,
+        ).count() if hasattr(AuditLog, 'detail') else 0
+
+        # 简单健康度评分（0-100）
+        health_score = 0
+        if doc_count > 0: health_score += 30
+        if chunk_count >= 10: health_score += 20
+        if chunk_count >= 50: health_score += 10
+        if len(ext_dist) >= 2: health_score += 10  # 多格式
+        if total_chars and total_chars > 10000: health_score += 15
+        if query_count > 0: health_score += 15
+
+        kb_stats.append({
+            "id": kb.id,
+            "name": kb.name,
+            "description": (kb.description or "")[:50],
+            "doc_count": doc_count,
+            "chunk_count": chunk_count,
+            "total_chars": total_chars,
+            "ext_distribution": ext_dist,
+            "query_count_7d": query_count,
+            "health_score": min(health_score, 100),
+        })
+
+    # 总体统计
+    overall = {
+        "kb_count": len(kbs),
+        "total_docs": total_docs,
+        "total_chunks": total_chunks,
+        "avg_chunks_per_doc": round(total_chunks / total_docs, 1) if total_docs > 0 else 0,
+        "empty_kb_count": sum(1 for k in kb_stats if k["doc_count"] == 0),
+        "healthy_kb_count": sum(1 for k in kb_stats if k["health_score"] >= 60),
+    }
+
+    return {"knowledge_bases": kb_stats, "overall": overall}

@@ -50,7 +50,7 @@ const Router = (() => {
       'doc-upload': '知识库列表', 'qa-chat': '智能问答', 'agent-ws': 'Agent 工作台',
       'user-mgmt': '用户管理',
       'dept-tree': '部门管理', 'perm-mgmt': '权限管理', 'audit-log': '审计日志',
-      'quality': '质量监控', 'evaluation': '效果评测', 'sys-config': '系统配置',
+      'quality': '质量监控', 'evaluation': '效果评测', 'sys-config': '系统配置', 'kb-health': '知识库健康度',
     };
     const label = navMap[screenName];
     if (label) {

@@ -25,9 +25,11 @@ async def list_conversations(conv_type: str = None, db: Session = Depends(get_db
     )
     if conv_type in ("rag", "agent"):
         q = q.filter(Conversation.conv_type == conv_type)
-    convs = q.order_by(Conversation.updated_at.desc()).all()
+    convs = q.order_by(Conversation.is_pinned.desc(), Conversation.updated_at.desc()).all()
     return [{
         "id": c.id, "title": c.title, "conv_type": c.conv_type,
+        "is_pinned": bool(c.is_pinned),
+        "tags": json.loads(c.tags) if c.tags else [],
         "created_at": str(c.created_at), "updated_at": str(c.updated_at),
     } for c in convs]
 
@@ -136,6 +138,71 @@ async def add_conversation_turn(conv_id: str, data: dict,
     db.commit()
 
     return {"id": turn.id, "role": turn.role}
+
+
+# ─── 对话管理增强 ────────────────────────────────
+
+@router.put("/conversations/{conv_id}/pin")
+async def toggle_pin(conv_id: str, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    """置顶/取消置顶对话"""
+    conv = db.query(Conversation).filter(
+        Conversation.id == conv_id, Conversation.user_id == user["sub"],
+    ).first()
+    if not conv:
+        raise HTTPException(404, "对话不存在")
+    conv.is_pinned = not conv.is_pinned
+    db.commit()
+    return {"id": conv.id, "is_pinned": bool(conv.is_pinned)}
+
+
+@router.put("/conversations/{conv_id}/tags")
+async def update_tags(conv_id: str, data: dict, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    """更新对话标签"""
+    conv = db.query(Conversation).filter(
+        Conversation.id == conv_id, Conversation.user_id == user["sub"],
+    ).first()
+    if not conv:
+        raise HTTPException(404, "对话不存在")
+    tags = data.get("tags", [])
+    if not isinstance(tags, list):
+        raise HTTPException(400, "tags 必须是数组")
+    conv.tags = json.dumps(tags[:10], ensure_ascii=False)  # 最多 10 个标签
+    db.commit()
+    return {"id": conv.id, "tags": tags}
+
+
+@router.get("/conversations/{conv_id}/export")
+async def export_conversation(conv_id: str, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    """导出对话为 Markdown"""
+    conv = db.query(Conversation).filter(
+        Conversation.id == conv_id, Conversation.user_id == user["sub"],
+    ).first()
+    if not conv:
+        raise HTTPException(404, "对话不存在")
+
+    turns = db.query(ConversationTurn).filter(
+        ConversationTurn.conversation_id == conv_id,
+    ).order_by(ConversationTurn.created_at.asc()).all()
+
+    lines = [f"# {conv.title}", "", f"创建时间: {conv.created_at}", ""]
+    for t in turns:
+        role = "👤 用户" if t.role == "user" else "🤖 助手"
+        lines.append(f"## {role}")
+        lines.append("")
+        lines.append(t.content)
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    md_content = "\n".join(lines)
+    from fastapi.responses import Response
+    from urllib.parse import quote
+    safe_name = quote(conv.title[:30] or '对话') + '.md'
+    return Response(
+        content=md_content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}"},
+    )
 
 
 # ─── 用户反馈 ────────────────────────────────────

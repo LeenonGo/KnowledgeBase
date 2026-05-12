@@ -299,11 +299,19 @@ const PageQA = (() => {
       list.innerHTML = convs.map(c => {
         const isActive = c.id === currentConvId;
         const time = c.updated_at ? c.updated_at.substring(5, 16).replace('T', ' ') : '';
-        return `<div class="chat-item${isActive ? ' active' : ''}">
-          <div class="title" onclick="PageQA.loadConversation('${c.id}')">${c.title || '新对话'}</div>
+        const pinIcon = c.is_pinned ? '📌' : '';
+        const tags = (c.tags || []).map(t => `<span class="conv-tag">${t}</span>`).join('');
+        return `<div class="chat-item${isActive ? ' active' : ''}${c.is_pinned ? ' pinned' : ''}">
+          <div class="title" onclick="PageQA.loadConversation('${c.id}')">${pinIcon} ${c.title || '新对话'}</div>
+          ${tags ? `<div class="conv-tags-row">${tags}</div>` : ''}
           <div class="flex-between" style="margin-top:2px;">
             <span class="meta">${time}</span>
-            <span class="delete-btn" onclick="event.stopPropagation();PageQA.deleteConversation('${c.id}')" title="删除">🗑️</span>
+            <div class="conv-actions">
+              <span class="conv-action-btn" onclick="event.stopPropagation();PageQA.togglePin('${c.id}')" title="${c.is_pinned ? '取消置顶' : '置顶'}">${c.is_pinned ? '📍' : '📌'}</span>
+              <span class="conv-action-btn" onclick="event.stopPropagation();PageQA.editTags('${c.id}')" title="标签">🏷️</span>
+              <span class="conv-action-btn" onclick="event.stopPropagation();PageQA.exportConv('${c.id}')" title="导出">📥</span>
+              <span class="conv-action-btn" onclick="event.stopPropagation();PageQA.deleteConversation('${c.id}')" title="删除">🗑️</span>
+            </div>
           </div>
         </div>`;
       }).join('');
@@ -394,7 +402,38 @@ const PageQA = (() => {
     if (_citeHoverCard) { _citeHoverCard.remove(); _citeHoverCard = null; }
   }
 
-  return { askQuestion, askPreset, newChat, feedback, loadConversationList, loadConversation, deleteConversation, reset, showCiteHover, hideCiteHover };
+  async function togglePin(convId) {
+    try {
+      await API.request(`/api/conversations/${convId}/pin`, { method: 'PUT' });
+      loadConversationList();
+    } catch (e) { console.error('置顶失败:', e); }
+  }
+
+  async function editTags(convId) {
+    const input = prompt('输入标签（多个用逗号分隔）：');
+    if (input === null) return;
+    const tags = input.split(/[,，]/).map(t => t.trim()).filter(Boolean);
+    try {
+      await API.request(`/api/conversations/${convId}/tags`, { method: 'PUT', body: { tags } });
+      loadConversationList();
+    } catch (e) { console.error('标签失败:', e); }
+  }
+
+  async function exportConv(convId) {
+    try {
+      const token = API.getToken();
+      const resp = await fetch(`/api/conversations/${convId}/export`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = '对话导出.md'; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { console.error('导出失败:', e); }
+  }
+
+  return { askQuestion, askPreset, newChat, feedback, loadConversationList, loadConversation, deleteConversation, reset, showCiteHover, hideCiteHover, togglePin, editTags, exportConv };
 })();
 
 Router.on('qa-chat', () => PageQA.loadConversationList());

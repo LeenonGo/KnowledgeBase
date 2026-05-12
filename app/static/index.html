@@ -33,6 +33,7 @@
     <a onclick="Router.navigate('audit-log')" id="menu-audit">📋 审计日志</a>
     <a onclick="Router.navigate('quality')" id="menu-quality">📈 质量监控</a>
     <a onclick="Router.navigate('evaluation')" id="menu-eval">🧪 效果评测</a>
+    <a onclick="Router.navigate('kb-health')" id="menu-health">💚 知识库健康度</a>
     <a onclick="Router.navigate('sys-config')" id="menu-config">⚙️ 系统配置</a>
   </div>
 </nav>
@@ -828,6 +829,23 @@
   </div>
 </div>
 
+<!-- ==================== 14. 知识库健康度 ==================== -->
+<div id="kb-health" class="screen">
+  <div class="screen-title">💚 知识库健康度看板</div>
+  <div id="health-overview" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;"></div>
+  <div class="card">
+    <h3 style="margin-bottom:16px;">各知识库健康度</h3>
+    <table>
+      <thead><tr><th>知识库</th><th>文档数</th><th>分块数</th><th>字符数</th><th>格式分布</th><th>7日查询</th><th>健康度</th></tr></thead>
+      <tbody id="health-table-body"><tr><td colspan="7" style="text-align:center;padding:40px;color:#999;">加载中...</td></tr></tbody>
+    </table>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+    <div class="card"><h3 style="margin-bottom:12px;">📊 文档数量分布</h3><div id="health-doc-chart" style="height:280px;"></div></div>
+    <div class="card"><h3 style="margin-bottom:12px;">📊 健康度评分</h3><div id="health-score-chart" style="height:280px;"></div></div>
+  </div>
+</div>
+
 </div><!-- end main-area -->
 
 
@@ -1027,6 +1045,7 @@
 <script src="/js/pages/quality.js?v=17"></script>
 <script src="/js/pages/chunks.js?v=17"></script>
 <script src="/js/pages/eval.js?v=17"></script>
+<script src="/js/pages/kb-health.js?v=17"></script>
 <!-- 初始化 -->
 <script>
   // 侧边栏收起/展开

@@ -180,6 +180,13 @@ strong{font-weight:600;color:#0f172a}
 .chunk-item:last-child{margin-bottom:0}
 .chat-item .delete-btn{opacity:0;cursor:pointer;font-size:12px;transition:opacity .2s}
 .chat-item:hover .delete-btn{opacity:1}
+.chat-item .conv-actions{display:flex;gap:4px;opacity:0;transition:opacity .2s}
+.chat-item:hover .conv-actions{opacity:1}
+.chat-item.pinned{background:#f0f9ff;border-left:3px solid #1890ff}
+.conv-action-btn{cursor:pointer;font-size:12px;padding:2px 4px;border-radius:3px;transition:background .15s}
+.conv-action-btn:hover{background:#e6f7ff}
+.conv-tag{display:inline-block;font-size:10px;background:#f0f5ff;color:#2f54eb;padding:1px 6px;border-radius:3px;margin-right:4px;margin-bottom:2px}
+.conv-tags-row{padding:0 12px 2px;display:flex;flex-wrap:wrap;gap:2px}
 
 /* Top Header */
 .top-header{position:fixed;top:0;left:220px;right:0;height:52px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:space-between;padding:0 24px;z-index:90;transition:left .25s ease}

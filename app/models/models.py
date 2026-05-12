@@ -152,6 +152,8 @@ class Conversation(Base):
     title = Column(String(512), default="新对话")
     conv_type = Column(String(16), default="rag", comment="rag / agent")
     status = Column(String(16), default="active")  # active / closed
+    is_pinned = Column(Boolean, default=False, comment="置顶")
+    tags = Column(String(512), default="", comment="JSON 数组，如 [\"重要\",\"待确认\"]")
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
 
