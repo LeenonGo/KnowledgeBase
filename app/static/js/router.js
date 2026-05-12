@@ -47,7 +47,8 @@ const Router = (() => {
     document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
     const navMap = {
       'dashboard': '仪表盘', 'kb-list': '知识库列表', 'kb-detail': '知识库列表',
-      'doc-upload': '知识库列表', 'qa-chat': '智能问答', 'user-mgmt': '用户管理',
+      'doc-upload': '知识库列表', 'qa-chat': '智能问答', 'agent-ws': 'Agent 工作台',
+      'user-mgmt': '用户管理',
       'dept-tree': '部门管理', 'perm-mgmt': '权限管理', 'audit-log': '审计日志',
       'quality': '质量监控', 'evaluation': '效果评测', 'sys-config': '系统配置',
     };
@@ -58,6 +59,17 @@ const Router = (() => {
     }
 
     currentScreen = screenName;
+
+    // QA 和 Agent 页面自动收起侧边栏
+    const autoCollapsePages = ['qa-chat', 'agent-ws'];
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && typeof sidebarCollapsed !== 'undefined') {
+      if (autoCollapsePages.includes(screenName) && !sidebarCollapsed) {
+        toggleSidebar();
+      } else if (!autoCollapsePages.includes(screenName) && sidebarCollapsed) {
+        toggleSidebar();
+      }
+    }
 
     // 调用注册的回调
     const handler = routes.get(screenName);

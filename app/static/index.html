@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RAG 知识库管理系统</title>
 <link rel="stylesheet" href="/style.css?v=17">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 </head>
 <body>
 
@@ -19,6 +20,7 @@
     <div class="side-section-title">知识库</div>
     <a onclick="Router.navigate('kb-list')">📂 知识库列表</a>
     <a onclick="Router.navigate('qa-chat')">💬 智能问答</a>
+    <a onclick="Router.navigate('agent-ws')">🧠 Agent 工作台</a>
   </div>
   <div class="side-section">
     <div class="side-section-title">管理</div>
@@ -37,7 +39,9 @@
 
 <!-- Top Header Bar -->
 <header class="top-header" id="top-header" style="display:none;">
-  <div class="top-header-left"></div>
+  <div class="top-header-left">
+    <div class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" title="收起/展开菜单">☰</div>
+  </div>
   <div class="top-header-right">
     <div class="user-avatar-wrap" id="user-avatar-wrap" onclick="toggleUserDropdown()">
       <div class="avatar" id="header-avatar">A</div>
@@ -291,7 +295,6 @@
         <div class="chat-item active"><div class="title">新对话</div><div class="meta">刚刚</div></div>
       </div>
       <div style="padding:12px;border-top:1px solid #f0f0f0;">
-        <div style="font-size:11px;color:#999;">筛选和检索设置已移至输入框上方</div>
       </div>
     </div>
     <div class="chat-main">
@@ -322,12 +325,55 @@
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-hybrid" checked> 混合检索</label>
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-rewrite"> 查询改写</label>
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-polish"> Query润色</label>
-          <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-agent" checked> Agent模式</label>
           <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="qa-web-search"> 🌐 联网</label>
         </div>
         <div class="chat-input-row">
           <textarea class="chat-input" id="qa-input" placeholder="输入问题，Enter 发送..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();PageQA.askQuestion()}"></textarea>
           <button class="btn btn-primary" style="height:44px;" onclick="PageQA.askQuestion()" id="qa-send-btn">发送</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 6b. Agent 工作台 ==================== -->
+<div id="agent-ws" class="screen">
+  <div class="screen-title" style="margin-bottom:8px;font-size:18px;">🧠 Agent 工作台</div>
+  <div class="chat-container">
+    <div class="chat-sidebar-panel">
+      <div class="chat-sidebar-header">
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="PageAgent.newChat()">＋ 新对话</button>
+      </div>
+      <div class="chat-list" id="agent-chat-list">
+        <div class="chat-item active"><div class="title">新对话</div><div class="meta">刚刚</div></div>
+      </div>
+      <div style="padding:12px;border-top:1px solid #f0f0f0;">
+        <div style="font-size:11px;color:#999;">Agent 自主决策工具调用，支持多步推理</div>
+      </div>
+    </div>
+    <div class="chat-main">
+      <div class="chat-messages" id="agent-messages">
+        <div style="text-align:center;padding:60px 20px;color:#999;" id="agent-empty-state">
+          <div style="font-size:48px;margin-bottom:16px;">🧠</div>
+          <div style="font-size:16px;">输入任务开始推理</div>
+          <div style="font-size:13px;margin-top:8px;">Agent 会自主调用工具、检索知识库、联网搜索来完成任务</div>
+          <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px;align-items:center;">
+            <button class="btn" style="max-width:500px;width:100%;justify-content:flex-start;text-align:left;font-size:13px;padding:10px 16px;" onclick="PageAgent.askPreset(this)">📋 对比各知识库的核心功能模块</button>
+            <button class="btn" style="max-width:500px;width:100%;justify-content:flex-start;text-align:left;font-size:13px;padding:10px 16px;" onclick="PageAgent.askPreset(this)">📋 总结所有文档中关于部署的关键信息</button>
+            <button class="btn" style="max-width:500px;width:100%;justify-content:flex-start;text-align:left;font-size:13px;padding:10px 16px;" onclick="PageAgent.askPreset(this)">📋 根据知识库内容帮我写一份技术方案</button>
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #f0f0f0;">
+          <div style="font-size:12px;color:#1890ff;font-weight:600;">🧠 Agent 模式</div>
+          <div style="flex:1;"></div>
+          <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="agent-web-search" checked> 🌐 联网搜索</label>
+          <label style="font-size:12px;color:#999;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="agent-show-trace"> 🔍 显示 Trace</label>
+        </div>
+        <div class="chat-input-row">
+          <textarea class="chat-input" id="agent-input" placeholder="描述你的任务，Agent 会自动规划和执行..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();PageAgent.askQuestion()}"></textarea>
+          <button class="btn btn-primary" style="height:44px;" onclick="PageAgent.askQuestion()" id="agent-send-btn">发送</button>
         </div>
       </div>
     </div>
@@ -973,6 +1019,7 @@
 <script src="/js/pages/kb.js?v=17"></script>
 <script src="/js/pages/upload.js?v=17"></script>
 <script src="/js/pages/qa.js?v=17"></script>
+<script src="/js/pages/agent.js?v=17"></script>
 <script src="/js/pages/users.js?v=17"></script>
 <script src="/js/pages/depts.js?v=17"></script>
 <script src="/js/pages/audit.js?v=17"></script>
@@ -982,6 +1029,15 @@
 <script src="/js/pages/eval.js?v=17"></script>
 <!-- 初始化 -->
 <script>
+  // 侧边栏收起/展开
+  let sidebarCollapsed = false;
+  function toggleSidebar() {
+    sidebarCollapsed = !sidebarCollapsed;
+    document.getElementById('sidebar').classList.toggle('collapsed', sidebarCollapsed);
+    document.getElementById('sidebar-toggle').textContent = sidebarCollapsed ? '☰' : '✕';
+    document.getElementById('sidebar-toggle').title = sidebarCollapsed ? '展开菜单' : '收起菜单';
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     PageLogin.init();
     PageUpload.init();

@@ -1,5 +1,5 @@
 /**
- * 智能问答页 — 多轮对话 + 反馈
+ * 智能问答页 — RAG 模式（检索增强生成）
  */
 const PageQA = (() => {
   let currentConvId = null;
@@ -9,7 +9,7 @@ const PageQA = (() => {
     if (currentConvId) return currentConvId;
     try {
       const data = await API.request('/api/conversations', {
-        method: 'POST', body: { title: '新对话' },
+        method: 'POST', body: { title: '新对话', type: 'rag' },
       });
       currentConvId = data.id;
       return currentConvId;
@@ -58,31 +58,19 @@ const PageQA = (() => {
 
       const topK = parseInt(document.getElementById('qa-topk').value) || 10;
       const useHybrid = document.getElementById('qa-hybrid')?.checked ?? true;
-      const isAgentMode = document.getElementById('qa-agent')?.checked ?? false;
-      const body = { question, top_k: topK, use_hybrid: useHybrid, conv_id: convId, use_reranker: false };
+      const body = { question, top_k: topK, use_hybrid: useHybrid, conv_id: convId, use_reranker: false, use_agent: false };
       body.use_rewrite = document.getElementById('qa-rewrite')?.checked ?? false;
       body.use_polish = document.getElementById('qa-polish')?.checked ?? false;
-      body.use_agent = isAgentMode;
       body.use_web_search = document.getElementById('qa-web-search')?.checked ?? false;
       const kbId = document.getElementById('qa-kb-filter')?.value || '';
       if (kbId) body.kb_id = kbId;
 
       // ── 流式请求 ──
       removeMessage(loadingId);
-
-      // Agent 模式：创建推理链容器
-      let chainContainer = null;
-      let streamHtml = '';
-      if (isAgentMode) {
-        streamHtml = `<div class="agent-chain" id="agent-chain-live"><div class="agent-chain-header" onclick="this.parentElement.classList.toggle('collapsed')">🧠 Agent 推理过程 <span class="chain-toggle">▼</span></div><div class="agent-chain-body"></div></div><span id="streaming-text"></span>`;
-      } else {
-        streamHtml = '<span id="streaming-text"></span>';
-      }
-      const msgId = addMessage('assistant', streamHtml);
+      const msgId = addMessage('assistant', '<span id="streaming-text"></span>');
       const msgEl = document.getElementById(msgId);
       const bubble = msgEl?.querySelector('.bubble');
       const textEl = document.getElementById('streaming-text');
-      if (isAgentMode) chainContainer = document.getElementById('agent-chain-live');
       const startTime = Date.now();
 
       // 收集的来源
@@ -90,11 +78,8 @@ const PageQA = (() => {
       const sourcesEl = document.createElement('div');
       sourcesEl.className = 'source-tags-row';
 
-      // 根据模式选择接口
-      const streamUrl = isAgentMode ? '/api/query/agent/stream' : '/api/query/stream';
-
       try {
-        const resp = await fetch(streamUrl, {
+        const resp = await fetch('/api/query/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': API.getToken() ? `Bearer ${API.getToken()}` : '' },
           body: JSON.stringify(body),
@@ -112,7 +97,6 @@ const PageQA = (() => {
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          // SSE 按双换行分割事件
           const events = buffer.split('\n\n');
           buffer = events.pop() || '';
 
@@ -129,37 +113,12 @@ const PageQA = (() => {
             try { data = JSON.parse(dataStr); } catch { continue; }
 
             if (eventType === 'token') {
-              // 普通模式流式 token
               if (typeof data === 'string') assistantContent += data;
               else assistantContent += JSON.stringify(data);
               if (textEl) textEl.textContent = assistantContent;
-              if (bubble && !isAgentMode) {
-                bubble.innerHTML = UI.md2html(assistantContent);
+              if (bubble) {
+                const _cd = UI.extractCharts(assistantContent); bubble.innerHTML = UI.md2html(_cd.text); UI.renderCharts(bubble, _cd.charts);
                 bubble.appendChild(sourcesEl);
-              }
-            } else if (eventType === 'thought') {
-              if (chainContainer) {
-                const chainBody = chainContainer.querySelector('.agent-chain-body');
-                const stepEl = document.createElement('div');
-                stepEl.className = 'chain-step chain-thought';
-                stepEl.innerHTML = `<span class="chain-icon">💭</span><span class="chain-label">思考 Step ${data.step}</span><div class="chain-content">${data.content}</div>`;
-                chainBody.appendChild(stepEl);
-              }
-            } else if (eventType === 'action') {
-              if (chainContainer) {
-                const chainBody = chainContainer.querySelector('.agent-chain-body');
-                const stepEl = document.createElement('div');
-                stepEl.className = 'chain-step chain-action';
-                stepEl.innerHTML = `<span class="chain-icon">⚡</span><span class="chain-label">调用 ${data.tool}</span><div class="chain-content"><code>${JSON.stringify(data.arguments, null, 2)}</code></div>`;
-                chainBody.appendChild(stepEl);
-              }
-            } else if (eventType === 'observe') {
-              if (chainContainer) {
-                const chainBody = chainContainer.querySelector('.agent-chain-body');
-                const stepEl = document.createElement('div');
-                stepEl.className = 'chain-step chain-observe';
-                stepEl.innerHTML = `<span class="chain-icon">👁️</span><span class="chain-label">观察</span><div class="chain-content">${(data.content || '').substring(0, 500)}</div>`;
-                chainBody.appendChild(stepEl);
               }
             } else if (eventType === 'answer') {
               assistantContent = data.content || '';
@@ -167,20 +126,8 @@ const PageQA = (() => {
               if (data.citations) finalCitations = data.citations;
               if (textEl) textEl.textContent = assistantContent;
               if (bubble) {
-                bubble.innerHTML = UI.md2html(assistantContent);
+                const _cd = UI.extractCharts(assistantContent); bubble.innerHTML = UI.md2html(_cd.text); UI.renderCharts(bubble, _cd.charts);
                 bubble.appendChild(sourcesEl);
-              }
-              // Agent 模式：立即渲染来源标签
-              if (isAgentMode && finalSources.length) {
-                finalSources.forEach(s => {
-                  if (!detectedSources.has(s)) {
-                    detectedSources.add(s);
-                    const tag = document.createElement('span');
-                    tag.className = 'source-tag';
-                    tag.textContent = '📎 ' + s;
-                    sourcesEl.appendChild(tag);
-                  }
-                });
               }
             } else if (eventType === 'source') {
               if (!detectedSources.has(data.source)) {
@@ -213,14 +160,11 @@ const PageQA = (() => {
         const latency = Date.now() - startTime;
         const latencySec = (latency / 1000).toFixed(1);
 
-        // 渲染引用标注 [1][2] → 可点击的 hover 弹出原文卡片
+        // 渲染引用标注 [C1][C2] → 可点击的 hover 弹出原文卡片
         if (finalCitations.length && bubble) {
-          // 构建 index -> citation 信息的映射
           const citeMap = {};
           finalCitations.forEach(c => { citeMap[c.index] = c; });
           let html = bubble.innerHTML;
-          // 替换 [数字] 为可点击引用（不匹配已有的HTML标签属性中的方括号）
-          // 匹配流式原始文本中的 [C数字] 格式
           html = html.replace(/\[C(\d+)\]/g, (match, num) => {
             const cite = citeMap[parseInt(num)];
             if (!cite) return match;
@@ -247,12 +191,6 @@ const PageQA = (() => {
         metaEl.style.cssText = 'font-size:11px;color:#bbb;margin-top:4px;';
         metaEl.textContent = `⏱ ${latencySec}s`;
         bubble?.appendChild(metaEl);
-
-        // Agent 模式：无内容时显示提示
-        if (isAgentMode && !assistantContent) {
-          assistantContent = 'Agent 未返回回答内容';
-          if (textEl) textEl.textContent = assistantContent;
-        }
 
         // 记录到数据库
         if (convId) {
@@ -338,7 +276,6 @@ const PageQA = (() => {
   async function newChat() {
     currentConvId = null;
     lastTurnId = null;
-    // 刷新对话列表
     loadConversationList();
     document.getElementById('chat-messages').innerHTML =
       `<div style="text-align:center;padding:60px 20px;color:#999;" id="qa-empty-state">
@@ -351,10 +288,9 @@ const PageQA = (() => {
   }
 
   async function loadConversationList() {
-    // 加载知识库列表（下拉框）
     loadKBFilter();
     try {
-      const convs = await API.request('/api/conversations');
+      const convs = await API.request('/api/conversations?conv_type=rag');
       const list = document.getElementById('chat-list');
       if (!convs.length) {
         list.innerHTML = '<div class="chat-item active"><div class="title">新对话</div><div class="meta">刚刚</div></div>';
@@ -376,7 +312,7 @@ const PageQA = (() => {
 
   async function loadKBFilter() {
     const sel = document.getElementById('qa-kb-filter');
-    if (!sel || sel.options.length > 1) return; // 已加载
+    if (!sel || sel.options.length > 1) return;
     try {
       const data = await API.request('/api/knowledge-bases?page=1&page_size=100');
       (data.items || []).forEach(k => {
@@ -406,7 +342,6 @@ const PageQA = (() => {
       if (!data.turns?.length) {
         div.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#999;">对话为空</div>';
       }
-      // 更新列表高亮
       loadConversationList();
     } catch (e) {
       console.error('加载对话失败:', e);
@@ -430,8 +365,6 @@ const PageQA = (() => {
   function reset() {
     currentConvId = null;
     lastTurnId = null;
-    const msgs = document.getElementById('qa-messages');
-    if (msgs) msgs.innerHTML = '';
   }
 
   let _citeHoverCard = null;
@@ -449,7 +382,6 @@ const PageQA = (() => {
     card.innerHTML = `<div style="font-weight:600;margin-bottom:6px;color:#1890ff;">📄 ${source}</div><div style="color:#555;line-height:1.6;max-height:160px;overflow-y:auto;">${preview}</div>`;
     document.body.appendChild(card);
     _citeHoverCard = card;
-    // 定位
     const rect = el.getBoundingClientRect();
     let left = rect.left;
     if (left + 420 > window.innerWidth) left = window.innerWidth - 420;

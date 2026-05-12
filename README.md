@@ -2,16 +2,19 @@
 
 基于 RAG 架构的企业级智能知识库管理与问答平台。15 分钟部署上线，支持多部门权限隔离、混合检索、多轮对话、效果评测。
 
-**核心能力**
-- **三种分块策略**：语义分块 / 结构分析 / 固定长度，用户可选
-- **混合检索**：向量语义 + BM25 关键词 + RRF 融合，精确关键词也能找到
-- **部门权限隔离**：部门级授权 + 三级权限，检索时自动过滤
-- **多轮对话**：上下文自动传递，像跟同事聊天一样问知识库
-- **查询缓存**：重复问题 <100ms 返回，省 60% LLM 费用
-- **反馈闭环**：用户 👍👎 + 质量监控，持续优化有数据支撑
-- **效果评测**：LLM-as-Judge 9 维度自动评分
-- **OCR 解析**：PaddleOCR 版面检测 + 文字识别 + 表格识别
-- **Agent 模式**（v4.0 新增）：LLM 自主决策工具调用，支持跨知识库对比、文档总结等多步骤推理，工具层权限代理确保零越权
+## 核心能力
+
+| 能力 | 说明 |
+|------|------|
+| 📄 多格式文档解析 | PDF / Word / Excel / CSV / PPT / TXT / Markdown，PDF 支持 OCR |
+| ✂️ 三种分块策略 | 语义分块 / 结构分析 / 固定长度，用户可选 |
+| 🔍 混合检索 | 向量语义 + BM25 关键词 + RRF 融合 + qwen3-rerank 重排 |
+| 🔐 部门权限隔离 | 部门级授权 + 三级角色权限，检索时自动过滤 |
+| 💬 多轮对话 | 上下文自动传递，Query 润色 + 查询改写 |
+| 🧠 Agent 模式 | LLM 自主决策工具调用，Plan-and-Execute 多步推理 |
+| 📊 Self-RAG | 自适应检索：自动判断是否需要检索、评估结果相关度 |
+| 📈 效果评测 | LLM-as-Judge 9 维度自动评分 |
+| 🔄 反馈闭环 | 用户 👍👎 + 质量监控，持续优化 |
 
 ---
 
@@ -26,7 +29,7 @@
 | Reranker | qwen3-rerank |
 | OCR | PaddleOCR（版面检测 + 文字识别 + 表格识别） |
 | 文档解析 | PyMuPDF(PDF)、python-docx(Word)、openpyxl/xlrd(Excel)、python-pptx(PPT)、jieba(中文分词) |
-| 前端 | HTML + CSS + JavaScript（SPA + Hash 路由） |
+| 前端 | HTML + CSS + JavaScript（SPA + Hash 路由）+ ECharts |
 
 ---
 
@@ -56,17 +59,18 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ---
 
-## 功能概览
+## 功能页面
 
 | 页面 | 功能 | 权限 |
 |---|---|---|
 | 登录页 | JWT 认证 | 全员 |
-| 仪表盘 | 统计卡片、7天趋势、热门知识库 | 全员 |
+| 仪表盘 | 统计卡片、7 天趋势、热门知识库 | 全员 |
 | 知识库列表 | 创建/查看/删除，部门选择 | 全员（删除需 admin） |
 | 知识库详情 | 文档管理、分块查看、部门授权 | 查看全员，编辑需 admin |
-| 文档上传 | 三步向导、多种分块策略、PDF OCR 异步处理+按页进度、支持 PDF/Word/Excel/CSV/PPT/TXT/Markdown | admin/kb_admin |
+| 文档上传 | 三步向导、分块策略选择、PDF OCR 异步处理+按页进度 | admin/kb_admin |
 | 分块查看 | 搜索/排序/折叠/编辑/删除 | 查看全员，编辑需 admin |
-| 智能问答 | 多轮对话、混合检索、Query 润色、预设问题、Markdown 渲染、点赞/点踩 | 全员 |
+| 💬 智能问答 | RAG 模式：多轮对话、混合检索、Query 润色、引用标注 [C1][C2] | 全员 |
+| 🧠 Agent 工作台 | Agent 模式：推理链可视化、Plan-and-Execute、图表生成、Self-RAG | 全员 |
 | 用户管理 | CRUD、筛选、分页 | super_admin |
 | 部门管理 | 树形结构 | super_admin |
 | 审计日志 | 操作记录筛选 | super_admin |
@@ -78,20 +82,50 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## 智能问答流程
 
+### RAG 模式（智能问答）
+
 ```
 用户提问 → JWT认证 → 权限校验 → 查询改写(多轮时) → 查缓存
-  → Query润色(纠错+扩展+关键词) → Embedding向量化 → 向量检索(ChromaDB) + BM25检索(jieba)
-  → RRF融合 → qwen3-rerank重排 → LLM生成回答 → 写缓存 → 返回
+  → Query润色(纠错+扩展+关键词) → Embedding向量化
+  → 向量检索(ChromaDB) + BM25检索(jieba) → RRF融合
+  → qwen3-rerank重排 → 引用标注[C1][C2] → LLM生成回答 → 返回
 ```
 
-| 步骤 | 说明 | 代码位置 |
-|------|------|----------|
-| 查询改写 | 有对话历史时，LLM 将指代问题改写为独立查询 | `core/llm.py` |
-| 向量检索 | ChromaDB 语义相似度匹配 | `core/vectorstore.py` |
-| BM25 检索 | jieba 中文分词 + BM25 关键词匹配 | `core/hybrid_search.py` |
-| RRF 融合 | Reciprocal Rank Fusion 合并两路结果 | `core/hybrid_search.py` |
-| 重排序 | qwen3-rerank 对结果二次排序 | `core/reranker.py` |
+### Agent 模式（Agent 工作台）
 
+```
+用户提问 → Planning（判断复杂度，拆解子任务）
+  → 每个子任务执行 ReAct 循环：Thought → Tool-Call → Observe（最多7轮）
+  → Self-RAG：评估检索相关度，低相关自动重试或拒答
+  → Synthesize：综合所有子任务结果生成最终回答
+  → 图表渲染（chart_generator → ECharts）
+```
+
+**Agent 工具列表（11 个）：**
+
+| 工具 | 功能 |
+|---|---|
+| search_kb | 知识库语义检索（带相关度评分） |
+| list_kb | 列出可访问知识库 |
+| list_docs | 列出知识库文档 |
+| get_doc_content | 获取文档全文 |
+| summarize_doc | 文档摘要生成 |
+| web_search | 联网搜索 |
+| current_time | 获取当前时间 |
+| calculator | 数学计算（安全沙箱） |
+| doc_stats | 知识库统计（文档数/分块数/格式分布） |
+| chart_generator | 数据可视化（ECharts 柱状图/饼图/折线图） |
+| knowledge_compare | 知识库/文档对比分析 |
+
+---
+
+## Self-RAG 自适应检索
+
+系统内置 Self-RAG 能力，通过 3 个反思节点提升回答质量：
+
+1. **Retrieve Judge**：LLM 自主判断是否需要检索（简单事实问题直接回答）
+2. **Relevance Judge**：检索结果带相关度评分（高/中/低），全部低相关时拒答并建议换关键词或联网搜索
+3. **Grounding Judge**：回答必须标注引用来源 [C1][C2]，找不到证据标注「待确认」，禁止编造
 
 ---
 
@@ -103,32 +137,6 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - 事实型（40%）、超范围（20%）、多文档（15%）、歧义（15%）、错误前提（10%）
 
 **9 维度评分**：检索精确率、检索召回率、排序质量、忠实度、相关性、完整性、拒答准确性、时效性、多跳推理
-
----
-
-## Agent 模式（v4.0 新增）
-
-LLM 自主决策工具调用，支持多步骤推理。开启后 Agent 自主决定调用哪些工具、以什么顺序组合。
-
-**工具列表：**
-| 工具 | 功能 | 权限 |
-|---|---|---|
-| search_kb | 知识库语义检索 | viewer |
-| list_kb | 列出可访问知识库 | 自动过滤 |
-| get_doc_content | 获取文档全文 | viewer |
-| summarize_doc | 文档摘要生成 | viewer |
-| list_docs | 列出知识库文档 | viewer |
-
-**执行流程：** 用户提问 → LLM 判断是否需要工具 → Tool-Call 循环（最多 5 轮）→ 生成回答
-
-**安全设计：**
-- 每个工具独立执行权限校验，不信任 LLM 参数
-- user/db 不暴露给 LLM，无法伪造身份
-- list_kb 仅返回有权限的知识库
-- 循环上限 5 轮，防止 token 消耗失控
-- 所有工具调用记录审计日志
-
-详细设计见 [PRD v4.0](docs/RAG知识库管理系统_PRD_v4.0.docx) 和 [设计方案 v4.0](docs/RAG知识库管理系统_整体设计方案_v4.0.docx)
 
 ---
 
@@ -145,18 +153,18 @@ LLM 自主决策工具调用，支持多步骤推理。开启后 Agent 自主决
 |---|---|---|
 | GET/POST | `/api/knowledge-bases` | 知识库列表/创建 |
 | PUT/DELETE | `/api/knowledge-bases/{id}` | 更新/删除知识库 |
-| POST | `/api/upload` | 上传文档（PDF 走 OCR 异步处理） |
-| GET | `/api/upload/progress/{task_id}` | PDF 处理进度（按页更新） |
+| POST | `/api/upload` | 上传文档 |
+| GET | `/api/upload/progress/{task_id}` | PDF 处理进度 |
 | GET | `/api/documents?kb_id=xxx` | 文档列表 |
-| DELETE | `/api/documents/{filename}` | 删除文档（级联清理） |
+| DELETE | `/api/documents/{filename}` | 删除文档 |
 | GET | `/api/documents/{filename}/chunks` | 查看分块 |
 | PUT/DELETE | `/api/chunks/{chunk_id}` | 编辑/删除分块 |
 
 ### 问答 & 对话
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/query` | 语义问答 |
-| POST | `/api/query/stream` | 流式问答（SSE） |
+| POST | `/api/query/stream` | RAG 流式问答（SSE） |
+| POST | `/api/query/agent/stream` | Agent 流式问答（SSE） |
 | GET/POST | `/api/conversations` | 对话列表/创建 |
 | GET/POST | `/api/conversations/{id}/turns` | 对话轮次 |
 | POST/GET | `/api/feedback` | 提交/查看反馈 |
@@ -180,7 +188,6 @@ LLM 自主决策工具调用，支持多步骤推理。开启后 Agent 自主决
 | GET | `/api/stats/quality` | 质量监控统计 |
 | POST | `/api/eval/generate` | 生成评测集 |
 | POST | `/api/eval/run/{dataset_id}` | 启动评测 |
-| GET | `/api/eval/runs/{id}/results` | 评测结果详情 |
 
 ---
 
@@ -190,35 +197,49 @@ LLM 自主决策工具调用，支持多步骤推理。开启后 Agent 自主决
 knowledge-base/
 ├── app/
 │   ├── main.py                     # FastAPI 入口
-│   ├── api/                        # 14 个路由模块
+│   ├── api/                        # 路由模块
+│   │   ├── query_routes.py         # 问答（RAG + Agent + Plan-and-Execute）
+│   │   ├── conversation_routes.py  # 对话管理
 │   │   ├── doc_routes.py           # 文档上传/删除（含 OCR 异步处理）
 │   │   ├── kb_routes.py            # 知识库 CRUD
-│   │   ├── query_routes.py         # 问答
 │   │   ├── eval_routes.py          # 效果评测
 │   │   └── ...
 │   ├── core/
-│   │   ├── ocr/                    # OCR 模块
-│   │   │   ├── engine.py           # PaddleOCR 引擎（版面/文字/表格识别）
-│   │   │   ├── postprocess.py      # 后处理 → Markdown
-│   │   │   └── utils.py            # 工具函数
-│   │   ├── loader.py               # 文档加载（PDF 统一走 OCR）
-│   │   ├── splitter.py             # 文本分块（语义/固定/结构）
+│   │   ├── llm.py                  # LLM 调用 + Agent + Plan-and-Execute + Self-RAG
+│   │   ├── tools.py                # 11 个 Agent 工具 + 工具注册表
 │   │   ├── vectorstore.py          # ChromaDB 向量存储 + 混合检索
-│   │   ├── llm.py                  # LLM 调用 + 查询改写
+│   │   ├── splitter.py             # 文本分块（语义/固定/结构）
 │   │   ├── reranker.py             # 重排序
-│   │   ├── progress.py             # 上传任务进度追踪
+│   │   ├── loader.py               # 文档加载
+│   │   ├── ocr/                    # OCR 模块（PaddleOCR）
 │   │   └── ...
 │   ├── models/                     # ORM + Pydantic
-│   └── static/                     # 前端 SPA（13 个页面模块）
-├── config/                         # 模型/Prompt 配置
-├── scripts/                        # init_db / migrate_db / ocr_cli
+│   └── static/                     # 前端 SPA
+│       ├── index.html              # 主页面 + 路由
+│       ├── style.css               # 全局样式 + Markdown 渲染
+│       └── js/
+│           ├── router.js           # Hash 路由
+│           ├── api.js              # API 封装
+│           ├── components/ui.js    # 通用组件（分页/模态/Markdown渲染/图表）
+│           └── pages/              # 14 个页面模块
+│               ├── qa.js           # 智能问答（RAG 模式）
+│               ├── agent.js        # Agent 工作台（Agent 模式）
+│               └── ...
+├── config/
+│   ├── models.json                 # LLM/Embedding/Reranker 配置
+│   └── prompts.json                # Prompt 模板（qa/agent/planner/synthesizer/...）
+├── scripts/
+│   ├── init_db.py                  # 数据库初始化
+│   ├── migrate_db.py               # 增量迁移
+│   └── ocr_cli.py                  # OCR 命令行工具
 ├── data/chroma_db/                 # 向量库持久化
+├── docs/                           # PRD / 设计方案 / 运维手册
 └── README.md
 ```
 
 ---
 
-## 数据库（14 张表）
+## 数据库（15 张表）
 
 | 表 | 用途 |
 |---|---|
@@ -226,10 +247,11 @@ knowledge-base/
 | `knowledge_base` | 知识库 |
 | `document` | 文档元数据（SHA-256 去重） |
 | `kb_department_access` / `kb_user_access` | 知识库授权 |
-| `conversation` / `conversation_turn` | 多轮对话 |
+| `conversation` / `conversation_turn` | 多轮对话（conv_type 区分 RAG/Agent） |
 | `qa_feedback` | 用户反馈 |
 | `audit_log` | 审计日志 |
 | `eval_dataset` / `eval_question` / `eval_run` / `eval_result` | 效果评测 |
+| `trace` / `trace_span` | 全链路 Trace |
 
 ---
 
@@ -247,94 +269,53 @@ knowledge-base/
 
 **Phase 1 — MVP 基础搭建**
 - RAG 知识库问答系统 MVP（FastAPI + ChromaDB + 前端 SPA）
-- 前端 12 个页面、产品原型 + PRD + 设计方案
 - 数据库层搭建（10 张核心表）
-- 模型配置持久化 + Ollama 支持 + 知识库文档隔离
 
 **Phase 2 — 文档管理完善**
 - 文档分块查看/编辑、上传三步向导、Prompt 管理系统
-- 语义分块 + 结构分析分块策略、Embedding 重试机制
-- 问答预设问题、Markdown 渲染、上下文长度优化
+- 语义分块 + 结构分析分块策略
 
 **Phase 3 — 安全与架构**
-- JWT 认证 + 知识库权限体系 + 审计日志 + 用户管理
-- 架构重构：安全加固 + 前后端模块化 + CORS
+- JWT 认证 + 知识库权限体系 + 审计日志
 - 混合检索（向量+BM25+RRF）+ 多轮对话 + 反馈 + 缓存
-- 文档版本管理（同名文件替换确认）
 
 **Phase 4 — 质量监控与统计**
 - 质量监控页、统计 API、仪表盘数据接入
-- 全面 Bug 修复 + 架构优化 + 代码清理
 
 **Phase 5 — 检索增强**
-- 查询改写 + qwen3-vl-rerank 重排
-- 问答页知识库选择器 + 对话删除 + 级联删除
+- 查询改写 + qwen3-rerank 重排
 
 **Phase 6 — 效果评测系统**
 - 评测集自动生成 + LLM-as-Judge 9 维度评分
-- 评测 Prompt 管理、MySQL 兼容修复、多轮 Bug 修复
-- 文档归档（PRD v3.0 + 设计方案 v3.0）
 
 **Phase 7 — OCR 与异步处理**
-- PaddleOCR PDF 解析（版面检测+文字识别+表格识别）
-- 异步上传按页进度、级联删除修复、错误提示优化
+- PaddleOCR PDF 解析 + 异步上传按页进度
 
-**Phase 8 — Query 润色与多格式支持（2026-04-27）**
-- Query 润色：LLM 拼写纠错 + 同义扩展 + 关键词提取，检索前自动优化查询
-- 多格式支持：Excel（.xlsx/.xls）、CSV、PowerPoint（.pptx）文档解析
-- Excel 分块优化：每条记录独立 ## 标题，heading 策略不合并，确保检索粒度精确
-- BM25 索引按 kb_id 隔离，修复跨知识库检索泄露
-- 缓存 key 改用原始问题，润色逻辑移至缓存未命中后
-- 密码复杂度校验 + 修改密码功能
-- 运维手册 v1.0
+**Phase 8 — Query 润色与多格式支持**
+- Query 润色 + Excel/CSV/PPT 解析 + BM25 索引隔离
 
-**Phase 10 — 流式问答与前端修复（2026-05-08）**
-- 修复 `/api/query/stream` 路由：恢复流式问答 SSE 接口（此前被错误映射为缓存统计）
-- 修复前端认证：`API.token` → `API.getToken()`，流式请求携带正确 Token
-- 修复 SSE 解析器：`indexOf` 配对改为索引遍历，解决多事件同 buffer 时 data 行错位
-- 默认 top_k 从 5 调至 10，确保多步骤内容完整检索
-- 新增 `/api/cache/stats`（GET）和 `/api/cache/clear`（POST）缓存管理接口
+**Phase 9 — Agent 智能化 v4.0**
+- Agent / Function Calling + 5 个工具 + 工具层权限代理
 
-**Phase 9 — Agent 智能化 v4.0（Phase 1+2 已完成）**
-- ✅ Agent / Function Calling：LLM 自主决策工具调用，Tool-Call 循环（最多5轮）
-- ✅ 5 个工具：search_kb / list_kb / list_docs / get_doc_content / summarize_doc
-- ✅ 权限安全：工具层权限代理 + 部门权限继承 + 缓存按用户隔离
-- ✅ Agent 专用 Prompt：鼓励工具调用，完整呈现工具结果
-- ✅ summarize_doc：读取全文调用 LLM 生成结构化摘要
-- ✅ get_doc_content：支持 max_chars 参数，最大 30000 字符
+**Phase 10 — 流式问答修复**
+- SSE 接口修复 + 前端认证修复
 
-**Phase 11 — Agent 全面升级 v5.0（阶段一已完成）**
-- ⏳ 引用标注（Citation）：回答中精确标注 [1][2][3] 引用来源，点击跳转原文高亮段落
-- ⏳ Agent 推理链可视化：前端展示 Thought → Action → Observation 完整推理过程
-- ⏳ 规划与分解（Planning）：复杂问题自动拆解为子任务，支持 Plan-and-Execute 范式
-- ⏳ 长期记忆层：会话记忆（用户偏好）+ 知识记忆（高频问答自动沉淀 FAQ）
-- ⏳ 工具生态扩展：web_search / code_interpreter / http_request / chart_generator / calculator
-- ⏳ 工具插件化注册：支持用户自定义工具，Tool Registry 热加载
-- ⏳ 联网搜索补全：知识库无结果时自动搜索外部信息
-- ⏳ Self-RAG 自适应检索：LLM 自行判断是否需要检索、检索结果是否有用
-- ⏳ Prompt 调试工作台：可视化编辑 + 实时预览 + A/B 测试 + 版本管理
-- ⏳ 知识库健康度看板：覆盖率、热点分析、孤岛检测、质量趋势
-- ⏳ 多 Agent 协作：路由 Agent + 检索 Agent + 分析 Agent + 写作 Agent 协同
-- ⏳ 知识图谱增强：实体抽取 + 关系图谱 + 多跳推理检索
-- ⏳ 全链路 Trace：query → 改写 → 检索 → 重排 → 生成，每步耗时可查
+**Phase 11 — v5.0 Agent 全面升级**
+- Citation 引用标注 + 推理链可视化 + 联网搜索 + 全链路 Trace
+- RAG / Agent 模式分离（独立页面 + 对话隔离）
+- Plan-and-Execute 规划分解（复杂问题自动拆子任务）
+- Self-RAG 自适应检索（Retrieve/Relevance/Grounding 三重反思）
+- 11 个 Agent 工具（含 chart_generator、calculator、doc_stats 等）
+- 前端 UI 优化（侧边栏收起、Markdown 渲染、ECharts 图表）
 
 ---
 
 ## 待办功能
 
-### 🔥 P0 — 核心智能化（v5.0 优先实施）
-
-- [x] **引用标注（Citation）**：回答中精确引用原文段落 [C1][C2]，hover 弹出原文上下文（非 Agent 模式）
-- [x] **Agent 推理链可视化**：前端实时展示 Thought → Action → Observation 循环过程
-- [x] **联网搜索工具**：web_search 工具（SerpAPI），知识库无结果时自动搜索外部信息补全（需配置 SERP_API_KEY）
-- [x] **全链路 Trace**：每次问答记录完整链路 span 和耗时，/api/traces 接口可查询
-
 ### ⭐ P1 — 深度智能化
 
-- [ ] **规划与分解（Planning）**：复杂问题自动拆解为子任务，ReAct / Plan-and-Execute 范式
+- [ ] **工具插件化注册**：支持用户自定义工具，Tool Registry 热加载
 - [ ] **长期记忆层**：会话记忆（用户偏好）+ 知识记忆（高频问答沉淀 FAQ）
-- [ ] **Self-RAG 自适应检索**：LLM 自行判断是否需要检索，根据问题复杂度调整检索深度
-- [ ] **更多 Agent 工具**：code_interpreter / http_request / chart_generator / calculator
 
 ### ⭐ P2 — 产品体验
 
@@ -347,15 +328,11 @@ knowledge-base/
 
 - [ ] **多 Agent 协作**：路由 Agent + 检索 Agent + 分析 Agent + 写作 Agent
 - [ ] **知识图谱增强**：实体抽取 + 关系图谱 + GraphRAG 多跳推理
-- [ ] **全链路 Trace**：对标 Langfuse，query→改写→检索→重排→生成每步可查
 - [ ] **数据源同步**：飞书 / Confluence / Git 自动导入
 - [ ] **API 开放 + Bot 发布**：API Key / Widget / Webhook 对外提供问答能力
 
 ### 🛡️ 系统优化 & 安全加固
 
-- [x] 用户名和角色显示移到右上角，点击头像出现下拉菜单（修改密码、退出登录）
-- [x] 密码复杂度要求：字母+数字，最少 8 位
-- [x] 运维手册（部署、扩缩容、故障排查、数据恢复流程）
 - [ ] JWT 过期时间 + 刷新机制（access_token + refresh_token 双 token）
 - [ ] 告警：OOM、磁盘满、LLM API 不可用时要有告警
 - [ ] 缓存层：查询缓存接 Redis，支持多实例部署

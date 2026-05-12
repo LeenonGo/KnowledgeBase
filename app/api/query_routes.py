@@ -285,8 +285,8 @@ async def agent_query_stream(
     request: Request, req: QueryRequest,
     user: dict = Depends(get_current_user), db: Session = Depends(get_db),
 ):
-    """Agent 模式流式问答 — 推理链可视化"""
-    from app.core.llm import generate_answer_agent_stream, get_refuse_answer
+    """Agent 模式流式问答 — Plan-and-Execute + 推理链可视化"""
+    from app.core.llm import plan_and_execute_stream, get_refuse_answer
     from app.core.vectorstore import search_accessible
     from app.core.tools import TOOL_DEFINITIONS
 
@@ -308,13 +308,22 @@ async def agent_query_stream(
                 from app.core.tools import TOOL_DEFINITIONS as _TD
                 # web_search 已在 TOOL_DEFINITIONS 中，无需重复添加
                 pass
-            for event in generate_answer_agent_stream(
+            for event in plan_and_execute_stream(
                 req.question, agent_context, history=history,
                 tools=agent_tools,
                 tool_context={"db": db, "user": user},
             ):
                 event_type = event["type"]
-                if event_type == "thought":
+                if event_type == "plan":
+                    data = json.dumps(event, ensure_ascii=False)
+                    yield f"event: plan\ndata: {data}\n\n"
+                elif event_type == "subtask_start":
+                    data = json.dumps(event, ensure_ascii=False)
+                    yield f"event: subtask_start\ndata: {data}\n\n"
+                elif event_type == "subtask_done":
+                    data = json.dumps(event, ensure_ascii=False)
+                    yield f"event: subtask_done\ndata: {data}\n\n"
+                elif event_type == "thought":
                     data = json.dumps({"step": event["step"], "content": event["content"]})
                     yield f"event: thought\ndata: {data}\n\n"
                 elif event_type == "action":

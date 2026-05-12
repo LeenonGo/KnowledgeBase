@@ -38,6 +38,18 @@ def get_llm_client() -> tuple:
     return client, model, cfg
 
 
+def _trim_messages(msgs):
+    """控制上下文长度，防止超出模型窗口。保留 system + user prompt + 最近工具调用。"""
+    total = sum(len(str(m.get("content", ""))) for m in msgs)
+    # 中文 ~1.5 字符/token，qwen-turbo 约 6000 token 上下文
+    # 留 ~2000 token 给输出，输入控制在 60000 字符以内
+    while total > 60000 and len(msgs) > 4:
+        # 跳过 system(0) 和 user prompt(1)，从最早的工具轮次开始删
+        removed = msgs.pop(2)
+        total -= len(str(removed.get("content", "")))
+    return msgs
+
+
 def generate_answer(question: str, context: str, history: str = "") -> str:
     """
     基于检索到的上下文生成回答（完整返回）。
@@ -303,8 +315,9 @@ def generate_answer_agent(
     from app.core.tools import execute_tool
 
     client, model, cfg = get_llm_client()
-    max_tokens = cfg.get("max_tokens", 2048)
     temperature = cfg.get("temperature", 0.7)
+    # Agent 需要更长的输出，独立于全局 max_tokens
+    max_tokens = 4096
 
     # Agent 模式使用专用 prompt，鼓励调用工具而非依赖上下文
     agent_prompt = get_prompt("agent")
@@ -317,12 +330,15 @@ def generate_answer_agent(
         {"role": "user", "content": user_prompt},
     ]
 
-    max_rounds = 5
+    max_rounds = 7
     db = tool_context.get("db") if tool_context else None
     user_info = tool_context.get("user") if tool_context else None
     collected_sources = []  # 收集工具返回的来源信息
 
     for round_num in range(max_rounds):
+        # 控制上下文长度
+        messages = _trim_messages(messages)
+
         kwargs = {
             "model": model,
             "messages": messages,
@@ -379,13 +395,16 @@ def generate_answer_agent(
             })
 
     # 超过最大轮次 → 强制最后一次无工具调用
+    messages = _trim_messages(messages)
+    messages.append({"role": "user", "content": "请基于以上所有工具返回的信息，直接给出完整详细的回答。不要调用工具。"})
     final_resp = client.chat.completions.create(
         model=model,
         messages=messages,
         max_tokens=max_tokens,
         temperature=temperature,
+        # 不传 tools，强制直接回答
     )
-    return final_resp.choices[0].message.content
+    return final_resp.choices[0].message.content or "（Agent 已完成信息收集，但未能生成回答，请尝试换一种问法）"
 
 
 def generate_answer_agent_stream(
@@ -402,8 +421,9 @@ def generate_answer_agent_stream(
     from app.core.tools import execute_tool
 
     client, model, cfg = get_llm_client()
-    max_tokens = cfg.get("max_tokens", 2048)
     temperature = cfg.get("temperature", 0.7)
+    # Agent 需要更长的输出，独立于全局 max_tokens
+    max_tokens = 4096
 
     agent_prompt = get_prompt("agent")
     agent_system = agent_prompt.get("system", "你是一个智能知识库助手，请使用工具来回答问题。")
@@ -415,7 +435,7 @@ def generate_answer_agent_stream(
         {"role": "user", "content": user_prompt},
     ]
 
-    max_rounds = 5
+    max_rounds = 7
     db = tool_context.get("db") if tool_context else None
     user_info = tool_context.get("user") if tool_context else None
     collected_sources = []  # 收集工具返回的来源
@@ -425,6 +445,9 @@ def generate_answer_agent_stream(
         # 生成思考步骤（占位）
         _label = '开始分析问题' if round_num == 0 else f'继续第 {round_num + 1} 步操作'
         yield {"type": "thought", "step": round_num + 1, "content": f"{_label}..."}
+
+        # 控制上下文长度
+        messages = _trim_messages(messages)
 
         kwargs = {
             "model": model,
@@ -492,7 +515,7 @@ def generate_answer_agent_stream(
                 if _src and _src not in collected_sources:
                     collected_sources.append(_src)
             # 解析 [C数字 来源:xxx] 格式，构建引用映射
-            for _m in _re.finditer(r'\[C(\d+) 来源:([^\]]+)\]\n(.{0,200})', result):
+            for _m in _re.finditer(r'\[C(\d+) 来源:([^\] ]+)[^\]]*\]\n(.{0,200})', result):
                 _key = f"C{_m.group(1)}"
                 if _key not in collected_citation_map:
                     collected_citation_map[_key] = {
@@ -507,11 +530,243 @@ def generate_answer_agent_stream(
             })
 
     # 超过最大轮次 → 强制最后一次无工具调用
+    messages = _trim_messages(messages)
+    messages.append({"role": "user", "content": "请基于以上所有工具返回的信息，直接给出完整详细的回答。不要调用工具。"})
     final_resp = client.chat.completions.create(
         model=model,
         messages=messages,
         max_tokens=max_tokens,
         temperature=temperature,
+        # 不传 tools，强制直接回答
     )
-    _final_answer = final_resp.choices[0].message.content or ""
+    _final_answer = final_resp.choices[0].message.content or "（Agent 已完成信息收集，但未能生成回答，请尝试换一种问法）"
+
+    # 提取工具结果中的图表标记，确保保留在最终回答中
+    import re as _re_chart
+    _all_tool_text = '\n'.join(str(m.get('content', '')) for m in messages if m.get('role') == 'tool')
+    _charts = _re_chart.findall(r'\[CHART\].*?\[/CHART\]', _all_tool_text, _re_chart.DOTALL)
+    if _charts and '[CHART]' not in _final_answer:
+        _final_answer += '\n\n' + '\n\n'.join(_charts)
+
     yield {"type": "answer", "content": _final_answer, "sources": collected_sources}
+
+
+def plan_and_execute_stream(
+    question: str,
+    context: str,
+    history: str = "",
+    tools: list = None,
+    tool_context: dict = None,
+):
+    """
+    Plan-and-Execute 模式流式问答。
+    Phase 1: Planning — 分析问题复杂度，拆解子任务
+    Phase 2: Execute — 每个子任务独立 ReAct 循环
+    Phase 3: Synthesize — 综合所有结果生成最终回答
+    """
+    from app.core.tools import execute_tool
+
+    client, model, cfg = get_llm_client()
+    temperature = cfg.get("temperature", 0.7)
+    max_tokens = 4096
+
+    db = tool_context.get("db") if tool_context else None
+    user_info = tool_context.get("user") if tool_context else None
+
+    # ═══════════════════════════════════════════════════════
+    # Phase 1: Planning
+    # ═══════════════════════════════════════════════════════
+    planner_prompt = get_prompt("planner")
+    planner_system = planner_prompt.get("system", "判断问题复杂度，输出 JSON。")
+    planner_user = planner_prompt.get("user", "问题：{question}").format(question=question)
+
+    try:
+        plan_resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": planner_system},
+                {"role": "user", "content": planner_user},
+            ],
+            max_tokens=512,
+            temperature=0.1,  # 低温度，稳定输出
+        )
+        plan_raw = plan_resp.choices[0].message.content or ""
+        # 提取 JSON（兼容 markdown code block 包裹）
+        import re as _re
+        json_match = _re.search(r'\{.*\}', plan_raw, _re.DOTALL)
+        plan_data = json.loads(json_match.group()) if json_match else {"need_plan": False}
+    except Exception as e:
+        print(f"[Plan] 规划失败，降级为直接执行: {e}")
+        plan_data = {"need_plan": False}
+
+    need_plan = plan_data.get("need_plan", False)
+    tasks = plan_data.get("tasks", [])
+    reason = plan_data.get("reason", "")
+
+    # 输出规划事件
+    yield {
+        "type": "plan",
+        "need_plan": need_plan,
+        "reason": reason,
+        "tasks": [{"id": t.get("id", i+1), "description": t.get("description", "")}
+                   for i, t in enumerate(tasks)],
+    }
+
+    # 简单问题 → 降级为普通 Agent 流
+    if not need_plan or len(tasks) < 2:
+        yield {"type": "thought", "step": 1, "content": "问题较简单，直接执行检索问答..."}
+        yield from generate_answer_agent_stream(question, context, history, tools, tool_context)
+        return
+
+    # ═══════════════════════════════════════════════════════
+    # Phase 2: Execute each sub-task
+    # ═══════════════════════════════════════════════════════
+    all_results = []  # [{task_id, description, result, sources}]
+    all_sources = set()
+    global_step = 0
+
+    for task in tasks:
+        task_id = task.get("id", len(all_results) + 1)
+        task_desc = task.get("description", "")
+        search_hint = task.get("search_hint", "")
+
+        yield {"type": "subtask_start", "task_id": task_id, "description": task_desc}
+
+        # 每个子任务独立 ReAct 循环（最多 3 轮）
+        sub_messages = [
+            {"role": "system", "content": (
+                "你是一个知识库检索助手。请使用工具来完成以下子任务。\n"
+                "完成后给出简洁的结果总结。"
+            )},
+            {"role": "user", "content": f"子任务：{task_desc}\n检索提示：{search_hint}"},
+        ]
+        sub_result = ""
+        sub_max_rounds = 3
+
+        for sub_round in range(sub_max_rounds):
+            global_step += 1
+            yield {"type": "thought", "step": global_step,
+                   "content": f"[子任务{task_id}] {'开始执行' if sub_round == 0 else f'继续第 {sub_round+1} 步'}"}
+
+            sub_messages = _trim_messages(sub_messages)
+            kwargs = {
+                "model": model,
+                "messages": sub_messages,
+                "max_tokens": 1024,
+                "temperature": temperature,
+            }
+            if tools and db and user_info:
+                kwargs["tools"] = tools
+                kwargs["tool_choice"] = "auto"
+
+            try:
+                resp = client.chat.completions.create(**kwargs)
+            except Exception as e:
+                yield {"type": "error", "content": f"子任务{task_id} LLM调用失败: {e}"}
+                break
+
+            msg = resp.choices[0].message
+
+            # 没有工具调用 → 子任务完成
+            if not msg.tool_calls:
+                sub_result = msg.content or ""
+                yield {"type": "thought", "step": global_step,
+                       "content": f"[子任务{task_id}] 完成"}
+                break
+
+            # 有工具调用
+            sub_messages.append({
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [
+                    {"id": tc.id, "type": "function",
+                     "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                    for tc in msg.tool_calls
+                ],
+            })
+
+            for tc in msg.tool_calls:
+                func_name = tc.function.name
+                try:
+                    func_args = json.loads(tc.function.arguments)
+                except json.JSONDecodeError:
+                    func_args = {}
+
+                global_step += 1
+                yield {"type": "action", "step": global_step,
+                       "tool": func_name, "arguments": func_args}
+
+                result = execute_tool(func_name, func_args, db, user_info)
+
+                yield {"type": "observe", "step": global_step,
+                       "content": result[:500]}
+
+                # 收集来源
+                import re as _re2
+                for _src in _re2.findall(r'来源:([^\]\n]+)', result):
+                    _src = _src.strip().rstrip(']')
+                    if _src:
+                        all_sources.add(_src)
+
+                sub_messages.append({
+                    "role": "tool", "tool_call_id": tc.id,
+                    "content": result[:8000],
+                })
+        else:
+            # 超过轮次，强制总结
+            sub_messages.append({"role": "user", "content": "请直接总结以上信息。"})
+            try:
+                final = client.chat.completions.create(
+                    model=model, messages=sub_messages, max_tokens=1024, temperature=temperature)
+                sub_result = final.choices[0].message.content or ""
+            except:
+                sub_result = "（子任务执行超时）"
+
+        all_results.append({
+            "task_id": task_id,
+            "description": task_desc,
+            "result": sub_result,
+        })
+        yield {"type": "subtask_done", "task_id": task_id,
+               "result_preview": sub_result[:200]}
+
+    # ═══════════════════════════════════════════════════════
+    # Phase 3: Synthesize
+    # ═══════════════════════════════════════════════════════
+    synth_prompt = get_prompt("synthesizer")
+    synth_system = synth_prompt.get("system", "综合子任务结果生成回答。")
+
+    results_text = "\n\n".join(
+        f"### 子任务 {r['task_id']}: {r['description']}\n{r['result']}"
+        for r in all_results
+    )
+    synth_user = synth_prompt.get("user", "问题：{question}\n结果：{results}").format(
+        question=question, results=results_text)
+
+    global_step += 1
+    yield {"type": "thought", "step": global_step, "content": "综合所有子任务结果，生成最终回答..."}
+
+    try:
+        synth_resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": synth_system},
+                {"role": "user", "content": synth_user},
+            ],
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        final_answer = synth_resp.choices[0].message.content or ""
+    except Exception as e:
+        final_answer = f"综合生成失败: {e}\n\n各子任务结果:\n{results_text}"
+
+    # 提取子任务中的图表标记，确保保留在最终回答中
+    import re as _re_chart
+    charts_in_results = _re_chart.findall(r'\[CHART\].*?\[/CHART\]', results_text, _re_chart.DOTALL)
+    if charts_in_results:
+        charts_in_answer = _re_chart.findall(r'\[CHART\].*?\[/CHART\]', final_answer, _re_chart.DOTALL)
+        if not charts_in_answer:
+            # LLM 丢弃了图表标记，从子任务结果中恢复
+            final_answer += '\n\n' + '\n\n'.join(charts_in_results)
+
+    yield {"type": "answer", "content": final_answer, "sources": list(all_sources)}

@@ -17,14 +17,17 @@ router = APIRouter(prefix="/api", tags=["对话"])
 # ─── 会话管理 ────────────────────────────────────
 
 @router.get("/conversations")
-async def list_conversations(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+async def list_conversations(conv_type: str = None, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     """获取当前用户的对话列表"""
-    convs = db.query(Conversation).filter(
+    q = db.query(Conversation).filter(
         Conversation.user_id == user["sub"],
         Conversation.status == "active",
-    ).order_by(Conversation.updated_at.desc()).all()
+    )
+    if conv_type in ("rag", "agent"):
+        q = q.filter(Conversation.conv_type == conv_type)
+    convs = q.order_by(Conversation.updated_at.desc()).all()
     return [{
-        "id": c.id, "title": c.title,
+        "id": c.id, "title": c.title, "conv_type": c.conv_type,
         "created_at": str(c.created_at), "updated_at": str(c.updated_at),
     } for c in convs]
 
@@ -33,13 +36,18 @@ async def list_conversations(db: Session = Depends(get_db), user: dict = Depends
 async def create_conversation(data: dict = None,
                                db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     """创建新对话"""
+    _d = data or {}
+    conv_type = _d.get("type", "rag")
+    if conv_type not in ("rag", "agent"):
+        conv_type = "rag"
     conv = Conversation(
         user_id=user["sub"],
-        title=(data or {}).get("title", "新对话"),
+        title=_d.get("title", "新对话"),
+        conv_type=conv_type,
     )
     db.add(conv)
     db.commit()
-    return {"id": conv.id, "title": conv.title}
+    return {"id": conv.id, "title": conv.title, "conv_type": conv.conv_type}
 
 
 @router.delete("/conversations/{conv_id}")
@@ -123,7 +131,7 @@ async def add_conversation_turn(conv_id: str, data: dict,
 
     # 更新对话时间 & 标题（首条用户消息作为标题）
     conv.updated_at = now_cst()
-    if data.get("role") == "user" and conv.title == "新对话":
+    if data.get("role") == "user" and conv.title in ("新对话", "Agent 对话"):
         conv.title = data.get("content", "")[:50]
     db.commit()
 

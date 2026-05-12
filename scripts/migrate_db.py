@@ -223,6 +223,19 @@ def migrate():
                 else:
                     print(f"  ❌ {table_name}: {e}")
 
+    # ── conversation 表新增 conv_type 列 ──
+    print("\n📋 检查 conversation 表 conv_type 列...")
+    try:
+        conn.execute(text("ALTER TABLE conversation ADD COLUMN conv_type VARCHAR(16) DEFAULT 'rag' COMMENT 'rag / agent'"))
+        conn.commit()
+        print("  ✅ conversation.conv_type 列已添加")
+    except Exception as e:
+        err = str(e).lower()
+        if "duplicate" in err or "exists" in err or "1060" in err:
+            print("  ⏭️  conversation.conv_type 列已存在")
+        else:
+            print(f"  ❌ 添加失败: {e}")
+
     print("\n✅ 迁移完成")
 
 

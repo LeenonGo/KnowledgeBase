@@ -150,12 +150,14 @@ class Conversation(Base):
     id = Column(String(32), primary_key=True, default=gen_id)
     user_id = Column(String(32), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(512), default="新对话")
+    conv_type = Column(String(16), default="rag", comment="rag / agent")
     status = Column(String(16), default="active")  # active / closed
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
 
     __table_args__ = (
         Index("ix_conv_user", "user_id"),
+        Index("ix_conv_user_type", "user_id", "conv_type"),
     )
 
 

@@ -49,23 +49,81 @@ const UI = (() => {
   function md2html(md) {
     if (!md) return '';
     let html = md;
+
+    // 1. 代码块（必须在其他规则之前）
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (m, lang, code) =>
-      `<pre style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;overflow-x:auto;font-size:13px;margin:8px 0;"><code>${code.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`
+      `<pre class="md-code"><code>${code.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`
     );
-    html = html.replace(/`([^`]+)`/g, '<code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;font-size:13px;">$1</code>');
+
+    // 2. 表格（在换行处理之前，按行解析）
+    html = html.replace(/(^|\n)((?:\|.+)\|\n)+/gm, (match) => {
+      const lines = match.trim().split('\n').filter(l => l.trim());
+      if (lines.length < 2) return match;
+      // 检查第二行是否是分隔行 :---:|---:|---
+      if (!/^\|[-:\s|]+\|$/.test(lines[1].trim())) return match;
+      // 解析表头
+      const headerCells = lines[0].split('|').slice(1, -1);
+      if (!headerCells.length) return match;
+      // 解析表体（跳过分隔行）
+      const bodyRows = [];
+      for (let i = 2; i < lines.length; i++) {
+        const cells = lines[i].split('|').slice(1, -1);
+        if (cells.length) bodyRows.push(cells);
+      }
+      // 渲染
+      let table = '<table class="md-table"><thead><tr>';
+      headerCells.forEach(c => { table += `<th>${c.trim()}</th>`; });
+      table += '</tr></thead><tbody>';
+      bodyRows.forEach(row => {
+        table += '<tr>';
+        row.forEach(c => { table += `<td>${c.trim()}</td>`; });
+        table += '</tr>';
+      });
+      table += '</tbody></table>';
+      return '\n' + table + '\n';
+    });
+
+    // 3. 引用块
+    html = html.replace(/(^|\n)> (.+)/gm, '$1<blockquote class="md-blockquote">$2</blockquote>');
+    // 合并连续 blockquote
+    html = html.replace(/<\/blockquote>\n<blockquote class="md-blockquote">/g, '<br>');
+
+    // 4. 水平线
+    html = html.replace(/(^|\n)---+(\n|$)/g, '$1<hr class="md-hr">$2');
+
+    // 5. 标题
+    html = html.replace(/^#### (.+)$/gm, '<h4 class="md-h4">$1</h4>');
+    html = html.replace(/^### (.+)$/gm, '<h3 class="md-h3">$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2 class="md-h2">$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1 class="md-h1">$1</h1>');
+
+    // 6. 粗体/斜体/行内代码
+    html = html.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    html = html.replace(/^### (.+)$/gm, '<h4 style="margin:12px 0 6px;font-size:15px;">$1</h4>');
-    html = html.replace(/^## (.+)$/gm, '<h3 style="margin:14px 0 8px;font-size:16px;">$1</h3>');
-    html = html.replace(/^# (.+)$/gm, '<h2 style="margin:16px 0 8px;font-size:18px;">$1</h2>');
-    html = html.replace(/^- (.+)$/gm, '<li style="margin-left:16px;">$1</li>');
-    html = html.replace(/^\d+\. (.+)$/gm, '<li style="margin-left:16px;list-style:decimal;">$1</li>');
-    html = html.replace(/\n\n/g, '</p><p style="margin:8px 0;">');
-    html = html.replace(/\n/g, '<br>');
+
+    // 7. 无序列表
+    html = html.replace(/(^|\n)(- .+(?:\n- .+)*)/gm, (match) => {
+      const items = match.trim().split('\n').map(i => `<li>${i.replace(/^- /, '')}</li>`).join('');
+      return `<ul class="md-ul">${items}</ul>`;
+    });
+
+    // 8. 有序列表
+    html = html.replace(/(^|\n)(\d+\. .+(?:\n\d+\. .+)*)/gm, (match) => {
+      const items = match.trim().split('\n').map(i => `<li>${i.replace(/^\d+\. /, '')}</li>`).join('');
+      return `<ol class="md-ol">${items}</ol>`;
+    });
+
+    // 9. 来源标签
     html = html.replace(/\[来源: ([^\]]+)\]/g,
-      '<span class="source-tag" style="display:inline-block;font-size:11px;background:#e6f7ff;color:#1890ff;padding:2px 8px;border-radius:4px;margin:2px;border:1px solid #91d5ff;">📎 $1</span>'
+      '<span class="source-tag">📎 $1</span>'
     );
-    return '<p style="margin:0;">' + html + '</p>';
+
+    // 10. 段落（双换行 → <p>，单换行 → <br>）
+    html = html.replace(/\n\n/g, '</p><p class="md-p">');
+    html = html.replace(/\n/g, '<br>');
+
+    return '<p class="md-p">' + html + '</p>';
   }
 
   // ─── 部门下拉填充 ────────────────────────────────
@@ -82,8 +140,61 @@ const UI = (() => {
       deptList.map(d => `<option value="${d.id}"${d.id === selectedId ? ' selected' : ''}>${d.name}</option>`).join('');
   }
 
+  // ─── HTML 转义 ────────────────────────────────────
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // ─── 图表渲染 ────────────────────────────────────
+  // 预处理：提取 [CHART] 块，避免被 md2html 破坏
+  function extractCharts(md) {
+    const charts = [];
+    const placeholder = md.replace(/\[CHART\][\s\S]*?\[\/CHART\]/g, (match) => {
+      const idx = charts.length;
+      charts.push(match.replace('[CHART]', '').replace('[/CHART]', '').trim());
+      return `__CHART_${idx}__`;
+    });
+    return { text: placeholder, charts };
+  }
+
+  // 后处理：把 __CHART_N__ 占位符替换为实际图表 DOM
+  function renderCharts(container, charts) {
+    if (!charts || !charts.length || typeof echarts === 'undefined') return;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    textNodes.forEach(node => {
+      const match = node.textContent.match(/__CHART_(\d+)__/);
+      if (!match) return;
+      const idx = parseInt(match[1]);
+      if (idx >= charts.length) return;
+      try {
+        const option = JSON.parse(charts[idx]);
+        const chartDiv = document.createElement('div');
+        chartDiv.className = 'echart-container';
+        chartDiv.style.cssText = 'width:100%;height:320px;margin:12px 0;';
+        const before = node.textContent.slice(0, match.index);
+        const after = node.textContent.slice(match.index + match[0].length);
+        const parent = node.parentNode;
+        if (before) parent.insertBefore(document.createTextNode(before), node);
+        parent.insertBefore(chartDiv, node);
+        if (after) parent.insertBefore(document.createTextNode(after), node);
+        parent.removeChild(node);
+        const chart = echarts.init(chartDiv);
+        chart.setOption(option);
+        const ro = new ResizeObserver(() => chart.resize());
+        ro.observe(chartDiv);
+      } catch (e) {
+        console.warn('[Chart] 解析失败:', e);
+      }
+    });
+  }
+
   return {
-    renderPagination, showModal, hideModal, switchTab, md2html,
+    renderPagination, showModal, hideModal, switchTab, md2html, escapeHtml,
+    extractCharts, renderCharts,
     loadDepts, fillDeptSelect, getDeptList: () => deptList,
   };
 })();

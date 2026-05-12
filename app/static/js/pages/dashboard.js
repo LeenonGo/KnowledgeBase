@@ -18,9 +18,14 @@ const PageDashboard = (() => {
       if (chartEl && data.daily_queries?.length) {
         const maxVal = Math.max(...data.daily_queries.map(d => d.count), 1);
         chartEl.innerHTML = data.daily_queries.map(d => {
-          const h = Math.max(20, Math.round(d.count / maxVal * 120));
+          // 对数缩放：小值有区分度，大值不会过高
+          let h;
+          if (d.count === 0) { h = 4; }
+          else if (maxVal <= 5) { h = 20 + Math.round((d.count / maxVal) * 100); }
+          else { h = Math.round(Math.log(1 + d.count) / Math.log(1 + maxVal) * 120); }
+          h = Math.max(4, Math.min(120, h));
           const isToday = d.date === new Date().toISOString().slice(5, 10).replace('-', '-');
-          return `<div class="bar" style="height:${h}px;background:${isToday ? '#1890ff' : '#91caff'};">
+          return `<div class="bar" style="height:${h}px;background:${isToday ? '#1890ff' : '#91caff'};${d.count === 0 ? 'opacity:0.3' : ''}">
             <span class="bar-value">${d.count}</span>
             <span class="bar-label">${d.date}</span>
           </div>`;
