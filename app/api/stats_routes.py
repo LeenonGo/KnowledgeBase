@@ -129,10 +129,29 @@ async def get_kb_health_stats(db: Session = Depends(get_db), user: dict = Depend
     total_docs = 0
     total_chunks = 0
 
+    # 批量查询所有文档（避免 N+1）
+    kb_ids = [kb.id for kb in kbs]
+    all_docs = db.query(Document).filter(
+        Document.kb_id.in_(kb_ids), Document.status.in_(["indexed", "active"])
+    ).all() if kb_ids else []
+    docs_by_kb = {}
+    for d in all_docs:
+        docs_by_kb.setdefault(d.kb_id, []).append(d)
+
+    # 批量查询近 7 天审计日志
+    seven_days_ago = datetime.now(_CST) - timedelta(days=7)
+    all_logs = db.query(AuditLog).filter(
+        AuditLog.action == "query", AuditLog.created_at >= seven_days_ago
+    ).all() if kb_ids else []
+    query_count_by_kb = {}
+    for log in all_logs:
+        detail = log.detail or ""
+        for kid in kb_ids:
+            if f"kb={kid}" in detail:
+                query_count_by_kb[kid] = query_count_by_kb.get(kid, 0) + 1
+
     for kb in kbs:
-        docs = db.query(Document).filter(
-            Document.kb_id == kb.id, Document.status.in_(["indexed", "active"])
-        ).all()
+        docs = docs_by_kb.get(kb.id, [])
         doc_count = len(docs)
         chunk_count = sum(d.chunk_count or 0 for d in docs)
         total_chars = sum(d.file_size or 0 for d in docs)
@@ -145,13 +164,7 @@ async def get_kb_health_stats(db: Session = Depends(get_db), user: dict = Depend
             ext = (d.filename or "").rsplit(".", 1)[-1].lower() if "." in (d.filename or "") else "unknown"
             ext_dist[ext] = ext_dist.get(ext, 0) + 1
 
-        # 查询频率（近 7 天）
-        seven_days_ago = datetime.now(_CST) - timedelta(days=7)
-        query_count = db.query(AuditLog).filter(
-            AuditLog.action == "query",
-            AuditLog.detail.like(f"%kb={kb.id}%") if kb.id else False,
-            AuditLog.created_at >= seven_days_ago,
-        ).count() if hasattr(AuditLog, 'detail') else 0
+        query_count = query_count_by_kb.get(kb.id, 0)
 
         # 简单健康度评分（0-100）
         health_score = 0

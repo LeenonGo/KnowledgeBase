@@ -303,8 +303,7 @@ def _search_kb(args: dict, db: Session, user: dict) -> str:
     for i, d in enumerate(docs, 1):
         # 计算相关度：关键词子串 + 长词权重
         txt = d['text'].lower()
-        import re as _re
-        kw_clean = _re.sub(r'[\s?？!！。，,]', '', keywords.lower())
+        kw_clean = re.sub(r'[\s?？!！。，,]', '', keywords.lower())
         if len(kw_clean) >= 2:
             # 按 2-gram 和 3-gram 综合评分，长 gram 权重更高
             grams2 = [kw_clean[j:j+2] for j in range(len(kw_clean)-1)]
@@ -473,6 +472,9 @@ def _calculator(args: dict) -> str:
     allowed = set('0123456789+-*/.()%,abcdefghijklmnopqrstuvwxyz_ ')
     if not all(c in allowed for c in expr.lower()):
         return f"表达式包含不允许的字符: {expr}"
+    # 阻止属性访问攻击（dunder 方法）
+    if '__' in expr:
+        return "表达式不允许包含双下划线"
 
     # 允许的 math 函数
     safe_dict = {
@@ -541,7 +543,6 @@ def _doc_stats(args: dict, db: Session, user: dict) -> str:
 
 def _chart_generator(args: dict) -> str:
     """生成 ECharts 图表配置"""
-    import json as _json
 
     chart_type = args.get("chart_type", "bar")
     title = args.get("title", "")
@@ -576,7 +577,7 @@ def _chart_generator(args: dict) -> str:
         }
 
     # 加标记让前端识别
-    return f"[CHART]{_json.dumps(option, ensure_ascii=False)}[/CHART]"
+    return f"[CHART]{json.dumps(option, ensure_ascii=False)}[/CHART]"
 
 
 def _knowledge_compare(args: dict, db: Session, user: dict) -> str:

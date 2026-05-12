@@ -212,3 +212,5 @@ const PageUpload = (() => {
 
   return { init, toggleChunkConfig, goStep, doUpload, reset, viewLastChunks };
 })();
+
+Router.on('doc-upload', () => PageUpload.reset());

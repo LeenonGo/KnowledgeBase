@@ -2,23 +2,32 @@
  * 仪表盘页
  */
 const PageDashboard = (() => {
+  let _resizeHandler = null;
+  let _chart = null;
+
   async function load() {
+    // 清理旧监听器
+    if (_resizeHandler) { window.removeEventListener('resize', _resizeHandler); _resizeHandler = null; }
+    if (_chart) { _chart.dispose(); _chart = null; }
+
+    // 知识库健康度
+    try {
+      const health = await API.request('/api/stats/kb-health');
+      const kbs = health.knowledge_bases || [];
+      const overall = health.overall || {};
+      document.getElementById('health-kb-count').textContent = overall.kb_count || 0;
+      document.getElementById('health-doc-count').textContent = overall.total_docs || 0;
+      renderHealthTable(kbs);
+      renderHealthChart(kbs);
+    } catch (e) { console.error('Health data error:', e); }
+
+    // 7 天趋势图
     try {
       const data = await API.request('/api/stats/dashboard');
-
-      // 统计卡片
-      document.getElementById('stat-kb').textContent = data.kb_count;
-      document.getElementById('stat-docs').textContent = data.doc_count;
-      document.getElementById('stat-queries').textContent = data.today_queries;
-      document.getElementById('stat-likes').textContent = data.like_rate + '%';
-      document.getElementById('kb-total').textContent = data.kb_count;
-
-      // 7 天趋势图
       const chartEl = document.getElementById('query-chart');
       if (chartEl && data.daily_queries?.length) {
         const maxVal = Math.max(...data.daily_queries.map(d => d.count), 1);
         chartEl.innerHTML = data.daily_queries.map(d => {
-          // 对数缩放：小值有区分度，大值不会过高
           let h;
           if (d.count === 0) { h = 4; }
           else if (maxVal <= 5) { h = 20 + Math.round((d.count / maxVal) * 100); }
@@ -31,33 +40,47 @@ const PageDashboard = (() => {
           </div>`;
         }).join('');
       }
+    } catch (e) { console.error('Dashboard error:', e); }
 
-      // 待处理事项
+    // 待处理事项
+    try {
       const qualStats = await API.request('/api/stats/quality');
       document.getElementById('todo-down').textContent = qualStats.down_count || 0;
       document.getElementById('todo-queries').textContent = qualStats.today_queries || 0;
+      document.getElementById('todo-failed').textContent = 0;
+    } catch {}
+  }
 
-      // 解析失败数
-      try {
-        const docs = await API.request('/api/documents?page=1&page_size=1');
-        // 如果有 failed 状态的文档可以统计
-        document.getElementById('todo-failed').textContent = 0;
-      } catch {}
+  function renderHealthTable(kbs) {
+    const tbody = document.getElementById('health-table-body');
+    if (!tbody || !kbs.length) return;
+    tbody.innerHTML = kbs.map(kb => {
+      const extStr = Object.entries(kb.ext_distribution || {}).map(([k, v]) => `${k}(${v})`).join(', ') || '-';
+      const scoreColor = kb.health_score >= 80 ? '#52c41a' : (kb.health_score >= 60 ? '#faad14' : '#ff4d4f');
+      const scoreBg = kb.health_score >= 80 ? '#f6ffed' : (kb.health_score >= 60 ? '#fffbe6' : '#fff2f0');
+      return `<tr>
+        <td><strong>${kb.name}</strong></td>
+        <td>${kb.doc_count}</td>
+        <td>${kb.chunk_count}</td>
+        <td style="font-size:12px;">${extStr}</td>
+        <td>${kb.query_count_7d}</td>
+        <td><span style="padding:2px 10px;border-radius:12px;font-weight:600;font-size:13px;color:${scoreColor};background:${scoreBg};">${kb.health_score}</span></td>
+      </tr>`;
+    }).join('');
+  }
 
-      // 热门知识库
-      const kbData = await API.request('/api/knowledge-bases?page=1&page_size=5');
-      const kbs = kbData.items || [];
-      const hotEl = document.getElementById('hot-kb-list');
-      if (!kbs.length) {
-        hotEl.innerHTML = '<div class="text-muted" style="padding:20px;text-align:center;">暂无知识库</div>';
-      } else {
-        hotEl.innerHTML = kbs.map(k =>
-          `<div class="flex-between" style="padding:8px;border-bottom:1px solid #f5f5f5;">
-            <span>📖 ${k.name}</span>
-            <span class="text-muted">${k.doc_count} 文档</span></div>`
-        ).join('');
-      }
-    } catch (e) { console.error('Dashboard error:', e); }
+  function renderHealthChart(kbs) {
+    if (!kbs.length || typeof echarts === 'undefined') return;
+    const el = document.getElementById('health-score-chart');
+    if (!el) return;
+    _chart = echarts.init(el);
+    _chart.setOption({
+      tooltip: {},
+      radar: { indicator: kbs.map(k => ({ name: k.name.substring(0, 6), max: 100 })), radius: '60%' },
+      series: [{ type: 'radar', data: [{ value: kbs.map(k => k.health_score), name: '健康度', areaStyle: { opacity: 0.15 } }] }],
+    });
+    _resizeHandler = () => _chart && _chart.resize();
+    window.addEventListener('resize', _resizeHandler);
   }
 
   return { load };

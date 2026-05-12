@@ -134,7 +134,8 @@ async def add_conversation_turn(conv_id: str, data: dict,
     # 更新对话时间 & 标题（首条用户消息作为标题）
     conv.updated_at = now_cst()
     if data.get("role") == "user" and conv.title in ("新对话", "Agent 对话"):
-        conv.title = data.get("content", "")[:50]
+        raw_title = data.get("content", "")
+        conv.title = raw_title[:50] + ("..." if len(raw_title) > 50 else "")
     db.commit()
 
     return {"id": turn.id, "role": turn.role}
@@ -195,6 +196,7 @@ async def export_conversation(conv_id: str, db: Session = Depends(get_db), user:
         lines.append("")
 
     md_content = "\n".join(lines)
+    log_audit(db, user, "export", conv.title[:50], f"导出对话 {conv_id}", "success", "")
     from fastapi.responses import Response
     from urllib.parse import quote
     safe_name = quote(conv.title[:30] or '对话') + '.md'

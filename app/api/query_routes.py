@@ -134,7 +134,7 @@ async def query_knowledge_base(
     if req.use_agent:
         from app.core.tools import TOOL_DEFINITIONS
         # Agent 模式：不注入检索 context，让 LLM 主动调工具
-        agent_tools = list(TOOL_DEFINITIONS)
+        agent_tools = TOOL_DEFINITIONS
         # 联网搜索工具（按需添加）
         if req.use_web_search:
             agent_tools.append({
@@ -280,12 +280,33 @@ async def query_stream(
 
 
 
+# ── Agent 请求频率限制（每用户每分钟最多 10 次）──
+_agent_rate_limit = {}  # {user_id: [timestamp, ...]}
+import time as _time
+
+def _check_agent_rate(user_id: str, limit: int = 10, window: int = 60) -> bool:
+    """检查是否超过频率限制，返回 True 表示允许"""
+    now = _time.time()
+    if user_id not in _agent_rate_limit:
+        _agent_rate_limit[user_id] = []
+    # 清理过期记录
+    _agent_rate_limit[user_id] = [t for t in _agent_rate_limit[user_id] if now - t < window]
+    if len(_agent_rate_limit[user_id]) >= limit:
+        return False
+    _agent_rate_limit[user_id].append(now)
+    return True
+
+
 @router.post("/query/agent/stream")
 async def agent_query_stream(
     request: Request, req: QueryRequest,
     user: dict = Depends(get_current_user), db: Session = Depends(get_db),
 ):
     """Agent 模式流式问答 — Plan-and-Execute + 推理链可视化"""
+    if not _check_agent_rate(user["sub"]):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "请求过于频繁，请稍后再试"}, status_code=429)
+
     from app.core.llm import plan_and_execute_stream, get_refuse_answer
     from app.core.vectorstore import search_accessible
     from app.core.tools import TOOL_DEFINITIONS
@@ -303,7 +324,7 @@ async def agent_query_stream(
         try:
             agent_context = "（请使用可用工具来查找信息回答用户问题）"
             # 组装工具列表：基础工具 + 可选联网搜索
-            agent_tools = list(TOOL_DEFINITIONS)
+            agent_tools = TOOL_DEFINITIONS
             if req.use_web_search:
                 from app.core.tools import TOOL_DEFINITIONS as _TD
                 # web_search 已在 TOOL_DEFINITIONS 中，无需重复添加

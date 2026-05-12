@@ -41,9 +41,10 @@ def get_llm_client() -> tuple:
 def _trim_messages(msgs):
     """控制上下文长度，防止超出模型窗口。保留 system + user prompt + 最近工具调用。"""
     total = sum(len(str(m.get("content", ""))) for m in msgs)
-    # 中文 ~1.5 字符/token，qwen-turbo 约 6000 token 上下文
-    # 留 ~2000 token 给输出，输入控制在 60000 字符以内
-    while total > 60000 and len(msgs) > 4:
+    cfg = get_llm_config()
+    # 从配置读取上下文上限，默认 60000 字符
+    max_chars = cfg.get("agent_max_context_chars", 60000)
+    while total > max_chars and len(msgs) > 4:
         # 跳过 system(0) 和 user prompt(1)，从最早的工具轮次开始删
         removed = msgs.pop(2)
         total -= len(str(removed.get("content", "")))
@@ -262,7 +263,6 @@ def polish_query(question: str) -> dict:
     返回 {"corrected": str, "expanded": str, "keywords": list[str]}
     失败时返回原始问题，不影响正常流程。
     """
-    import json as _json
     try:
         client, model, cfg = get_llm_client()
 
@@ -509,13 +509,12 @@ def generate_answer_agent_stream(
                    "content": result[:500]}
 
             # 从工具结果中提取来源和引用信息
-            import re as _re
-            for _src in _re.findall(r'来源:([^\]\n]+)', result):
+            for _src in re.findall(r'来源:([^\]\n]+)', result):
                 _src = _src.strip().rstrip(']')
                 if _src and _src not in collected_sources:
                     collected_sources.append(_src)
             # 解析 [C数字 来源:xxx] 格式，构建引用映射
-            for _m in _re.finditer(r'\[C(\d+) 来源:([^\] ]+)[^\]]*\]\n(.{0,200})', result):
+            for _m in re.finditer(r'\[C(\d+) 来源:([^\] ]+)[^\]]*\]\n(.{0,200})', result):
                 _key = f"C{_m.group(1)}"
                 if _key not in collected_citation_map:
                     collected_citation_map[_key] = {
@@ -542,9 +541,8 @@ def generate_answer_agent_stream(
     _final_answer = final_resp.choices[0].message.content or "（Agent 已完成信息收集，但未能生成回答，请尝试换一种问法）"
 
     # 提取工具结果中的图表标记，确保保留在最终回答中
-    import re as _re_chart
     _all_tool_text = '\n'.join(str(m.get('content', '')) for m in messages if m.get('role') == 'tool')
-    _charts = _re_chart.findall(r'\[CHART\].*?\[/CHART\]', _all_tool_text, _re_chart.DOTALL)
+    _charts = re.findall(r'\[CHART\].*?\[/CHART\]', _all_tool_text, re.DOTALL)
     if _charts and '[CHART]' not in _final_answer:
         _final_answer += '\n\n' + '\n\n'.join(_charts)
 
@@ -592,8 +590,7 @@ def plan_and_execute_stream(
         )
         plan_raw = plan_resp.choices[0].message.content or ""
         # 提取 JSON（兼容 markdown code block 包裹）
-        import re as _re
-        json_match = _re.search(r'\{.*\}', plan_raw, _re.DOTALL)
+        json_match = re.search(r'\{.*\}', plan_raw, re.DOTALL)
         plan_data = json.loads(json_match.group()) if json_match else {"need_plan": False}
     except Exception as e:
         print(f"[Plan] 规划失败，降级为直接执行: {e}")
@@ -702,8 +699,7 @@ def plan_and_execute_stream(
                        "content": result[:500]}
 
                 # 收集来源
-                import re as _re2
-                for _src in _re2.findall(r'来源:([^\]\n]+)', result):
+                for _src in re.findall(r'来源:([^\]\n]+)', result):
                     _src = _src.strip().rstrip(']')
                     if _src:
                         all_sources.add(_src)
@@ -719,7 +715,7 @@ def plan_and_execute_stream(
                 final = client.chat.completions.create(
                     model=model, messages=sub_messages, max_tokens=1024, temperature=temperature)
                 sub_result = final.choices[0].message.content or ""
-            except:
+            except Exception:
                 sub_result = "（子任务执行超时）"
 
         all_results.append({
@@ -761,10 +757,9 @@ def plan_and_execute_stream(
         final_answer = f"综合生成失败: {e}\n\n各子任务结果:\n{results_text}"
 
     # 提取子任务中的图表标记，确保保留在最终回答中
-    import re as _re_chart
-    charts_in_results = _re_chart.findall(r'\[CHART\].*?\[/CHART\]', results_text, _re_chart.DOTALL)
+    charts_in_results = re.findall(r'\[CHART\].*?\[/CHART\]', results_text, re.DOTALL)
     if charts_in_results:
-        charts_in_answer = _re_chart.findall(r'\[CHART\].*?\[/CHART\]', final_answer, _re_chart.DOTALL)
+        charts_in_answer = re.findall(r'\[CHART\].*?\[/CHART\]', final_answer, re.DOTALL)
         if not charts_in_answer:
             # LLM 丢弃了图表标记，从子任务结果中恢复
             final_answer += '\n\n' + '\n\n'.join(charts_in_results)
