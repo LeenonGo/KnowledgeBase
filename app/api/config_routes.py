@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api", tags=["配置"])
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "models.json"
 PROMPTS_PATH = Path(__file__).parent.parent.parent / "config" / "prompts.json"
+GENERAL_PATH = Path(__file__).parent.parent.parent / "config" / "general.json"
 
 
 
@@ -50,3 +51,19 @@ async def save_prompts(data: dict, user: dict = Depends(get_current_user)):
     with open(PROMPTS_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return {"message": "Prompt 已保存"}
+
+
+@router.get("/config/general")
+async def get_general_config(user: dict = Depends(get_current_user)):
+    if GENERAL_PATH.exists():
+        with open(GENERAL_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+@router.post("/config/general")
+async def save_general_config(data: dict, user: dict = Depends(get_current_user)):
+    GENERAL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(GENERAL_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return {"message": "通用设置已保存"}

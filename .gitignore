@@ -12,6 +12,7 @@ data/
 .env
 config/models.json
 config/prompts.json
+config/general.json
 
 # OpenClaw 工作区文件
 .openclaw/

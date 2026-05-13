@@ -11,7 +11,7 @@
 
 <!-- Sidebar -->
 <nav class="sidebar" id="sidebar" style="display:none;">
-  <h2>📚 RAG 知识库系统</h2>
+  <h2 id="sidebar-title">📚 RAG 知识库系统</h2>
   <div class="side-section">
     <div class="side-section-title">总览</div>
     <a onclick="Router.navigate('dashboard')" class="active">📊 仪表盘</a>
@@ -548,11 +548,11 @@
   <div id="config-tab-general">
     <div class="card">
       <h3 class="mb-16">系统基本信息</h3>
-      <div class="form-group"><label>系统名称</label><input class="input" value="RAG 知识库管理系统"></div>
-      <div class="form-group"><label>Logo URL</label><input class="input" value=""></div>
-      <div class="form-group"><label>默认语言</label><select class="select" style="width:100%;"><option>简体中文</option><option>English</option></select></div>
-      <div class="form-group"><label>每页条数</label><input class="input" type="number" value="20"></div>
-      <button class="btn btn-primary mt-16">保存</button>
+      <div class="form-group"><label>系统名称</label><input class="input" id="gen-system-name" value="RAG 知识库管理系统"></div>
+      <div class="form-group"><label>Logo URL</label><input class="input" id="gen-logo-url" value=""></div>
+      <div class="form-group"><label>默认语言</label><select class="select" style="width:100%;" id="gen-language"><option>简体中文</option><option>English</option></select></div>
+      <div class="form-group"><label>每页条数</label><input class="input" type="number" id="gen-page-size" value="20"></div>
+      <button class="btn btn-primary mt-16" onclick="PageConfig.saveGeneralSettings()">保存</button>
     </div>
   </div>
   <div id="config-tab-model" style="display:none;">
@@ -1106,6 +1106,25 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    // 先从 localStorage 加载通用设置（同步）
+    const _gs = JSON.parse(localStorage.getItem('general_settings') || '{}');
+    if (_gs.systemName) {
+      document.title = _gs.systemName;
+      const sb = document.getElementById('sidebar-title');
+      if (sb) sb.textContent = '📚 ' + _gs.systemName;
+    }
+    // 再尝试从后端同步最新
+    (async () => {
+      try {
+        const s = await API.request('/api/config/general');
+        if (s.systemName) {
+          document.title = s.systemName;
+          const sb = document.getElementById('sidebar-title');
+          if (sb) sb.textContent = '📚 ' + s.systemName;
+          localStorage.setItem('general_settings', JSON.stringify(s));
+        }
+      } catch(e) {}
+    })();
     PageLogin.init();
     PageUpload.init();
     PageMemory.init();

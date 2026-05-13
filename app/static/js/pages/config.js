@@ -130,6 +130,43 @@ const PageConfig = (() => {
     } catch (e) { alert('保存失败: ' + e.message); }
   }
 
+  function loadGeneralSettings() {
+    const s = JSON.parse(localStorage.getItem('general_settings') || '{}');
+    if (s.systemName) document.getElementById('gen-system-name').value = s.systemName;
+    if (s.logoUrl !== undefined) document.getElementById('gen-logo-url').value = s.logoUrl;
+    if (s.language) document.getElementById('gen-language').value = s.language;
+    if (s.pageSize) document.getElementById('gen-page-size').value = s.pageSize;
+    // 更新页面标题和侧边栏
+    if (s.systemName) {
+      document.title = s.systemName;
+      const sb = document.getElementById('sidebar-title');
+      if (sb) sb.textContent = '📚 ' + s.systemName;
+    }
+  }
+
+  async function saveGeneralSettings() {
+    const data = {
+      systemName: document.getElementById('gen-system-name').value.trim(),
+      logoUrl: document.getElementById('gen-logo-url').value.trim(),
+      language: document.getElementById('gen-language').value,
+      pageSize: parseInt(document.getElementById('gen-page-size').value) || 20,
+    };
+    localStorage.setItem('general_settings', JSON.stringify(data));
+    // 更新页面标题和侧边栏
+    if (data.systemName) {
+      document.title = data.systemName;
+      const sb = document.getElementById('sidebar-title');
+      if (sb) sb.textContent = '📚 ' + data.systemName;
+    }
+    // 同步到后端
+    try {
+      await API.request('/api/config/general', { method: 'POST', body: data });
+      alert('✅ 通用设置已保存！');
+    } catch (e) {
+      alert('✅ 已保存到本地！');
+    }
+  }
+
   async function reindexAll() {
     const el = document.getElementById('reindex-status');
     el.style.display = 'block';
@@ -159,10 +196,12 @@ const PageConfig = (() => {
   return {
     onTabChange, loadModelConfig, saveModelConfig,
     loadPrompts, loadPromptEditor, savePrompts,
+    saveGeneralSettings, loadGeneralSettings,
     reindexAll, reindexCurrentKB,
   };
 })();
 
 Router.on('sys-config', () => {
   PageConfig.loadPrompts();
+  PageConfig.loadGeneralSettings();
 });
