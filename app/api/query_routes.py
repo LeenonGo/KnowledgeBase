@@ -100,6 +100,21 @@ async def query_knowledge_base(
                                  use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
                                  keywords=search_keywords)
 
+    # ── 4.5 FAQ 预匹配（非 Agent 模式）──
+    if not req.use_agent:
+        from app.core.memory_service import search_faq as _search_faq
+        faq_result = _search_faq(db, req.question, kb_id=req.kb_id,
+                                 accessible_ids=get_accessible_kb_ids(db, user) if not req.kb_id else None)
+        if faq_result:
+            answer = faq_result['answer']
+            citations = faq_result.get('citations', [])
+            result = {"question": req.question, "answer": answer, "sources": ["FAQ"], "citations": citations}
+            query_cache.set(_cache_key, result, ttl=3600)
+            log_audit(db, user, "query", req.question[:100], "FAQ命中", "success",
+                       request.client.host if request.client else "")
+            trace.__exit__(None, None, None)
+            return QueryResponse(**result)
+
     # ── 5. 拒答处理 ──
     if not docs:
         # 联网搜索兜底（非 Agent 模式下）
@@ -134,7 +149,14 @@ async def query_knowledge_base(
     if req.use_agent:
         from app.core.tools import TOOL_DEFINITIONS
         # Agent 模式：不注入检索 context，让 LLM 主动调工具
-        agent_tools = TOOL_DEFINITIONS
+        agent_tools = list(TOOL_DEFINITIONS)  # copy to avoid mutation
+        # 注入用户记忆
+        from app.core.memory_service import get_user_memories, format_memories_for_prompt
+        user_mems = get_user_memories(db, user.get("sub", ""))
+        memory_text = format_memories_for_prompt(user_mems)
+        agent_context = "（请使用可用工具来查找信息回答用户问题）"
+        if memory_text:
+            agent_context = memory_text + "\n\n" + agent_context
         # 联网搜索工具（按需添加）
         if req.use_web_search:
             agent_tools.append({
@@ -157,7 +179,14 @@ async def query_knowledge_base(
         )
         citations = []
     else:
-        answer = generate_answer(req.question, context, history=history)
+        # 注入用户记忆到 system prompt
+        from app.core.memory_service import get_user_memories, format_memories_for_prompt
+        user_mems = get_user_memories(db, user.get("sub", ""))
+        memory_text = format_memories_for_prompt(user_mems)
+        enriched_context = context
+        if memory_text:
+            enriched_context = memory_text + "\n\n" + context
+        answer = generate_answer(req.question, enriched_context, history=history)
         # 解析引用标注 [C1] → [1]
         answer, citations = parse_citations(answer, citation_map)
 
@@ -320,15 +349,18 @@ async def agent_query_stream(
     if req.kb_id:
         require_kb_access(db, user, req.kb_id, "viewer")
 
+    # 注入用户记忆
+    from app.core.memory_service import get_user_memories, format_memories_for_prompt
+    user_mems = get_user_memories(db, user.get("sub", ""))
+    memory_text = format_memories_for_prompt(user_mems)
+
     async def agent_stream_gen():
         try:
             agent_context = "（请使用可用工具来查找信息回答用户问题）"
-            # 组装工具列表：基础工具 + 可选联网搜索
-            agent_tools = TOOL_DEFINITIONS
-            if req.use_web_search:
-                from app.core.tools import TOOL_DEFINITIONS as _TD
-                # web_search 已在 TOOL_DEFINITIONS 中，无需重复添加
-                pass
+            if memory_text:
+                agent_context = memory_text + "\n\n" + agent_context
+            # 组装工具列表
+            agent_tools = list(TOOL_DEFINITIONS)
             for event in plan_and_execute_stream(
                 req.question, agent_context, history=history,
                 tools=agent_tools,

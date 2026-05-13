@@ -323,6 +323,82 @@ class Trace(Base):
     )
 
 
+# ─── 用户记忆 ─────────────────────────────────────
+class UserMemory(Base):
+    __tablename__ = "user_memory"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    user_id = Column(String(32), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    memory_type = Column(String(32), nullable=False, comment="preference / context / correction")
+    content = Column(Text, nullable=False, comment="记忆内容（自然语言）")
+    source_conv_id = Column(String(32), nullable=True, comment="来源对话 ID")
+    confidence = Column(Float, default=1.0, comment="置信度，随时间衰减")
+    hit_count = Column(Integer, default=0, comment="被引用次数")
+    last_hit_at = Column(DateTime, nullable=True)
+    expired_at = Column(DateTime, nullable=True, comment="过期时间")
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("ix_um_user", "user_id"),
+        Index("ix_um_type", "user_id", "memory_type"),
+    )
+
+
+# ─── FAQ 沉淀 ─────────────────────────────────────
+class FAQ(Base):
+    __tablename__ = "faq"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    kb_id = Column(String(32), ForeignKey("knowledge_base.id"), nullable=True, comment="关联知识库，NULL 表示全局")
+    question = Column(Text, nullable=False, comment="标准问题")
+    answer = Column(Text, nullable=False, comment="沉淀答案")
+    source_turn_id = Column(String(32), nullable=True, comment="来源对话轮次 ID")
+    source_citations = Column(Text, default="[]", comment="JSON：原始引用来源")
+    hit_count = Column(Integer, default=0, comment="命中次数")
+    avg_rating = Column(Float, nullable=True, comment="平均评分")
+    status = Column(String(16), default="auto", comment="auto / approved / rejected / archived")
+    confidence = Column(Float, default=1.0, comment="置信度，随时间衰减")
+    approved_by = Column(String(32), nullable=True, comment="审核人")
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("ix_faq_kb", "kb_id"),
+        Index("ix_faq_status", "status"),
+    )
+
+
+# ─── FAQ 标签 ─────────────────────────────────────
+class FAQTag(Base):
+    __tablename__ = "faq_tag"
+
+    faq_id = Column(String(32), ForeignKey("faq.id", ondelete="CASCADE"), primary_key=True)
+    tag = Column(String(100), primary_key=True)
+
+
+# ─── FAQ 候选统计（高频问题计数）─────────────────
+class FAQCandidate(Base):
+    __tablename__ = "faq_candidate"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    kb_id = Column(String(32), nullable=True)
+    question_hash = Column(String(64), nullable=False, comment="问题归一化哈希")
+    question_sample = Column(Text, nullable=False, comment="样本问题")
+    hit_count = Column(Integer, default=1)
+    positive_count = Column(Integer, default=0, comment="好评次数")
+    last_answer = Column(Text, default="", comment="最近一次回答")
+    last_citations = Column(Text, default="[]", comment="最近引用来源")
+    last_turn_id = Column(String(32), nullable=True)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("ix_faqc_hash", "question_hash"),
+        Index("ix_faqc_kb", "kb_id"),
+    )
+
+
 class TraceSpan(Base):
     __tablename__ = "trace_span"
 

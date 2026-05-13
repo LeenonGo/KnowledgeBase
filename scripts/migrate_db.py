@@ -66,38 +66,32 @@ def migrate():
 
         # ── 2. 添加索引和约束 ──
         migrations = [
-            # Document 唯一约束
             ("document", "uq_doc_kb_filename",
              "ALTER TABLE document ADD CONSTRAINT uq_doc_kb_filename UNIQUE (kb_id, filename)"),
-            # Document 索引
             ("document", "ix_doc_kb",
              "CREATE INDEX ix_doc_kb ON document (kb_id)" if dialect == "mysql"
              else "CREATE INDEX IF NOT EXISTS ix_doc_kb ON document (kb_id)"),
             ("document", "ix_doc_hash",
              "CREATE INDEX ix_doc_hash ON document (file_hash)" if dialect == "mysql"
              else "CREATE INDEX IF NOT EXISTS ix_doc_hash ON document (file_hash)"),
-            # KBDepartmentAccess 索引
             ("kb_department_access", "ix_kb_dept_kb",
              "CREATE INDEX ix_kb_dept_kb ON kb_department_access (kb_id)" if dialect == "mysql"
              else "CREATE INDEX IF NOT EXISTS ix_kb_dept_kb ON kb_department_access (kb_id)"),
             ("kb_department_access", "ix_kb_dept_dept",
              "CREATE INDEX ix_kb_dept_dept ON kb_department_access (department_id)" if dialect == "mysql"
              else "CREATE INDEX IF NOT EXISTS ix_kb_dept_dept ON kb_department_access (department_id)"),
-            # KBUserAccess 索引
             ("kb_user_access", "ix_kb_user_kb",
              "CREATE INDEX ix_kb_user_kb ON kb_user_access (kb_id)" if dialect == "mysql"
              else "CREATE INDEX IF NOT EXISTS ix_kb_user_kb ON kb_user_access (kb_id)"),
             ("kb_user_access", "ix_kb_user_uid",
              "CREATE INDEX ix_kb_user_uid ON kb_user_access (user_id)" if dialect == "mysql"
              else "CREATE INDEX IF NOT EXISTS ix_kb_user_uid ON kb_user_access (user_id)"),
-            # AuditLog 索引
             ("audit_log", "ix_audit_user",
              "CREATE INDEX ix_audit_user ON audit_log (user_id)" if dialect == "mysql"
              else "CREATE INDEX IF NOT EXISTS ix_audit_user ON audit_log (user_id)"),
             ("audit_log", "ix_audit_time",
              "CREATE INDEX ix_audit_time ON audit_log (created_at)" if dialect == "mysql"
              else "CREATE INDEX IF NOT EXISTS ix_audit_time ON audit_log (created_at)"),
-            # ConversationTurn 索引
             ("conversation_turn", "ix_turn_conv",
              "CREATE INDEX ix_turn_conv ON conversation_turn (conversation_id)" if dialect == "mysql"
              else "CREATE INDEX IF NOT EXISTS ix_turn_conv ON conversation_turn (conversation_id)"),
@@ -119,62 +113,46 @@ def migrate():
         # ── 3. 评测相关表 ──
         print("\n📋 检查评测相关表...")
         eval_tables = [
-            ("eval_dataset", """CREATE TABLE IF NOT EXISTS eval_dataset (
-                id VARCHAR(32) PRIMARY KEY,
-                kb_id VARCHAR(32) NOT NULL,
-                name VARCHAR(256) DEFAULT '',
-                question_count INT DEFAULT 0,
-                status VARCHAR(16) DEFAULT 'ready',
-                created_by VARCHAR(32),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX ix_eval_ds_kb (kb_id)
-            )"""),
-            ("eval_question", """CREATE TABLE IF NOT EXISTS eval_question (
-                id VARCHAR(32) PRIMARY KEY,
-                dataset_id VARCHAR(32) NOT NULL,
-                kb_id VARCHAR(32) NOT NULL,
-                question TEXT NOT NULL,
-                expected_answer TEXT,
-                category VARCHAR(32) NOT NULL,
-                source_hint VARCHAR(512) DEFAULT '',
-                ref_chunks TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                INDEX ix_eval_q_ds (dataset_id)
-            )"""),
-            ("eval_run", """CREATE TABLE IF NOT EXISTS eval_run (
-                id VARCHAR(32) PRIMARY KEY,
-                dataset_id VARCHAR(32) NOT NULL,
-                kb_id VARCHAR(32) NOT NULL,
-                total INT DEFAULT 0,
-                passed INT DEFAULT 0,
-                failed INT DEFAULT 0,
-                avg_score FLOAT DEFAULT 0.0,
-                status VARCHAR(16) DEFAULT 'running',
-                started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                finished_at DATETIME,
-                created_by VARCHAR(32),
-                INDEX ix_eval_run_ds (dataset_id)
-            )"""),
-            ("eval_result", """CREATE TABLE IF NOT EXISTS eval_result (
-                id VARCHAR(32) PRIMARY KEY,
-                run_id VARCHAR(32) NOT NULL,
-                question_id VARCHAR(32) NOT NULL,
-                question TEXT,
-                category VARCHAR(32) DEFAULT '',
-                expected_answer TEXT,
-                retrieved_chunks TEXT,
-                actual_answer TEXT,
-                scores TEXT,
-                reasoning TEXT,
-                avg_score FLOAT DEFAULT 0.0,
-                passed TINYINT(1) DEFAULT 0,
-                latency_ms INT DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                INDEX ix_eval_res_run (run_id)
-            )"""),
+            ("eval_dataset", (
+                "CREATE TABLE IF NOT EXISTS eval_dataset ("
+                " id VARCHAR(32) PRIMARY KEY, kb_id VARCHAR(32) NOT NULL,"
+                " name VARCHAR(256) DEFAULT '', question_count INT DEFAULT 0,"
+                " status VARCHAR(16) DEFAULT 'ready', created_by VARCHAR(32),"
+                " created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                " updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
+                " INDEX ix_eval_ds_kb (kb_id))"
+            )),
+            ("eval_question", (
+                "CREATE TABLE IF NOT EXISTS eval_question ("
+                " id VARCHAR(32) PRIMARY KEY, dataset_id VARCHAR(32) NOT NULL,"
+                " kb_id VARCHAR(32) NOT NULL, question TEXT NOT NULL,"
+                " expected_answer TEXT, category VARCHAR(32) NOT NULL,"
+                " source_hint VARCHAR(512) DEFAULT '', ref_chunks TEXT,"
+                " created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                " INDEX ix_eval_q_ds (dataset_id))"
+            )),
+            ("eval_run", (
+                "CREATE TABLE IF NOT EXISTS eval_run ("
+                " id VARCHAR(32) PRIMARY KEY, dataset_id VARCHAR(32) NOT NULL,"
+                " kb_id VARCHAR(32) NOT NULL, total INT DEFAULT 0,"
+                " passed INT DEFAULT 0, failed INT DEFAULT 0,"
+                " avg_score FLOAT DEFAULT 0.0, status VARCHAR(16) DEFAULT 'running',"
+                " started_at DATETIME DEFAULT CURRENT_TIMESTAMP, finished_at DATETIME,"
+                " created_by VARCHAR(32),"
+                " INDEX ix_eval_run_ds (dataset_id))"
+            )),
+            ("eval_result", (
+                "CREATE TABLE IF NOT EXISTS eval_result ("
+                " id VARCHAR(32) PRIMARY KEY, run_id VARCHAR(32) NOT NULL,"
+                " question_id VARCHAR(32) NOT NULL, question TEXT,"
+                " category VARCHAR(32) DEFAULT '', expected_answer TEXT,"
+                " retrieved_chunks TEXT, actual_answer TEXT, scores TEXT,"
+                " reasoning TEXT, avg_score FLOAT DEFAULT 0.0,"
+                " passed TINYINT(1) DEFAULT 0, latency_ms INT DEFAULT 0,"
+                " created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                " INDEX ix_eval_res_run (run_id))"
+            )),
         ]
-
         for table_name, ddl in eval_tables:
             try:
                 conn.execute(text(ddl))
@@ -190,26 +168,22 @@ def migrate():
         # ── 4. 全链路 Trace 表 ──
         print("\n📋 检查 Trace 相关表...")
         trace_tables = [
-            ("trace", """CREATE TABLE IF NOT EXISTS `trace` (
-                id VARCHAR(32) PRIMARY KEY,
-                user_id VARCHAR(32),
-                question TEXT,
-                total_duration_ms INT DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                INDEX ix_trace_user (user_id),
-                INDEX ix_trace_time (created_at)
-            )"""),
-            ("trace_span", """CREATE TABLE IF NOT EXISTS `trace_span` (
-                id VARCHAR(32) PRIMARY KEY,
-                trace_id VARCHAR(32) NOT NULL,
-                name VARCHAR(128) NOT NULL,
-                duration_ms INT DEFAULT 0,
-                input_preview TEXT,
-                output_preview TEXT,
-                seq INT DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                INDEX ix_span_trace (trace_id)
-            )"""),
+            ("trace", (
+                "CREATE TABLE IF NOT EXISTS `trace` ("
+                " id VARCHAR(32) PRIMARY KEY, user_id VARCHAR(32),"
+                " question TEXT, total_duration_ms INT DEFAULT 0,"
+                " created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                " INDEX ix_trace_user (user_id),"
+                " INDEX ix_trace_time (created_at))"
+            )),
+            ("trace_span", (
+                "CREATE TABLE IF NOT EXISTS `trace_span` ("
+                " id VARCHAR(32) PRIMARY KEY, trace_id VARCHAR(32) NOT NULL,"
+                " name VARCHAR(128) NOT NULL, duration_ms INT DEFAULT 0,"
+                " input_preview TEXT, output_preview TEXT, seq INT DEFAULT 0,"
+                " created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                " INDEX ix_span_trace (trace_id))"
+            )),
         ]
         for table_name, ddl in trace_tables:
             try:
@@ -223,32 +197,81 @@ def migrate():
                 else:
                     print(f"  ❌ {table_name}: {e}")
 
-    # ── conversation 表新增 conv_type 列 ──
-    print("\n📋 检查 conversation 表 conv_type 列...")
-    try:
-        conn.execute(text("ALTER TABLE conversation ADD COLUMN conv_type VARCHAR(16) DEFAULT 'rag' COMMENT 'rag / agent'"))
-        conn.commit()
-        print("  ✅ conversation.conv_type 列已添加")
-    except Exception as e:
-        err = str(e).lower()
-        if "duplicate" in err or "exists" in err or "1060" in err:
-            print("  ⏭️  conversation.conv_type 列已存在")
-        else:
-            print(f"  ❌ 添加失败: {e}")
+        # ── 5. conversation 表新增列 ──
+        print("\n📋 检查 conversation 表新列...")
+        for col, dtype in [
+            ("conv_type", "VARCHAR(16) DEFAULT 'rag'"),
+            ("is_pinned", "TINYINT(1) DEFAULT 0"),
+            ("tags", "VARCHAR(512) DEFAULT ''"),
+        ]:
+            try:
+                conn.execute(text(f"ALTER TABLE conversation ADD COLUMN {col} {dtype}"))
+                conn.commit()
+                print(f"  ✅ conversation.{col}")
+            except Exception as e:
+                err = str(e).lower()
+                if "duplicate" in err or "exists" in err or "1060" in err:
+                    print(f"  ⏭️  conversation.{col}（已存在）")
+                else:
+                    print(f"  ❌ conversation.{col}: {e}")
 
-    # ── conversation 表新增 is_pinned 和 tags 列 ──
-    print("\n📋 检查 conversation 表 is_pinned/tags 列...")
-    for col, dtype in [("is_pinned", "TINYINT(1) DEFAULT 0"), ("tags", "VARCHAR(512) DEFAULT ''")]:
-        try:
-            conn.execute(text(f"ALTER TABLE conversation ADD COLUMN {col} {dtype}"))
-            conn.commit()
-            print(f"  ✅ conversation.{col} 列已添加")
-        except Exception as e:
-            err = str(e).lower()
-            if "duplicate" in err or "exists" in err or "1060" in err:
-                print(f"  ⏭️  conversation.{col} 列已存在")
-            else:
-                print(f"  ❌ 添加失败: {e}")
+        # ── 6. 长期记忆层表 ──
+        print("\n📋 检查长期记忆层表...")
+        memory_tables = {
+            "user_memory": (
+                "CREATE TABLE IF NOT EXISTS user_memory ("
+                " id VARCHAR(32) PRIMARY KEY, user_id VARCHAR(32) NOT NULL,"
+                " memory_type VARCHAR(32) NOT NULL, content TEXT NOT NULL,"
+                " source_conv_id VARCHAR(32), confidence FLOAT DEFAULT 1.0,"
+                " hit_count INT DEFAULT 0, last_hit_at DATETIME,"
+                " expired_at DATETIME,"
+                " created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                " updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
+                " INDEX ix_um_user (user_id),"
+                " INDEX ix_um_type (user_id, memory_type))"
+            ),
+            "faq": (
+                "CREATE TABLE IF NOT EXISTS faq ("
+                " id VARCHAR(32) PRIMARY KEY, kb_id VARCHAR(32),"
+                " question TEXT NOT NULL, answer TEXT NOT NULL,"
+                " source_turn_id VARCHAR(32), source_citations VARCHAR(4096) DEFAULT '[]',"
+                " hit_count INT DEFAULT 0, avg_rating FLOAT,"
+                " status VARCHAR(16) DEFAULT 'auto', confidence FLOAT DEFAULT 1.0,"
+                " approved_by VARCHAR(32),"
+                " created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                " updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
+                " INDEX ix_faq_kb (kb_id),"
+                " INDEX ix_faq_status (status))"
+            ),
+            "faq_tag": (
+                "CREATE TABLE IF NOT EXISTS faq_tag ("
+                " faq_id VARCHAR(32) NOT NULL, tag VARCHAR(100) NOT NULL,"
+                " PRIMARY KEY (faq_id, tag))"
+            ),
+            "faq_candidate": (
+                "CREATE TABLE IF NOT EXISTS faq_candidate ("
+                " id VARCHAR(32) PRIMARY KEY, kb_id VARCHAR(32),"
+                " question_hash VARCHAR(64) NOT NULL, question_sample TEXT NOT NULL,"
+                " hit_count INT DEFAULT 1, positive_count INT DEFAULT 0,"
+                " last_answer TEXT, last_citations VARCHAR(4096) DEFAULT '[]',"
+                " last_turn_id VARCHAR(32),"
+                " created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                " updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
+                " INDEX ix_faqc_hash (question_hash),"
+                " INDEX ix_faqc_kb (kb_id))"
+            ),
+        }
+        for table_name, ddl in memory_tables.items():
+            try:
+                conn.execute(text(ddl))
+                conn.commit()
+                print(f"  ✅ {table_name}")
+            except Exception as e:
+                err = str(e).lower()
+                if "already exists" in err or "duplicate" in err:
+                    print(f"  ⏭️  {table_name}（已存在）")
+                else:
+                    print(f"  ❌ {table_name}: {e}")
 
     print("\n✅ 迁移完成")
 

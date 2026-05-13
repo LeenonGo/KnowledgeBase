@@ -138,6 +138,37 @@ async def add_conversation_turn(conv_id: str, data: dict,
         conv.title = raw_title[:50] + ("..." if len(raw_title) > 50 else "")
     db.commit()
 
+    # ── 异步记忆提取 + FAQ 候选记录（assistant 回答保存后）──
+    if data.get("role") == "assistant":
+        try:
+            from app.core.memory_service import (
+                extract_and_save_memories, record_faq_candidate,
+            )
+            user_id = user["sub"]
+            # 获取最近一轮 user 消息
+            prev_user = db.query(ConversationTurn).filter(
+                ConversationTurn.conversation_id == conv_id,
+                ConversationTurn.role == "user",
+            ).order_by(ConversationTurn.created_at.desc()).first()
+            user_msg = prev_user.content if prev_user else ""
+            assistant_msg = data.get("content", "")
+
+            # 1. 提取用户记忆
+            if user_msg and assistant_msg:
+                extract_and_save_memories(db, user_id, conv_id, user_msg, assistant_msg)
+
+            # 2. 记录 FAQ 候选
+            if user_msg and assistant_msg and len(user_msg) > 5:
+                citations = data.get("sources", [])
+                is_positive = data.get("confidence", 0) > 0.5
+                record_faq_candidate(
+                    db, question=user_msg, answer=assistant_msg,
+                    kb_id=None, turn_id=turn.id,
+                    citations=citations, is_positive=is_positive,
+                )
+        except Exception as e:
+            print(f"[Memory] 异步处理失败（不影响正常流程）: {e}")
+
     return {"id": turn.id, "role": turn.role}
 
 

@@ -21,6 +21,7 @@
     <a onclick="Router.navigate('kb-list')">📂 知识库列表</a>
     <a onclick="Router.navigate('qa-chat')">💬 智能问答</a>
     <a onclick="Router.navigate('agent-ws')">🧠 Agent 工作台</a>
+    <a onclick="Router.navigate('user-memory')">💾 我的记忆</a>
   </div>
   <div class="side-section">
     <div class="side-section-title">管理</div>
@@ -34,6 +35,7 @@
     <a onclick="Router.navigate('quality')" id="menu-quality">📈 质量监控</a>
     <a onclick="Router.navigate('evaluation')" id="menu-eval">🧪 效果评测</a>
     <a onclick="Router.navigate('sys-config')" id="menu-config">⚙️ 系统配置</a>
+    <a onclick="Router.navigate('faq-mgmt')" id="menu-faq">📝 FAQ 管理</a>
   </div>
 </nav>
 
@@ -838,6 +840,55 @@
 
 
 
+<!-- 💾 我的记忆 -->
+<div id="user-memory" class="screen">
+  <div class="screen-title">
+    <a onclick="Router.navigate('qa-chat')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
+    <span>💾 我的记忆</span>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="label">总记忆数</div><div class="value" id="memory-total">0</div></div>
+    <div class="stat-card"><div class="label">偏好</div><div class="value" id="memory-pref">0</div></div>
+    <div class="stat-card"><div class="label">背景</div><div class="value" id="memory-context">0</div></div>
+    <div class="stat-card"><div class="label">纠正</div><div class="value" id="memory-corr">0</div></div>
+  </div>
+  <div class="card">
+    <table class="data-table">
+      <thead><tr><th style="width:10%">类型</th><th style="width:60%">内容</th><th style="width:10%;text-align:center">引用次数</th><th style="width:10%">操作</th></tr></thead>
+      <tbody id="memory-table-body"><tr><td colspan="4" class="empty">加载中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 📝 FAQ 管理 -->
+<div id="faq-mgmt" class="screen">
+  <div class="screen-title">
+    <a onclick="Router.navigate('sys-config')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
+    <span>📝 FAQ 管理</span>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="label">FAQ 总数</div><div class="value" id="faq-total">0</div></div>
+    <div class="stat-card"><div class="label">已通过</div><div class="value" id="faq-approved">0</div></div>
+    <div class="stat-card"><div class="label">待审核</div><div class="value" id="faq-pending">0</div></div>
+    <div class="stat-card"><div class="label">总命中</div><div class="value" id="faq-hits">0</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header" style="margin-bottom:12px">
+      <div class="flex gap-8">
+        <button class="btn btn-sm faq-filter-btn active" onclick="PageFAQ.filterByStatus('')">全部</button>
+        <button class="btn btn-sm faq-filter-btn" onclick="PageFAQ.filterByStatus('auto')">待审核</button>
+        <button class="btn btn-sm faq-filter-btn" onclick="PageFAQ.filterByStatus('approved')">已通过</button>
+        <button class="btn btn-sm faq-filter-btn" onclick="PageFAQ.filterByStatus('rejected')">已拒绝</button>
+      </div>
+    </div>
+    <table class="data-table">
+      <thead><tr><th style="width:25%">问题</th><th style="width:35%">回答预览</th><th style="width:10%">状态</th><th style="width:8%;text-align:center">命中</th><th style="width:22%">操作</th></tr></thead>
+      <tbody id="faq-table-body"><tr><td colspan="5" class="empty">加载中...</td></tr></tbody>
+    </table>
+    <div id="faq-pagination" style="margin-top:12px;text-align:center"></div>
+  </div>
+</div>
+
 </div><!-- end main-area -->
 
 
@@ -1037,6 +1088,8 @@
 <script src="/js/pages/quality.js?v=17"></script>
 <script src="/js/pages/chunks.js?v=17"></script>
 <script src="/js/pages/eval.js?v=17"></script>
+<script src="/js/pages/memory.js?v=17"></script>
+<script src="/js/pages/faq.js?v=17"></script>
 <!-- 初始化 -->
 <script>
   // 侧边栏收起/展开
@@ -1051,6 +1104,8 @@
   document.addEventListener('DOMContentLoaded', () => {
     PageLogin.init();
     PageUpload.init();
+    PageMemory.init();
+    PageFAQ.init();
     // 检查已有 token，自动进入
     if (API.getToken()) {
       PageLogin.showApp();

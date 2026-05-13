@@ -204,6 +204,45 @@ TOOL_DEFINITIONS = [
     {
         "type": "function",
         "function": {
+            "name": "recall_memory",
+            "description": "查询当前用户的记忆信息（偏好、背景、纠正记录）。当需要了解用户习惯或历史偏好时使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "memory_type": {
+                        "type": "string",
+                        "enum": ["preference", "context", "correction", "all"],
+                        "description": "记忆类型筛选，all=全部，默认 all"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_faq",
+            "description": "查询常见问题沉淀（FAQ）。高频问答已自动沉淀为 FAQ，命中可直接返回答案，无需重新检索。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "要查询的问题"
+                    },
+                    "kb_id": {
+                        "type": "string",
+                        "description": "限定知识库 ID（可选）"
+                    }
+                },
+                "required": ["question"]
+            }
+        }
+    },
+        {
+        "type": "function",
+        "function": {
             "name": "knowledge_compare",
             "description": "对比两个知识库或文档的差异。当用户要求对比、比较、分析两个知识库/文档的异同时使用。",
             "parameters": {
@@ -263,6 +302,10 @@ def execute_tool(
             return _doc_stats(arguments, db, user)
         elif name == "chart_generator":
             return _chart_generator(arguments)
+        elif name == "recall_memory":
+            return _recall_memory(arguments, db, user)
+        elif name == "search_faq":
+            return _search_faq(arguments, db, user)
         elif name == "knowledge_compare":
             return _knowledge_compare(arguments, db, user)
         else:
@@ -623,3 +666,55 @@ def _knowledge_compare(args: dict, db: Session, user: dict) -> str:
     content_2 = get_content(kb_id_2, fn_2)
 
     return f"=== {kb1.name} ===\n{content_1}\n\n=== {kb2.name} ===\n{content_2}"
+
+def _recall_memory(args: dict, db: Session, user: dict) -> str:
+    """查询用户记忆"""
+    from app.core.memory_service import get_user_memories, record_memory_hit
+
+    user_id = user.get("sub", "")
+    mem_type = args.get("memory_type", "all")
+
+    memories = get_user_memories(db, user_id)
+    if not memories:
+        return "暂无用户记忆记录"
+
+    if mem_type != "all":
+        memories = [m for m in memories if m["memory_type"] == mem_type]
+
+    if not memories:
+        return f"暂无类型为「{mem_type}」的记忆记录"
+
+    # 记录命中
+    record_memory_hit(db, [m["id"] for m in memories[:10]])
+
+    type_labels = {"preference": "偏好", "context": "背景", "correction": "纠正"}
+    lines = []
+    for m in memories[:15]:
+        label = type_labels.get(m["memory_type"], m["memory_type"])
+        lines.append(f"- [{label}] {m['content']}（引用{m['hit_count']}次）")
+
+    return "用户记忆：\n" + "\n".join(lines)
+
+
+def _search_faq(args: dict, db: Session, user: dict) -> str:
+    """搜索 FAQ 沉淀"""
+    from app.core.memory_service import search_faq as _do_search_faq
+    from app.api.deps import get_accessible_kb_ids
+
+    question = args.get("question", "")
+    kb_id = args.get("kb_id")
+
+    if not question:
+        return "请提供查询问题"
+
+    accessible_ids = get_accessible_kb_ids(db, user)
+    result = _do_search_faq(db, question, kb_id=kb_id, accessible_ids=accessible_ids)
+
+    if not result:
+        return "未找到匹配的 FAQ"
+
+    status_label = {"auto": "（自动沉淀）", "approved": "（已审核）"}.get(result["status"], "")
+    tags = f" 标签:{','.join(result['tags'])}" if result.get("tags") else ""
+
+    return f"FAQ 命中{status_label}{tags}\n问题：{result['question']}\n回答：{result['answer']}"
+

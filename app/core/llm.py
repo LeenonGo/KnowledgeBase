@@ -428,6 +428,10 @@ def generate_answer_agent_stream(
     agent_prompt = get_prompt("agent")
     agent_system = agent_prompt.get("system", "你是一个智能知识库助手，请使用工具来回答问题。")
 
+    # 注入 context（含用户记忆）到 system prompt
+    if context:
+        agent_system = context + "\n\n" + agent_system
+
     user_prompt = f"用户问题：{question}\n\n对话历史：{history or '无'}"
 
     messages = [
