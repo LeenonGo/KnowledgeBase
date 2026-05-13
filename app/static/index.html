@@ -13,14 +13,17 @@
 <nav class="sidebar" id="sidebar" style="display:none;">
   <h2>📚 RAG 知识库系统</h2>
   <div class="side-section">
-    <div class="side-section-title">概览</div>
+    <div class="side-section-title">总览</div>
     <a onclick="Router.navigate('dashboard')" class="active">📊 仪表盘</a>
   </div>
   <div class="side-section">
     <div class="side-section-title">知识库</div>
-    <a onclick="Router.navigate('kb-list')">📂 知识库列表</a>
+    <a onclick="Router.navigate('kb-list')">📂 文档管理</a>
     <a onclick="Router.navigate('qa-chat')">💬 智能问答</a>
     <a onclick="Router.navigate('agent-ws')">🧠 Agent 工作台</a>
+  </div>
+  <div class="side-section">
+    <div class="side-section-title">个人</div>
     <a onclick="Router.navigate('user-memory')">💾 我的记忆</a>
   </div>
   <div class="side-section">
@@ -31,11 +34,11 @@
   </div>
   <div class="side-section">
     <div class="side-section-title">运维</div>
-    <a onclick="Router.navigate('audit-log')" id="menu-audit">📋 审计日志</a>
+    <a onclick="Router.navigate('faq-mgmt')" id="menu-faq">📝 FAQ 管理</a>
     <a onclick="Router.navigate('quality')" id="menu-quality">📈 质量监控</a>
     <a onclick="Router.navigate('evaluation')" id="menu-eval">🧪 效果评测</a>
+    <a onclick="Router.navigate('audit-log')" id="menu-audit">📋 审计日志</a>
     <a onclick="Router.navigate('sys-config')" id="menu-config">⚙️ 系统配置</a>
-    <a onclick="Router.navigate('faq-mgmt')" id="menu-faq">📝 FAQ 管理</a>
   </div>
 </nav>
 
