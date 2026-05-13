@@ -9,7 +9,7 @@
 | 📄 多格式文档解析 | PDF(含OCR) / Word / Excel / CSV / PPT / TXT / Markdown |
 | 🔍 混合检索 | 向量语义 + BM25 + RRF 融合 + qwen3-rerank 重排 |
 | 🔐 部门权限隔离 | 部门级授权 + 三级角色（super_admin / kb_admin / user） |
-| 🧠 Agent 模式 | Plan-and-Execute 多步推理、Self-RAG 自适应检索、13 个工具 |
+| 🧠 Agent 模式 | Plan-and-Execute 多步推理、Self-RAG 自适应检索、14 个工具 |
 | 💾 长期记忆层 | 用户记忆（偏好/背景/纠正）+ FAQ 高频问答自动沉淀 |
 | 📈 效果评测 | LLM-as-Judge 9 维度自动评分 |
 | 💬 多轮对话 | 上下文传递、Query 润色、查询改写、引用标注 [C1][C2] |
@@ -50,7 +50,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | 审计日志 / 质量监控 / 效果评测 | 操作记录、差评率、自动评分 | super_admin |
 | 系统配置 | LLM/Embedding/Reranker/Prompt/检索策略 | super_admin |
 
-## Agent 工具（13 个）
+## Agent 工具（14 个）
 
 | 工具 | 功能 |
 |---|---|
@@ -62,6 +62,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | doc_stats | 知识库统计 |
 | calculator / current_time | 数学计算 / 当前时间 |
 | recall_memory / search_faq | 用户记忆 / FAQ 查询 |
+| http_request | HTTP 请求调用外部 API（SSRF 防护） |
 
 ## 版本计划
 

@@ -19,7 +19,7 @@ knowledge-base/
 │   │   └── deps.py                 # 认证 + 权限检查
 │   ├── core/
 │   │   ├── llm.py                  # LLM 调用 + Agent + Plan-and-Execute + Self-RAG
-│   │   ├── tools.py                # 13 个 Agent 工具 + 工具注册表
+│   │   ├── tools.py                # 14 个 Agent 工具 + 工具注册表
 │   │   ├── memory_service.py       # 记忆提取/检索/衰减 + FAQ 沉淀/匹配/生命周期
 │   │   ├── vectorstore.py          # ChromaDB 向量存储 + 混合检索
 │   │   ├── hybrid_search.py        # 混合检索编排

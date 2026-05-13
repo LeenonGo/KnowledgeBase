@@ -269,6 +269,40 @@ TOOL_DEFINITIONS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "http_request",
+            "description": "发送 HTTP 请求调用外部 API。当需要获取外部数据、调用第三方接口、与外部系统交互时使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "请求 URL（必须是 http:// 或 https://）"
+                    },
+                    "method": {
+                        "type": "string",
+                        "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+                        "description": "HTTP 方法，默认 GET"
+                    },
+                    "headers": {
+                        "type": "object",
+                        "description": "请求头（可选），如 Authorization: Bearer xxx"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "请求体（可选），POST/PUT 时传 JSON 字符串"
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "超时秒数，默认 10，最大 30"
+                    }
+                },
+                "required": ["url"]
+            }
+        }
+    },
 ]
 
 
@@ -308,6 +342,8 @@ def execute_tool(
             return _search_faq(arguments, db, user)
         elif name == "knowledge_compare":
             return _knowledge_compare(arguments, db, user)
+        elif name == "http_request":
+            return _http_request(arguments)
         else:
             return f"未知工具: {name}"
     except Exception as e:
@@ -718,3 +754,79 @@ def _search_faq(args: dict, db: Session, user: dict) -> str:
 
     return f"FAQ 命中{status_label}{tags}\n问题：{result['question']}\n回答：{result['answer']}"
 
+def _http_request(args: dict) -> str:
+    """发送 HTTP 请求调用外部 API（带安全限制）"""
+    import urllib.request
+    import urllib.error
+    import ipaddress
+    import socket
+
+    url = args.get("url", "")
+    method = args.get("method", "GET").upper()
+    headers = args.get("headers") or {}
+    body = args.get("body", "")
+    timeout = min(int(args.get("timeout", 10)), 30)
+
+    if not url:
+        return "URL 不能为空"
+    if not url.startswith(("http://", "https://")):
+        return "仅支持 http:// 和 https:// 协议"
+    if method not in ("GET", "POST", "PUT", "PATCH", "DELETE"):
+        return f"不支持的 HTTP 方法: {method}"
+
+    # SSRF 防护：阻止内网地址
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        host = parsed.hostname
+        if host:
+            # 解析 DNS
+            resolved = socket.getaddrinfo(host, None)
+            for family, _, _, _, sockaddr in resolved:
+                ip = ipaddress.ip_address(sockaddr[0])
+                if ip.is_private or ip.is_loopback or ip.is_link_local:
+                    return f"禁止访问内网地址: {host} ({ip})"
+    except Exception as e:
+        return f"URL 解析失败: {e}"
+
+    # 发送请求
+    try:
+        data = body.encode("utf-8") if body and method in ("POST", "PUT", "PATCH") else None
+        req = urllib.request.Request(url, data=data, method=method)
+        req.add_header("User-Agent", "RAG-KB-Agent/1.0")
+        for k, v in headers.items():
+            req.add_header(k, str(v))
+
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            status = resp.status
+            content_type = resp.headers.get("Content-Type", "")
+            resp_body = resp.read(51200)  # 最大 50KB
+            text = resp_body.decode("utf-8", errors="replace")
+
+            # JSON 格式化
+            if "json" in content_type:
+                try:
+                    import json
+                    obj = json.loads(text)
+                    text = json.dumps(obj, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
+
+            result = f"HTTP {status} ({content_type})\n\n{text}"
+            if len(resp_body) >= 51200:
+                result += "\n\n... (响应超过 50KB，已截断)"
+            return result
+
+    except urllib.error.HTTPError as e:
+        error_body = ""
+        try:
+            error_body = e.read(4096).decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        return f"HTTP {e.code} {e.reason}\n{error_body[:2000]}"
+    except urllib.error.URLError as e:
+        return f"请求失败: {e.reason}"
+    except TimeoutError:
+        return f"请求超时（{timeout}秒）"
+    except Exception as e:
+        return f"请求异常: {e}"
