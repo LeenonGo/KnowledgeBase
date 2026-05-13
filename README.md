@@ -7,12 +7,15 @@
 | 能力 | 说明 |
 |------|------|
 | 📄 多格式文档解析 | PDF(含OCR) / Word / Excel / CSV / PPT / TXT / Markdown |
-| 🔍 混合检索 | 向量语义 + BM25 + RRF 融合 + qwen3-rerank 重排 |
+| 🔍 混合检索 | 向量语义 + BM25 + RRF 融合 + qwen3-rerank 重排 + FAQ 预匹配 |
 | 🔐 部门权限隔离 | 部门级授权 + 三级角色（super_admin / kb_admin / user） |
-| 🧠 Agent 模式 | Plan-and-Execute 多步推理、Self-RAG 自适应检索、14 个工具 |
-| 💾 长期记忆层 | 用户记忆（偏好/背景/纠正）+ FAQ 高频问答自动沉淀 |
+| 🧠 Agent 模式 | Plan-and-Execute 多步推理 + Self-RAG 自适应检索 + 14 个工具 |
+| ⏸️ 人机协作 | 执行计划确认 / 逐步审批 / 用户可控 Agent 行为 |
+| 🌐 外部连接 | HTTP 请求工具（SSRF 防护）+ 联网搜索，Agent 可调任意 REST API |
+| 💾 长期记忆层 | 用户记忆（偏好/背景/纠正）+ FAQ 高频问答自动沉淀 + 衰减淘汰 |
 | 📈 效果评测 | LLM-as-Judge 9 维度自动评分 |
 | 💬 多轮对话 | 上下文传递、Query 润色、查询改写、引用标注 [C1][C2] |
+| 📊 数据可视化 | Agent 可生成 ECharts 图表（柱状图/饼图/折线图） |
 
 ## 技术栈
 
@@ -66,10 +69,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## 版本计划
 
-### 🔥 v5.2 — Agent 智能化增强
-- **代码执行沙箱**（code_executor）— Agent 能写 Python 做数据分析
-- **人机协作确认节点** — 子任务执行完暂停等用户批准
-- **HTTP 请求工具** — Agent 能调 REST API，连接外部系统
+### ✅ v5.2 — Agent 智能化增强（已完成）
+- **HTTP 请求工具** — Agent 能调 REST API，SSRF 防护 ✅
+- **人机协作确认节点** — 执行计划确认 + 逐步审批 ✅
+- **代码执行沙箱**（code_executor）— Agent 能写 Python 做数据分析（待做）
 
 ### 📋 v5.3 — 产品体验
 - Prompt 调试工作台（可视化编辑 + 实时预览 + 版本管理）

@@ -359,14 +359,43 @@ async def agent_query_stream(
             agent_context = "（请使用可用工具来查找信息回答用户问题）"
             if memory_text:
                 agent_context = memory_text + "\n\n" + agent_context
-            # 组装工具列表
             agent_tools = list(TOOL_DEFINITIONS)
+
             for event in plan_and_execute_stream(
                 req.question, agent_context, history=history,
                 tools=agent_tools,
                 tool_context={"db": db, "user": user},
             ):
                 event_type = event["type"]
+
+                # 人机协作：规划完成且需要确认时
+                if event_type == "plan" and req.require_approval and event.get("need_plan"):
+                    data = json.dumps(event, ensure_ascii=False)
+                    yield f"event: plan\ndata: {data}\n\n"
+
+                    # 创建审批会话
+                    from app.core.approval import create_session
+                    session_id = create_session(
+                        user_id=user["sub"],
+                        question=req.question,
+                        context=agent_context,
+                        history=history,
+                        tools=agent_tools,
+                        tool_context={"db": db, "user": user},
+                        plan_data=event,
+                        tasks=event.get("tasks", []),
+                    )
+                    # yield 审批请求
+                    approval_data = json.dumps({
+                        "session_id": session_id,
+                        "phase": "plan",
+                        "message": "请确认执行计划",
+                        "tasks": event.get("tasks", []),
+                    }, ensure_ascii=False)
+                    yield f"event: approval_request\ndata: {approval_data}\n\n"
+                    return  # 暂停，等用户确认
+
+                # 正常事件转发
                 if event_type == "plan":
                     data = json.dumps(event, ensure_ascii=False)
                     yield f"event: plan\ndata: {data}\n\n"
@@ -399,6 +428,60 @@ async def agent_query_stream(
               f"Agent流式问答, kb={req.kb_id or '全部'}", "success",
               request.client.host if request.client else "")
     return StreamingResponse(agent_stream_gen(), media_type="text/event-stream")
+
+
+@router.post("/query/agent/resume")
+async def agent_resume(
+    request: Request, data: dict,
+    user: dict = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    """恢复 Agent 执行 -- 人机协作确认后调用"""
+    session_id = data.get("session_id", "")
+    action = data.get("action", "approve")
+
+    from app.core.approval import get_session, remove_session
+
+    session = get_session(session_id)
+    if not session:
+        return JSONResponse({"detail": "审批会话已过期，请重新提问"}, status_code=400)
+
+    if session["user_id"] != user["sub"]:
+        return JSONResponse({"detail": "无权操作此会话"}, status_code=403)
+
+    if action == "reject":
+        remove_session(session_id)
+        async def reject_gen():
+            d = json.dumps({"content": "已取消执行。如需重新操作请重新提问。", "sources": [], "citations": []})
+            yield f"event: answer\ndata: {d}\n\n"
+        return StreamingResponse(reject_gen(), media_type="text/event-stream")
+
+    modified_tasks = data.get("tasks")
+
+    async def resume_gen():
+        try:
+            from app.core.llm import resume_execution
+            for event in resume_execution(session_id, modified_tasks=modified_tasks):
+                event_type = event["type"]
+                if event_type in ("plan", "subtask_start", "subtask_done"):
+                    yield f"event: {event_type}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+                elif event_type == "thought":
+                    d = json.dumps({"step": event["step"], "content": event["content"]})
+                    yield f"event: thought\ndata: {d}\n\n"
+                elif event_type == "action":
+                    d = json.dumps({"step": event["step"], "tool": event["tool"], "arguments": event["arguments"]})
+                    yield f"event: action\ndata: {d}\n\n"
+                elif event_type == "observe":
+                    d = json.dumps({"step": event["step"], "content": event["content"]})
+                    yield f"event: observe\ndata: {d}\n\n"
+                elif event_type in ("answer", "error"):
+                    yield f"event: {event_type}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: " + json.dumps(str(e)) + "\n\n"
+
+    log_audit(db, user, "query", f"Agent恢复: {session_id[:20]}", "人机协作确认", "success",
+               request.client.host if request.client else "")
+    return StreamingResponse(resume_gen(), media_type="text/event-stream")
+
 
 @router.get("/cache/stats")
 async def get_cache_stats(user: dict = Depends(get_current_user)):

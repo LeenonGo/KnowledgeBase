@@ -56,6 +56,7 @@ const PageAgent = (() => {
       const body = {
         question, top_k: 10, use_hybrid: true, conv_id: convId,
         use_reranker: false, use_agent: true,
+        require_approval: document.getElementById("agent-require-approval")?.checked || false,
         use_rewrite: false, use_polish: false,
         use_web_search: document.getElementById('agent-web-search')?.checked ?? true,
       };
@@ -104,6 +105,7 @@ const PageAgent = (() => {
         let finalSources = [];
         let finalCitations = [];
         let assistantContent = '';
+        let waitingForApproval = false;
         let stepCount = 0;
 
         while (true) {
@@ -186,6 +188,36 @@ const PageAgent = (() => {
               stepEl.innerHTML = `<span class="chain-icon">👁️</span><span class="chain-label">观察</span><div class="chain-content">${UI.escapeHtml(obsContent)}</div>`;
               chainBody.appendChild(stepEl);
               traceData.push({ type: 'observe', content: data.content, time: Date.now() - startTime });
+            } else if (eventType === 'approval_request') {
+              // 人机协作确认点
+              const sessionId = data.session_id;
+              const phase = data.phase;
+              const tasks = data.tasks || [];
+              const msg = data.message || '请确认';
+
+              // 获取 chainBody
+              const _chainBody = chainWrap.querySelector('.agent-chain-body');
+              const approvalEl = document.createElement('div');
+              approvalEl.className = 'chain-approval';
+              approvalEl.innerHTML = `
+                <div class="approval-header">⏸️ ${UI.escapeHtml(msg)}</div>
+                <div class="approval-tasks">${tasks.map(t =>
+                  `<div class="approval-task">${t.id}. ${UI.escapeHtml(t.description)}</div>`
+                ).join('')}</div>
+                <div class="approval-actions">
+                  <button class="btn btn-primary btn-sm" onclick="PageAgent._approve('${sessionId}', this)">✅ 确认执行</button>
+                  <button class="btn btn-sm" onclick="PageAgent._reject('${sessionId}', this)">❌ 取消</button>
+                </div>
+              `;
+              _chainBody.appendChild(approvalEl);
+
+              // 禁用发送按钮，等确认后恢复
+              document.getElementById('agent-send-btn').disabled = true;
+              waitingForApproval = true;
+              approvalEl.dataset.chainWrapId = chainWrap.id || '';
+              window._agentChainWrap = chainWrap;
+              traceData.push({ type: 'approval_request', session_id: sessionId, time: Date.now() - startTime });
+
             } else if (eventType === 'answer') {
               assistantContent = data.content || '';
               finalSources = data.sources || [];
@@ -277,6 +309,11 @@ const PageAgent = (() => {
             return `<div class="trace-span"><span class="trace-time">${ts}</span><span class="trace-type trace-observe">👁 Observe</span><span class="trace-detail">${UI.escapeHtml((t.content || '').substring(0, 80))}...</span></div>`;
           }).join('')}</div>`;
           answerWrap.appendChild(traceEl);
+        }
+
+        // 等待审批时不执行收尾逻辑
+        if (waitingForApproval) {
+          return;
         }
 
         // 无内容提示
@@ -508,7 +545,133 @@ const PageAgent = (() => {
     } catch (e) { console.error('导出失败:', e); }
   }
 
-  return { askQuestion, askPreset, newChat, feedback, loadConversationList, loadConversation, deleteConversation, showCiteHover, hideCiteHover, togglePin, editTags, exportConv };
+  // 人机协作：确认执行
+  async function _approve(sessionId, btnEl) {
+    const parent = btnEl.closest('.approval-actions');
+    parent.innerHTML = '<span style="color:#52c41a">⏳ 正在执行...</span>';
+    console.log('[Agent] approve session:', sessionId);
+
+    try {
+      const token = API.getToken();
+      const resp = await fetch('/api/query/agent/resume', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, action: 'approve' }),
+      });
+      console.log('[Agent] resume status:', resp.status);
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        parent.innerHTML = '<span style="color:#ff4d4f">❌ ' + (err.detail || '请求失败') + '</span>';
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let eventCount = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        let evtType = null;
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            evtType = line.slice(7).trim();
+          } else if (line.startsWith('data: ') && evtType) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              eventCount++;
+              _handleResumeEvent(evtType, data);
+            } catch(e) { console.log('[Agent] parse error:', e, line.slice(6, 100)); }
+            evtType = null;
+          }
+        }
+      }
+      console.log('[Agent] resume done, events:', eventCount);
+    } catch (e) {
+      console.error('[Agent] Resume error:', e);
+      const errEl = btnEl.closest('.approval-actions') || parent;
+      errEl.innerHTML = '<span style="color:#ff4d4f">❌ ' + e.message + '</span>';
+    }
+  }
+
+  // 人机协作：取消执行
+  async function _reject(sessionId, btnEl) {
+    const parent = btnEl.closest('.approval-actions');
+    parent.innerHTML = '<span style="color:#ff4d4f">❌ 已取消</span>';
+    try {
+      await API.request('/api/query/agent/resume', {
+        method: 'POST',
+        body: { session_id: sessionId, action: 'reject' },
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  function _handleResumeEvent(eventType, data) {
+    // 通过全局引用找到当前的 chain body
+    const chainBody = window._agentChainWrap?.querySelector('.agent-chain-body')
+      || document.querySelector('#agent-chain-live .agent-chain-body')
+      || document.querySelector('.agent-chain .agent-chain-body');
+    if (!chainBody) { console.log('[Agent] chainBody not found'); return; }
+
+    if (eventType === 'subtask_start') {
+      const sepEl = document.createElement('div');
+      sepEl.className = 'chain-subtask-sep';
+      sepEl.innerHTML = '<span>\u25b6 子任务 ' + data.task_id + ': ' + UI.escapeHtml(data.description) + '</span>';
+      chainBody.appendChild(sepEl);
+      const taskEl = document.getElementById('plan-task-' + data.task_id);
+      if (taskEl) { taskEl.querySelector('.plan-task-status').textContent = '\ud83d\udd04'; taskEl.classList.add('active'); }
+    } else if (eventType === 'subtask_done') {
+      const taskEl = document.getElementById('plan-task-' + data.task_id);
+      if (taskEl) { taskEl.querySelector('.plan-task-status').textContent = '\u2705'; taskEl.classList.remove('active'); taskEl.classList.add('done'); }
+    } else if (eventType === 'thought') {
+      const stepEl = document.createElement('div');
+      stepEl.className = 'chain-step chain-thought';
+      stepEl.innerHTML = '<span class="chain-icon">\ud83d\udcad</span><span class="chain-label">思考</span><div class="chain-content">' + UI.escapeHtml(data.content || '') + '</div>';
+      chainBody.appendChild(stepEl);
+    } else if (eventType === 'action') {
+      const stepEl = document.createElement('div');
+      stepEl.className = 'chain-step chain-action';
+      stepEl.innerHTML = '<span class="chain-icon">\u26a1</span><span class="chain-label">调用 ' + (data.tool || '') + '</span><div class="chain-content"><code>' + UI.escapeHtml(JSON.stringify(data.arguments || {})) + '</code></div>';
+      chainBody.appendChild(stepEl);
+    } else if (eventType === 'observe') {
+      const stepEl = document.createElement('div');
+      stepEl.className = 'chain-step chain-observe';
+      stepEl.innerHTML = '<span class="chain-icon">\ud83d\udc41\ufe0f</span><span class="chain-label">观察</span><div class="chain-content">' + UI.escapeHtml((data.content || '').substring(0, 300)) + '</div>';
+      chainBody.appendChild(stepEl);
+    } else if (eventType === 'answer') {
+      // 渲染到 answer-text 区域（不破坏推理链）
+      const msgBubble = chainBody.closest('.message.assistant');
+      const answerTextEl = msgBubble ? msgBubble.querySelector('.agent-answer-text') : null;
+      if (answerTextEl) {
+        const _chartData = UI.extractCharts(data.content || '');
+        answerTextEl.innerHTML = UI.md2html(_chartData.text);
+        UI.renderCharts(answerTextEl, _chartData.charts);
+      }
+      // 折叠推理链
+      if (window._agentChainWrap) window._agentChainWrap.classList.add('collapsed');
+      // 保存到数据库
+      const _convId = new URLSearchParams(window.location.hash.split('?')[1] || '').get('id');
+      if (_convId && data.content) {
+        API.request(`/api/conversations/${_convId}/turns`, {
+          method: 'POST',
+          body: { role: 'assistant', content: data.content, sources: data.sources || [] },
+        }).catch(() => {});
+      }
+    } else if (eventType === 'error') {
+      const stepEl = document.createElement('div');
+      stepEl.className = 'chain-step';
+      stepEl.innerHTML = '<span class="chain-icon">\u274c</span><div class="chain-content">' + UI.escapeHtml(data.content || '错误') + '</div>';
+      chainBody.appendChild(stepEl);
+    }
+  }
+
+  return { askQuestion, askPreset, newChat, feedback, loadConversationList, loadConversation, deleteConversation, showCiteHover, hideCiteHover, togglePin, editTags, exportConv, _approve, _reject };
 })();
 
 Router.on('agent-ws', () => PageAgent.loadConversationList());

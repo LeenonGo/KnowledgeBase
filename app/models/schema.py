@@ -14,6 +14,7 @@ class QueryRequest(BaseModel):
     use_polish: bool = False
     use_agent: bool = False
     use_web_search: bool = Field(default=False, description="是否启用联网搜索")
+    require_approval: bool = Field(default=False, description="Agent 模式下是否需要人机确认")
     history: str | None = Field(default=None, max_length=10000, description="多轮对话上下文")
     conv_id: str | None = None
 

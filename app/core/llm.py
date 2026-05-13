@@ -769,3 +769,168 @@ def plan_and_execute_stream(
             final_answer += '\n\n' + '\n\n'.join(charts_in_results)
 
     yield {"type": "answer", "content": final_answer, "sources": list(all_sources)}
+
+
+def resume_execution(
+    session_id: str,
+    modified_tasks: list = None,
+):
+    """
+    从审批会话恢复执行。
+
+    Args:
+        session_id: 审批会话 ID
+        modified_tasks: 用户修改后的子任务列表（可选）
+
+    Yields:
+        与 plan_and_execute_stream 相同的事件流
+    """
+    from app.core.approval import get_session, remove_session
+    from app.core.tools import execute_tool
+
+    session = get_session(session_id)
+    if not session:
+        yield {"type": "error", "content": "审批会话已过期，请重新提问"}
+        return
+
+    client, model, cfg = get_llm_client()
+    temperature = cfg.get("temperature", 0.7)
+    max_tokens = 4096
+
+    question = session["question"]
+    context = session["context"]
+    history = session["history"]
+    tools = session["tools"]
+    tool_context = session["tool_context"]
+    db = tool_context.get("db")
+    user_info = tool_context.get("user")
+
+    # 使用用户修改后的任务或原始任务
+    tasks = modified_tasks or session["tasks"]
+    all_results = list(session.get("all_results", []))
+    all_sources = set(session.get("all_sources", set()))
+    start_idx = session.get("current_task_idx", 0)
+
+    # ═══════════════════════════════════════════════════════
+    # 执行子任务（从断点继续）
+    # ═══════════════════════════════════════════════════════
+    global_step = start_idx * 3  # 粗略估算步数
+
+    for task_idx in range(start_idx, len(tasks)):
+        task = tasks[task_idx]
+        task_id = task.get("id", task_idx + 1)
+        task_desc = task.get("description", "")
+        search_hint = task.get("search_hint", "")
+
+        yield {"type": "subtask_start", "task_id": task_id, "description": task_desc}
+
+        sub_messages = [
+            {"role": "system", "content": (
+                "你是一个知识库检索助手。请使用工具来完成以下子任务。\n"
+                "完成后给出简洁的结果总结。"
+            )},
+            {"role": "user", "content": f"子任务：{task_desc}\n检索提示：{search_hint}"},
+        ]
+        sub_result = ""
+        sub_max_rounds = 3
+
+        for sub_round in range(sub_max_rounds):
+            global_step += 1
+            yield {"type": "thought", "step": global_step,
+                   "content": f"[子任务{task_id}] {'开始执行' if sub_round == 0 else f'继续第 {sub_round+1} 步'}"}
+
+            sub_messages = _trim_messages(sub_messages)
+            kwargs = {
+                "model": model, "messages": sub_messages,
+                "max_tokens": 1024, "temperature": temperature,
+            }
+            if tools and db and user_info:
+                kwargs["tools"] = tools
+                kwargs["tool_choice"] = "auto"
+
+            try:
+                resp = client.chat.completions.create(**kwargs)
+            except Exception as e:
+                yield {"type": "error", "content": f"子任务{task_id} LLM调用失败: {e}"}
+                break
+
+            msg = resp.choices[0].message
+            if not msg.tool_calls:
+                sub_result = msg.content or ""
+                yield {"type": "thought", "step": global_step, "content": f"[子任务{task_id}] 完成"}
+                break
+
+            sub_messages.append({
+                "role": "assistant", "content": msg.content or "",
+                "tool_calls": [{"id": tc.id, "type": "function",
+                                "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                               for tc in msg.tool_calls],
+            })
+
+            for tc in msg.tool_calls:
+                func_name = tc.function.name
+                try:
+                    func_args = json.loads(tc.function.arguments)
+                except json.JSONDecodeError:
+                    func_args = {}
+
+                global_step += 1
+                yield {"type": "action", "step": global_step, "tool": func_name, "arguments": func_args}
+                result = execute_tool(func_name, func_args, db, user_info)
+                yield {"type": "observe", "step": global_step, "content": result[:500]}
+
+                for _src in re.findall(r'来源:([^\]\n]+)', result):
+                    _src = _src.strip().rstrip(']')
+                    if _src:
+                        all_sources.add(_src)
+
+                sub_messages.append({"role": "tool", "tool_call_id": tc.id, "content": result[:8000]})
+        else:
+            sub_messages.append({"role": "user", "content": "请直接总结以上信息。"})
+            try:
+                final = client.chat.completions.create(
+                    model=model, messages=sub_messages, max_tokens=1024, temperature=temperature)
+                sub_result = final.choices[0].message.content or ""
+            except Exception:
+                sub_result = "（子任务执行超时）"
+
+        all_results.append({"task_id": task_id, "description": task_desc, "result": sub_result})
+        yield {"type": "subtask_done", "task_id": task_id, "result_preview": sub_result[:200]}
+
+    # ═══════════════════════════════════════════════════════
+    # 综合生成
+    # ═══════════════════════════════════════════════════════
+    synth_prompt = get_prompt("synthesizer")
+    synth_system = synth_prompt.get("system", "综合子任务结果生成回答。")
+
+    results_text = "\n\n".join(
+        f"### 子任务 {r['task_id']}: {r['description']}\n{r['result']}"
+        for r in all_results
+    )
+    synth_user = synth_prompt.get("user", "问题：{question}\n结果：{results}").format(
+        question=question, results=results_text)
+
+    global_step += 1
+    yield {"type": "thought", "step": global_step, "content": "综合所有子任务结果，生成最终回答..."}
+
+    try:
+        synth_resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": synth_system},
+                      {"role": "user", "content": synth_user}],
+            max_tokens=max_tokens, temperature=temperature,
+        )
+        final_answer = synth_resp.choices[0].message.content or ""
+    except Exception as e:
+        final_answer = f"综合生成失败: {e}\n\n各子任务结果:\n{results_text}"
+
+    charts_in_results = re.findall(r'\[CHART\].*?\[/CHART\]', results_text, re.DOTALL)
+    if charts_in_results:
+        charts_in_answer = re.findall(r'\[CHART\].*?\[/CHART\]', final_answer, re.DOTALL)
+        if not charts_in_answer:
+            final_answer += '\n\n' + '\n\n'.join(charts_in_results)
+
+    yield {"type": "answer", "content": final_answer, "sources": list(all_sources)}
+
+    # 清理会话
+    remove_session(session_id)

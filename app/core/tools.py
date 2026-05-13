@@ -1,5 +1,7 @@
 """工具注册表 — 供 Agent / Function Calling 使用"""
 
+import json
+import re
 from sqlalchemy.orm import Session
 
 
@@ -774,9 +776,19 @@ def _http_request(args: dict) -> str:
     if method not in ("GET", "POST", "PUT", "PATCH", "DELETE"):
         return f"不支持的 HTTP 方法: {method}"
 
-    # SSRF 防护：阻止内网地址
+    # URL 编码非 ASCII 字符（中文等）
     try:
-        from urllib.parse import urlparse
+        from urllib.parse import quote, urlparse
+        # 对 URL 中的非 ASCII 字符进行编码
+        parsed = urlparse(url)
+        encoded_path = quote(parsed.path, safe="/-._~:/?#[]@!$&'()*+,;=")
+        encoded_query = quote(parsed.query, safe="=&-._~:/?#[]@!$'()*+,;") if parsed.query else ""
+        encoded_fragment = quote(parsed.fragment, safe="-._~:/?#[]@!$&'()*+,;=") if parsed.fragment else ""
+        url = parsed._replace(
+            path=encoded_path,
+            query=encoded_query,
+            fragment=encoded_fragment,
+        ).geturl()
         parsed = urlparse(url)
         host = parsed.hostname
         if host:
