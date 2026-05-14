@@ -16,6 +16,7 @@ from app.api.stats_routes import router as stats_router
 from app.api.eval_routes import router as eval_router
 from app.api.trace_routes import router as trace_router
 from app.api.memory_routes import router as memory_router
+from app.api.sql_routes import router as sql_router
 
 router = APIRouter()
 
@@ -33,3 +34,4 @@ router.include_router(stats_router)
 router.include_router(eval_router)
 router.include_router(trace_router)
 router.include_router(memory_router)
+router.include_router(sql_router)

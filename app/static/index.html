@@ -21,6 +21,7 @@
     <a onclick="Router.navigate('kb-list')">📂 文档管理</a>
     <a onclick="Router.navigate('qa-chat')">💬 智能问答</a>
     <a onclick="Router.navigate('agent-ws')">🧠 Agent 工作台</a>
+    <a onclick="Router.navigate('sql-agent')">📊 SQL 分析</a>
   </div>
   <div class="side-section">
     <div class="side-section-title">个人</div>
@@ -670,6 +671,8 @@
             <option value="agent">Agent 模式 Prompt</option>
             <option value="rewrite">查询改写 Prompt</option>
             <option value="refuse">拒答话术</option>
+            <option value="sql_generate">SQL 生成 Prompt</option>
+            <option value="sql_analyze">SQL 分析总结 Prompt</option>
           </select>
         </div>
       </div>
@@ -712,6 +715,22 @@
           <label>拒答话术</label>
           <textarea class="input" id="prompt-refuse-answer" rows="6" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
           <div class="text-muted">当检索结果不足时，返回给用户的拒答内容</div>
+        </div>
+      </div>
+
+      <div id="prompt-sql-generate-panel" style="display:none;">
+        <div class="form-group">
+          <label>SQL 生成系统 Prompt（System）</label>
+          <textarea class="input" id="prompt-sql-generate-system" rows="12" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+          <div class="text-muted">可用变量: {schema}=数据库表结构</div>
+        </div>
+      </div>
+
+      <div id="prompt-sql-analyze-panel" style="display:none;">
+        <div class="form-group">
+          <label>SQL 分析总结系统 Prompt（System）</label>
+          <textarea class="input" id="prompt-sql-analyze-system" rows="12" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+          <div class="text-muted">可用变量: {question} {sql} {result_preview}</div>
         </div>
       </div>
 
@@ -843,6 +862,23 @@
 </div>
 
 
+
+<!-- ==================== SQL 分析助手 ==================== -->
+<div id="sql-agent" class="screen">
+  <div class="screen-title" style="margin-bottom:12px;font-size:18px;">📊 SQL 分析助手</div>
+
+  <div class="sql-input-area">
+    <div class="sql-input-row">
+      <input type="text" id="sql-input" class="sql-input" placeholder="用自然语言提问，如：本月各品类销售额是多少？" autocomplete="off">
+      <button id="sql-send-btn" class="btn btn-primary" onclick="PageSQL.askQuestion()">查询</button>
+      <button class="btn btn-outline" onclick="PageSQL.showSchema()" title="查看表结构">📋 Schema</button>
+    </div>
+    <div class="sql-quick-questions" id="sql-quick-questions"></div>
+  </div>
+
+  <div id="sql-schema-panel" style="display:none;margin-bottom:16px;"></div>
+  <div id="sql-results"></div>
+</div>
 
 <!-- 💾 我的记忆 -->
 <div id="user-memory" class="screen">
@@ -1094,6 +1130,7 @@
 <script src="/js/pages/eval.js?v=17"></script>
 <script src="/js/pages/memory.js?v=17"></script>
 <script src="/js/pages/faq.js?v=17"></script>
+<script src="/js/pages/sql_agent.js?v=17"></script>
 <!-- 初始化 -->
 <script>
   // 侧边栏收起/展开
@@ -1129,6 +1166,7 @@
     PageUpload.init();
     PageMemory.init();
     PageFAQ.init();
+    PageSQL.init();
     // 检查已有 token，自动进入
     if (API.getToken()) {
       PageLogin.showApp();

@@ -6,6 +6,7 @@ from pathlib import Path
 CONFIG_DIR = Path(__file__).parent.parent.parent / "config"
 MODELS_PATH = CONFIG_DIR / "models.json"
 PROMPTS_PATH = CONFIG_DIR / "prompts.json"
+PROMPTS_DIR = CONFIG_DIR / "prompts"
 
 # ─── 通用 mtime 缓存 ────────────────────────────
 _cache: dict[str, tuple[float, dict]] = {}  # path -> (mtime, data)
@@ -31,8 +32,16 @@ def load_models_config() -> dict:
 
 
 def load_prompts_config() -> dict:
-    """加载 prompts.json 完整配置"""
-    return _load_cached(PROMPTS_PATH)
+    """加载 prompts 配置 — 支持目录模式(prompts/*.json) 和单文件模式(prompts.json)"""
+    merged = {}
+    # 优先读目录下的分模块文件
+    if PROMPTS_DIR.is_dir():
+        for p in sorted(PROMPTS_DIR.glob("*.json")):
+            merged.update(_load_cached(p))
+    # 向后兼容：单文件也读
+    if PROMPTS_PATH.exists():
+        merged.update(_load_cached(PROMPTS_PATH))
+    return merged
 
 
 def get_llm_config() -> dict:

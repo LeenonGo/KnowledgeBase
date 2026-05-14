@@ -52,6 +52,7 @@ const Router = (() => {
       'dept-tree': '部门管理', 'perm-mgmt': '权限管理', 'audit-log': '审计日志',
       'quality': '质量监控', 'evaluation': '效果评测', 'sys-config': '系统配置',
       'user-memory': '我的记忆', 'faq-mgmt': 'FAQ 管理',
+      'sql-agent': 'SQL 分析',
     };
     const label = navMap[screenName];
     if (label) {

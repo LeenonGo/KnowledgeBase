@@ -305,6 +305,35 @@ TOOL_DEFINITIONS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "sql_query",
+            "description": "用自然语言查询电商数据库。支持订单分析、客户分析、商品分析等。返回 SQL、查询结果和分析总结。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "自然语言描述的数据查询需求，如'本月销售额多少''VIP客户消费排名'"
+                    }
+                },
+                "required": ["question"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "sql_schema",
+            "description": "查看电商数据库的表结构，包括表名、字段、类型、外键关系。在写 SQL 前先了解表结构。",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
 ]
 
 
@@ -346,6 +375,10 @@ def execute_tool(
             return _knowledge_compare(arguments, db, user)
         elif name == "http_request":
             return _http_request(arguments)
+        elif name == "sql_query":
+            return _sql_query(arguments)
+        elif name == "sql_schema":
+            return _sql_schema(arguments)
         else:
             return f"未知工具: {name}"
     except Exception as e:
@@ -842,3 +875,30 @@ def _http_request(args: dict) -> str:
         return f"请求超时（{timeout}秒）"
     except Exception as e:
         return f"请求异常: {e}"
+
+
+def _sql_query(args: dict) -> str:
+    """自然语言查询电商数据库"""
+    question = args.get("question", "")
+    if not question:
+        return "请提供查询问题"
+    try:
+        from app.core.sql_agent import get_sql_agent
+        agent = get_sql_agent()
+        return agent.query_sync(question)
+    except ValueError as e:
+        return f"SQL Agent 未配置: {e}"
+    except Exception as e:
+        return f"SQL 查询出错: {e}"
+
+
+def _sql_schema(args: dict) -> str:
+    """获取电商数据库表结构"""
+    try:
+        from app.core.sql_agent import get_sql_agent
+        agent = get_sql_agent()
+        return agent.schema.get_schema_text()
+    except ValueError as e:
+        return f"SQL Agent 未配置: {e}"
+    except Exception as e:
+        return f"获取表结构出错: {e}"

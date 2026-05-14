@@ -9,7 +9,7 @@
 | 📄 多格式文档解析 | PDF(含OCR) / Word / Excel / CSV / PPT / TXT / Markdown |
 | 🔍 混合检索 | 向量语义 + BM25 + RRF 融合 + qwen3-rerank 重排 + FAQ 预匹配 |
 | 🔐 部门权限隔离 | 部门级授权 + 三级角色（super_admin / kb_admin / user） |
-| 🧠 Agent 模式 | Plan-and-Execute 多步推理 + Self-RAG 自适应检索 + 14 个工具 |
+| 🧠 Agent 模式 | Plan-and-Execute 多步推理 + Self-RAG 自适应检索 + 16 个工具 |
 | ⏸️ 人机协作 | 执行计划确认 / 逐步审批 / 用户可控 Agent 行为 |
 | 🌐 外部连接 | HTTP 请求工具（SSRF 防护）+ 联网搜索，Agent 可调任意 REST API |
 | 💾 长期记忆层 | 用户记忆（偏好/背景/纠正）+ FAQ 高频问答自动沉淀 + 衰减淘汰 |
@@ -47,13 +47,14 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | 文档上传 | 三步向导、分块策略、PDF OCR 异步+按页进度 | admin/kb_admin |
 | 💬 智能问答 | RAG 模式：混合检索、引用标注、FAQ 预匹配 | 全员 |
 | 🧠 Agent 工作台 | Plan-and-Execute、推理链可视化、图表生成 | 全员 |
+| 📊 SQL 分析 | 自然语言查电商数据、SQL可视化、图表分析 | 全员 |
 | 💾 我的记忆 | 查看/删除用户记忆记录 | 全员 |
 | 📝 FAQ 管理 | 审核/通过/拒绝/删除 FAQ | admin/kb_admin |
 | 用户/部门/权限管理 | CRUD、树形结构 | super_admin |
 | 审计日志 / 质量监控 / 效果评测 | 操作记录、差评率、自动评分 | super_admin |
 | 系统配置 | LLM/Embedding/Reranker/Prompt/检索策略 | super_admin |
 
-## Agent 工具（14 个）
+## Agent 工具（16 个）
 
 | 工具 | 功能 |
 |---|---|
@@ -66,6 +67,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | calculator / current_time | 数学计算 / 当前时间 |
 | recall_memory / search_faq | 用户记忆 / FAQ 查询 |
 | http_request | HTTP 请求调用外部 API（SSRF 防护） |
+| sql_query | 自然语言查询电商数据库 |
+| sql_schema | 查看电商数据库表结构 |
 
 ## 版本计划
 
@@ -74,8 +77,19 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **人机协作确认节点** — 执行计划确认 + 逐步审批 ✅
 - **代码执行沙箱**（code_executor）— Agent 能写 Python 做数据分析（待做）
 
-### 📋 v5.3 — 产品体验
-- Prompt 调试工作台（可视化编辑 + 实时预览 + 版本管理）
+### ✅ v5.3 — SQL 分析助手（已完成）
+- **Text-to-SQL** — 自然语言→SQL→结果→分析总结，SSE 流式返回 ✅
+- **SQL 可视化** — 展示生成的 SQL，支持编辑后重新执行 ✅
+- **电商 Demo 数据库** — 9 张表、2 万订单，Faker 模拟数据 ✅
+- **Agent 工具集成** — sql_query / sql_schema 两个工具 ✅
+- **Prompt 配置化** — 拆分模块化管理（core/agent/sql）✅
+- **多轮追问** — 基于上下文的连续数据探索 ✅
+- **图表生成** — 柱状图/折线图/饼图自动推荐 ✅
+
+### 📋 v5.4 — 产品体验
+- 查询审计日志（NL→SQL 历史记录）
+- 查询模板（预置常见分析场景）
+- 表级权限控制
 - 结构化输出（JSON Schema / 表格 / 报告格式）
 - 工具插件化注册（Tool Registry 热加载）
 
@@ -87,5 +101,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## 详细文档
 
-- [API 接口文档](docs/API.md)
-- [架构设计](docs/ARCHITECTURE.md)
+- [文档目录](docs/文档目录.docx)
+- [API 接口文档](docs/api/API文档.docx)
+- [架构设计](docs/design/架构概览.docx)
+- [SQL 分析助手技术方案](docs/features/sql-agent/SQL分析助手_技术方案_v1.0.docx)
