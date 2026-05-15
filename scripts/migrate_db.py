@@ -273,6 +273,45 @@ def migrate():
                 else:
                     print(f"  ❌ {table_name}: {e}")
 
+        # ── 知识图谱表 ──
+        print("\n📋 检查知识图谱表...")
+        kg_tables = {
+            "kg_entity": (
+                "CREATE TABLE IF NOT EXISTS kg_entity ("
+                " id VARCHAR(32) PRIMARY KEY, kb_id VARCHAR(32) NOT NULL,"
+                " name VARCHAR(256) NOT NULL, entity_type VARCHAR(32) DEFAULT 'OTHER',"
+                " description TEXT, doc_chunk_ids TEXT,"
+                " frequency INT DEFAULT 1, embedding TEXT,"
+                " created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                " updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
+                " INDEX ix_kg_entity_kb_name (kb_id, name),"
+                " INDEX ix_kg_entity_type (entity_type),"
+                " INDEX ix_kg_entity_kb (kb_id))"
+            ),
+            "kg_relation": (
+                "CREATE TABLE IF NOT EXISTS kg_relation ("
+                " id VARCHAR(32) PRIMARY KEY, kb_id VARCHAR(32) NOT NULL,"
+                " subject_id VARCHAR(32) NOT NULL, predicate VARCHAR(128) NOT NULL,"
+                " object_id VARCHAR(32) NOT NULL, doc_chunk_id VARCHAR(64) DEFAULT '',"
+                " confidence FLOAT DEFAULT 0.8,"
+                " created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                " INDEX ix_kg_relation_subject (subject_id),"
+                " INDEX ix_kg_relation_object (object_id),"
+                " INDEX ix_kg_relation_kb (kb_id))"
+            ),
+        }
+        for table_name, ddl in kg_tables.items():
+            try:
+                conn.execute(text(ddl))
+                conn.commit()
+                print(f"  ✅ {table_name}")
+            except Exception as e:
+                err = str(e).lower()
+                if "already exists" in err or "duplicate" in err:
+                    print(f"  ⏭️  {table_name}（已存在）")
+                else:
+                    print(f"  ❌ {table_name}: {e}")
+
     print("\n✅ 迁移完成")
 
 

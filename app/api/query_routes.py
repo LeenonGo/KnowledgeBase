@@ -100,6 +100,25 @@ async def query_knowledge_base(
                                  use_hybrid=req.use_hybrid, use_reranker=req.use_reranker,
                                  keywords=search_keywords)
 
+    # ── 4.3 知识图谱检索增强（非 Agent 模式）──
+    kg_context = ""
+    if not req.use_agent:
+        try:
+            from app.core.kg_service import recognize_entities, kg_search, kg_search_to_text
+            kg_entities = await recognize_entities(req.question)
+            if kg_entities:
+                kg_results = []
+                for ent in kg_entities[:3]:  # 最多查询 3 个实体
+                    result = kg_search(ent["name"], kb_id=req.kb_id, hops=1, db=db)
+                    text = kg_search_to_text(result)
+                    if text:
+                        kg_results.append(text)
+                if kg_results:
+                    kg_context = "\n\n".join(kg_results)
+                    trace.span("kg_search", input=req.question[:200], output=f"\u5339\u914d{len(kg_entities)}\u4e2a\u5b9e\u4f53")
+        except Exception as e:
+            print(f"[KG] \u56fe\u8c31\u68c0\u7d22\u5931\u8d25\uff0c\u964d\u7ea7\u4e3a\u7eaf\u5411\u91cf\u68c0\u7d22: {e}")
+
     # ── 4.5 FAQ 预匹配（非 Agent 模式）──
     if not req.use_agent:
         from app.core.memory_service import search_faq as _search_faq
@@ -140,6 +159,9 @@ async def query_knowledge_base(
     MAX_CONTEXT_CHARS = 3000
 
     context, citation_map = format_context_with_citations(docs)
+    # 拼接图谱上下文
+    if kg_context:
+        context = kg_context + "\n\n" + context
     if len(context) > MAX_CONTEXT_CHARS:
         context = context[:MAX_CONTEXT_CHARS] + "..."
 

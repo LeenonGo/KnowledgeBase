@@ -42,6 +42,7 @@ _PROMPT_FILE_MAP = {
     "qa": "core", "rewrite": "core", "refuse": "core", "polish": "core",
     "agent": "agent", "planner": "agent", "synthesizer": "agent",
     "sql_generate": "sql", "sql_analyze": "sql",
+    "kg_extract": "kg", "kg_entity_recognize": "kg",
 }
 
 

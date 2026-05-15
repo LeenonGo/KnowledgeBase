@@ -36,6 +36,8 @@ const PageKB = (() => {
 
   function openDetail(kbId, kbName) {
     currentKbId = kbId;
+    window.__currentKbId = kbId;
+    try { localStorage.setItem('__currentKbId', kbId); } catch(e){}
     const user = API.getUser();
     document.getElementById('kb-detail-name').textContent = kbName;
     const canEdit = user.role === 'super_admin' || user.role === 'kb_admin';

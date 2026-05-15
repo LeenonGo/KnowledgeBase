@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RAG 知识库管理系统</title>
 <link rel="stylesheet" href="/style.css?v=17">
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 </head>
 <body>
@@ -158,7 +159,7 @@
   <div class="tabs" id="kb-detail-tabs">
     <div class="tab active" onclick="UI.switchTab(this,'kb-tab-docs')">文档管理</div>
     <div class="tab" onclick="UI.switchTab(this,'kb-tab-settings');PageKB.loadKBSettings()">知识库设置</div>
-
+    <div class="tab" onclick="PageKG.openFromKB(window.__currentKbId||PageKB.getCurrentKbId()||'')">🔗 知识图谱</div>
   </div>
   <!-- KB Tab: Documents -->
   <div id="kb-tab-docs">
@@ -673,6 +674,8 @@
             <option value="refuse">拒答话术</option>
             <option value="sql_generate">SQL 生成 Prompt</option>
             <option value="sql_analyze">SQL 分析总结 Prompt</option>
+            <option value="kg_extract">图谱实体抽取 Prompt</option>
+            <option value="kg_entity_recognize">图谱实体识别 Prompt</option>
           </select>
         </div>
       </div>
@@ -731,6 +734,22 @@
           <label>SQL 分析总结系统 Prompt（System）</label>
           <textarea class="input" id="prompt-sql-analyze-system" rows="12" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
           <div class="text-muted">可用变量: {question} {sql} {result_preview}</div>
+        </div>
+      </div>
+
+      <div id="prompt-kg-extract-panel" style="display:none;">
+        <div class="form-group">
+          <label>实体抽取 User Prompt</label>
+          <textarea class="input" id="prompt-kg-extract-user" rows="14" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+          <div class="text-muted">可用变量: {text}=待抽取的文档文本</div>
+        </div>
+      </div>
+
+      <div id="prompt-kg-recognize-panel" style="display:none;">
+        <div class="form-group">
+          <label>查询实体识别 User Prompt</label>
+          <textarea class="input" id="prompt-kg-recognize-user" rows="12" style="resize:vertical;font-family:monospace;font-size:13px;line-height:1.6;"></textarea>
+          <div class="text-muted">可用变量: {question}=用户查询问题</div>
         </div>
       </div>
 
@@ -929,6 +948,31 @@
   </div>
 </div>
 
+<!-- 🔗 知识图谱 -->
+<div id="kg-graph" class="screen">
+  <div class="screen-title" style="margin-bottom:12px">
+    <a onclick="history.back()" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
+    <span>🔗 知识图谱</span>
+  </div>
+  <div class="stats-row" style="margin-bottom:12px">
+    <div class="stat-card"><div class="label">实体总数</div><div class="value" id="kg-entity-count">0</div></div>
+    <div class="stat-card"><div class="label">关系总数</div><div class="value" id="kg-relation-count">0</div></div>
+    <div class="stat-card"><div class="label">当前显示</div><div class="value" id="kg-displayed" style="font-size:14px">--</div></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+    <input type="text" id="kg-search-input" class="input" placeholder="搜索实体..." style="flex:1;max-width:300px" onkeydown="if(event.key==='Enter')PageKG.searchEntity()">
+    <button class="btn btn-primary btn-sm" onclick="PageKG.searchEntity()">🔍 搜索</button>
+    <button class="btn btn-outline btn-sm" onclick="PageKG.resetView()">🔄 重置</button>
+    <button class="btn btn-outline btn-sm" onclick="PageKG.exportImage()">📥 导出 SVG</button>
+    <button class="btn btn-outline btn-sm" onclick="PageKG.buildGraph()" id="kg-build-btn">⚙️ 构建图谱</button>
+  </div>
+  <div id="kg-build-status" style="display:none;margin-bottom:12px;padding:8px 12px;background:#e6f7ff;border-radius:4px;font-size:13px"></div>
+  <div class="card" style="padding:0">
+    <div id="kg-graph-container" style="width:100%;height:550px;min-height:400px;background:#fafbfc;position:relative;overflow:hidden"></div>
+  </div>
+  <div id="kg-node-detail" style="margin-top:12px"></div>
+</div>
+
 </div><!-- end main-area -->
 
 
@@ -1109,6 +1153,7 @@
 
 </div>
 
+
 <!-- ============= JavaScript ============= -->
 <!-- 核心模块 -->
 <script src="/js/api.js?v=17"></script>
@@ -1131,6 +1176,7 @@
 <script src="/js/pages/memory.js?v=17"></script>
 <script src="/js/pages/faq.js?v=17"></script>
 <script src="/js/pages/sql_agent.js?v=17"></script>
+<script src="/js/pages/kg.js?v=17"></script>
 <!-- 初始化 -->
 <script>
   // 侧边栏收起/展开

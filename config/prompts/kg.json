@@ -1,0 +1,16 @@
+{
+    "kg_extract": {
+        "name": "知识图谱实体抽取 Prompt",
+        "description": "从文档文本中抽取实体和关系",
+        "system": "",
+        "user": "你是一个知识图谱构建专家。请从以下文本中抽取实体和关系。\n\n【文本】\n{text}\n\n【要求】\n1. 提取关键实体，类型包括：PERSON（人名）、ORG（组织）、CONCEPT（概念）、PRODUCT（产品）、LOCATION（地点）、EVENT（事件）、OTHER（其他）\n2. 提取实体间的关系，用简短的谓词描述（如：负责、属于、包含、使用、影响、开发、创建、参与、领导、合作）\n3. 为每个实体补充一句描述（从上下文中提取）\n4. 返回严格 JSON 格式：\n{{\"entities\": [{{\"name\": \"...\", \"type\": \"PERSON|ORG|CONCEPT|PRODUCT|LOCATION|EVENT|OTHER\", \"description\": \"...\"}}], \"relations\": [{{\"subject\": \"...\", \"predicate\": \"...\", \"object\": \"...\"}}]}}\n5. 同一实体只出现一次（合并同名实体）\n6. 只抽取文本中明确提到的信息，不要推测\n7. 实体名称使用最完整的表述（如\"张三\"而非\"三\"）\n8. 关系谓词用中文动词短语",
+        "variables": "{text}=待抽取的文档文本"
+    },
+    "kg_entity_recognize": {
+        "name": "查询实体识别 Prompt",
+        "description": "从用户问题中识别关键实体，用于图谱检索",
+        "system": "",
+        "user": "你是一个实体识别专家。请从以下用户问题中提取关键实体。\n\n【问题】\n{question}\n\n请返回 JSON 数组：\n[{{\"name\": \"实体名\", \"type\": \"PERSON|ORG|CONCEPT|PRODUCT|LOCATION|EVENT|OTHER\"}}]\n\n只提取明确出现的实体，不要推测。如果没有识别到实体，返回空数组 []。",
+        "variables": "{question}=用户查询问题"
+    }
+}

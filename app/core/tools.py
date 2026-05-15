@@ -334,6 +334,31 @@ TOOL_DEFINITIONS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_kg",
+            "description": "在知识图谱中检索实体和关系。当问题涉及实体关联、多跳推理、或需要了解实体间关系时使用。例如：'张三和李四什么关系''哪些部门和技术相关''某个概念涉及哪些产品'。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "entity": {
+                        "type": "string",
+                        "description": "要查询的实体名称"
+                    },
+                    "kb_id": {
+                        "type": "string",
+                        "description": "知识库 ID，不填则搜索全部"
+                    },
+                    "hops": {
+                        "type": "integer",
+                        "description": "关系扩展跳数，默认 1，最大 2"
+                    }
+                },
+                "required": ["entity"]
+            }
+        }
+    },
 ]
 
 
@@ -379,6 +404,8 @@ def execute_tool(
             return _sql_query(arguments)
         elif name == "sql_schema":
             return _sql_schema(arguments)
+        elif name == "search_kg":
+            return _search_kg(arguments, db, user)
         else:
             return f"未知工具: {name}"
     except Exception as e:
@@ -902,3 +929,31 @@ def _sql_schema(args: dict) -> str:
         return f"SQL Agent 未配置: {e}"
     except Exception as e:
         return f"获取表结构出错: {e}"
+
+
+def _search_kg(args: dict, db: Session, user: dict) -> str:
+    """知识图谱检索"""
+    from app.api.deps import require_kb_access
+    from app.core.kg_service import kg_search, kg_search_to_text, EntityType
+
+    entity_name = args.get("entity", "").strip()
+    kb_id = args.get("kb_id")
+    hops = min(int(args.get("hops", 1)), 2)
+
+    if not entity_name:
+        return "实体名称不能为空"
+
+    # 权限校验
+    if kb_id:
+        require_kb_access(db, user, kb_id, "viewer")
+
+    result = kg_search(entity_name, kb_id=kb_id, hops=hops, db=db)
+
+    if not result["matched_entities"]:
+        return f"知识图谱中未找到实体「{entity_name}」"
+
+    text = kg_search_to_text(result)
+    if not text:
+        return f"实体「{entity_name}」存在但没有关联关系"
+
+    return text

@@ -104,6 +104,12 @@ const PageConfig = (() => {
       if (prompts.sql_analyze) {
         document.getElementById('prompt-sql-analyze-system').value = prompts.sql_analyze.system || '';
       }
+      if (prompts.kg_extract) {
+        document.getElementById('prompt-kg-extract-user').value = prompts.kg_extract.user || '';
+      }
+      if (prompts.kg_entity_recognize) {
+        document.getElementById('prompt-kg-recognize-user').value = prompts.kg_entity_recognize.user || '';
+      }
     } catch (e) { console.error('Load prompts error:', e); }
   }
 
@@ -115,6 +121,8 @@ const PageConfig = (() => {
     document.getElementById('prompt-refuse-panel').style.display = type === 'refuse' ? 'block' : 'none';
     document.getElementById('prompt-sql-generate-panel').style.display = type === 'sql_generate' ? 'block' : 'none';
     document.getElementById('prompt-sql-analyze-panel').style.display = type === 'sql_analyze' ? 'block' : 'none';
+    document.getElementById('prompt-kg-extract-panel').style.display = type === 'kg_extract' ? 'block' : 'none';
+    document.getElementById('prompt-kg-recognize-panel').style.display = type === 'kg_entity_recognize' ? 'block' : 'none';
   }
 
   async function savePrompts() {
@@ -133,6 +141,8 @@ const PageConfig = (() => {
       refuse: { answer: document.getElementById('prompt-refuse-answer').value },
       sql_generate: { system: document.getElementById('prompt-sql-generate-system').value },
       sql_analyze: { system: document.getElementById('prompt-sql-analyze-system').value },
+      kg_extract: { user: document.getElementById('prompt-kg-extract-user').value },
+      kg_entity_recognize: { user: document.getElementById('prompt-kg-recognize-user').value },
     };
     try {
       await API.request('/api/config/prompts', { method: 'POST', body: data });
