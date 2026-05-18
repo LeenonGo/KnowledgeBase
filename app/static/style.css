@@ -380,3 +380,20 @@ body.has-header .main{padding-top:76px}
 .sql-schema-relations code { background: #e0e7ff; padding: 1px 4px; border-radius: 3px; }
 .sql-schema-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; font-size: 14px; }
 .sql-schema-inline { padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; max-height: 500px; overflow-y: auto; }
+
+/* 结构化输出 — 报告格式 */
+.sql-report-section { margin: 12px 0; padding: 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; }
+.sql-report-section h4 { margin: 0 0 8px; color: #1f2937; font-size: 15px; }
+.sql-report-section p { margin: 0 0 8px; color: #374151; line-height: 1.6; }
+.sql-report-conclusion { margin-top: 12px; padding: 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; color: #1e40af; line-height: 1.6; }
+
+/* 结构化输出 — JSON 格式 */
+.sql-json-schema { margin: 8px 0; padding: 10px; background: #f8fafc; border-radius: 8px; font-size: 13px; }
+.sql-json-schema ul { margin: 4px 0 0; padding-left: 20px; }
+.sql-json-schema li { margin-bottom: 2px; }
+.sql-json-schema code { background: #e0e7ff; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+.sql-json-data { margin-top: 8px; }
+.sql-json-preview { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; font-size: 12px; max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+
+/* SQL 查询审计 */
+#sql-audit .sql-code { background: #f8fafc; padding: 10px; border-radius: 6px; font-size: 13px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }

@@ -219,6 +219,29 @@ class AuditLog(Base):
     )
 
 
+# ─── SQL 查询审计日志 ────────────────────────────
+class QueryAuditLog(Base):
+    __tablename__ = "query_audit_log"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    user_id = Column(String(32), nullable=True)
+    username = Column(String(64), default="")
+    question = Column(Text, nullable=False, comment="自然语言问题")
+    generated_sql = Column(Text, default="", comment="LLM 生成的 SQL")
+    output_format = Column(String(16), default="table", comment="输出格式: json/table/report")
+    row_count = Column(Integer, default=0, comment="结果行数")
+    elapsed_ms = Column(Integer, default=0, comment="SQL 执行耗时(ms)")
+    total_ms = Column(Integer, default=0, comment="端到端总耗时(ms)")
+    error = Column(Text, default="", comment="错误信息（如有）")
+    status = Column(String(16), default="success")  # success / error
+    created_at = Column(DateTime, default=_now)
+
+    __table_args__ = (
+        Index("ix_qaudit_user", "user_id"),
+        Index("ix_qaudit_time", "created_at"),
+    )
+
+
 # ─── 评测集 ─────────────────────────────────────
 class EvalDataset(Base):
     __tablename__ = "eval_dataset"

@@ -501,16 +501,90 @@ class SQLGenerator:
 # ═══════════════════════════════════════════════════
 
 class AnalysisGenerator:
-    """基于查询结果生成分析总结"""
+    """基于查询结果生成分析总结，支持多种输出格式"""
 
-    def analyze(self, question: str, sql: str, result: dict) -> dict:
+    # 结构化输出 Prompt 模板
+    FORMAT_PROMPTS = {
+        "table": """
+## 输出格式（严格 JSON）
+```json
+{{
+    "summary": "2-3句话的分析总结，包含关键数字",
+    "highlights": ["关键发现1", "关键发现2"],
+    "chart": {{
+        "type": "bar|line|pie",
+        "title": "图表标题",
+        "x_col": "X轴列名",
+        "y_col": "Y轴列名"
+    }}
+}}
+```
+如果数据不适合图表，chart 设为 null。
+只输出 JSON，不要有其他文字。""",
+        "json": """
+## 输出格式（严格 JSON）
+```json
+{{
+    "summary": "一句话总结",
+    "data": [
+        {{"字段1": 值1, "字段2": 值2}}
+    ],
+    "schema": {{
+        "字段1": "类型说明",
+        "字段2": "类型说明"
+    }}
+}}
+```
+data 中每项是一个对象，key 用中文字段名。schema 描述每个字段的含义和类型。
+只输出 JSON，不要有其他文字。""",
+        "report": """
+## 输出格式（严格 JSON）
+```json
+{{
+    "title": "分析报告标题",
+    "summary": "执行摘要：核心结论（2-3句话）",
+    "sections": [
+        {{
+            "heading": "分节标题",
+            "content": "该节的详细分析",
+            "data": [{{"指标": "值", "说明": "解读"}}]
+        }}
+    ],
+    "conclusion": "结论与建议",
+    "chart": {{
+        "type": "bar|line|pie",
+        "title": "图表标题",
+        "x_col": "X轴列名",
+        "y_col": "Y轴列名"
+    }}
+}}
+```
+如果数据不适合图表，chart 设为 null。
+只输出 JSON，不要有其他文字。""",
+    }
+
+    def analyze(self, question: str, sql: str, result: dict, output_format: str = "table") -> dict:
         from app.core.llm import get_llm_client
 
         if result.get("error"):
-            return {"summary": f"查询出错：{result['error']}", "highlights": [], "chart": None}
+            base = {"summary": f"查询出错：{result['error']}"}
+            if output_format == "report":
+                base.update({"title": "查询失败", "sections": [], "conclusion": "", "chart": None})
+            elif output_format == "json":
+                base.update({"data": [], "schema": {}})
+            else:
+                base.update({"highlights": [], "chart": None})
+            return base
 
         if result.get("row_count", 0) == 0:
-            return {"summary": "查询结果为空，没有匹配的数据。", "highlights": [], "chart": None}
+            base = {"summary": "查询结果为空，没有匹配的数据。"}
+            if output_format == "report":
+                base.update({"title": "无数据", "sections": [], "conclusion": "", "chart": None})
+            elif output_format == "json":
+                base.update({"data": [], "schema": {}})
+            else:
+                base.update({"highlights": [], "chart": None})
+            return base
 
         # 构建预览（前 20 行）
         columns = result["columns"]
@@ -523,9 +597,15 @@ class AnalysisGenerator:
 
         client, model, cfg = get_llm_client()
 
-        prompt = _get_sql_prompt("sql_analyze", "analyze")["system"].format(
+        # 获取格式对应的 prompt
+        format_prompt = self.FORMAT_PROMPTS.get(output_format, self.FORMAT_PROMPTS["table"])
+
+        base_prompt = _get_sql_prompt("sql_analyze", "analyze")["system"]
+        # 只取基础 prompt 中的部分（不含输出格式）
+        base_parts = base_prompt.split("## 输出格式")
+        prompt = base_parts[0].format(
             question=question, sql=sql, result_preview=preview
-        )
+        ) + format_prompt
 
         response = client.chat.completions.create(
             model=model,
@@ -539,9 +619,18 @@ class AnalysisGenerator:
         content = re.sub(r'```\s*$', '', content)
 
         try:
-            return json.loads(content)
+            parsed = json.loads(content)
+            parsed["output_format"] = output_format
+            return parsed
         except json.JSONDecodeError:
-            return {"summary": content, "highlights": [], "chart": None}
+            base = {"summary": content, "output_format": output_format}
+            if output_format == "report":
+                base.update({"title": "分析结果", "sections": [], "conclusion": "", "chart": None})
+            elif output_format == "json":
+                base.update({"data": [], "schema": {}})
+            else:
+                base.update({"highlights": [], "chart": None})
+            return base
 
 
 # ═══════════════════════════════════════════════════
@@ -557,12 +646,12 @@ class SQLAgent:
         self.executor = SQLExecutor()
         self.analyzer = AnalysisGenerator()
 
-    def query(self, question: str, history: list = None) -> Generator[dict, None, None]:
+    def query(self, question: str, history: list = None, output_format: str = "table") -> Generator[dict, None, None]:
         """
         流式输出，逐步返回：
         1. {"step": "sql", "data": {"sql": "...", "thinking": "..."}}
         2. {"step": "result", "data": {"columns": [...], "rows": [...], ...}}
-        3. {"step": "analysis", "data": {"summary": "...", "chart": {...}}}
+        3. {"step": "analysis", "data": {"summary": "...", "chart": {...}, "output_format": "..."}}
         """
         # Step 1: 获取 Schema
         schema_text = self.schema.get_schema_text()
@@ -578,7 +667,7 @@ class SQLAgent:
         yield {"step": "result", "data": result}
 
         # Step 4: 分析
-        analysis = self.analyzer.analyze(question, sql_info["sql"], result)
+        analysis = self.analyzer.analyze(question, sql_info["sql"], result, output_format=output_format)
         yield {"step": "analysis", "data": analysis}
 
     def query_sync(self, question: str) -> str:

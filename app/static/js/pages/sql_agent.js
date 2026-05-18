@@ -89,6 +89,8 @@ const PageSQL = (() => {
     input.value = '';
     var startTime = Date.now();
 
+    var outputFormat = document.getElementById('sql-output-format')?.value || 'table';
+
     try {
       var token = API.getToken();
       var resp = await fetch('/api/sql/query', {
@@ -97,7 +99,7 @@ const PageSQL = (() => {
           'Content-Type': 'application/json',
           'Authorization': token ? 'Bearer ' + token : '',
         },
-        body: JSON.stringify({ question: question, history: queryHistory.slice(-6) }),
+        body: JSON.stringify({ question: question, history: queryHistory.slice(-6), output_format: outputFormat }),
       });
 
       if (!resp.ok) {
@@ -180,12 +182,57 @@ const PageSQL = (() => {
       if (data.chart) renderChart(blockId, data);
       var analysisSection = document.getElementById(blockId + '-analysis');
       analysisSection.style.display = 'block';
+      var fmt = data.output_format || 'table';
       var html2 = '';
-      if (data.summary) html2 += '<p>' + UI.escapeHtml(data.summary) + '</p>';
-      if (data.highlights && data.highlights.length) {
-        html2 += '<div class="sql-highlights">';
-        data.highlights.forEach(function(h) { html2 += '<div class="sql-highlight-item">\ud83d\udd0d ' + UI.escapeHtml(h) + '</div>'; });
-        html2 += '</div>';
+
+      if (fmt === 'json') {
+        // JSON 格式：显示 schema + 结构化数据
+        if (data.summary) html2 += '<p>' + UI.escapeHtml(data.summary) + '</p>';
+        if (data.schema && Object.keys(data.schema).length) {
+          html2 += '<div class="sql-json-schema"><strong>\ud83d\udccb 字段说明：</strong><ul>';
+          Object.keys(data.schema).forEach(function(k) {
+            html2 += '<li><code>' + UI.escapeHtml(k) + '</code> — ' + UI.escapeHtml(data.schema[k]) + '</li>';
+          });
+          html2 += '</ul></div>';
+        }
+        if (data.data && data.data.length) {
+          html2 += '<div class="sql-json-data"><strong>\ud83d\udcca 结构化数据（' + data.data.length + ' 条）：</strong>';
+          html2 += '<pre class="sql-json-preview">' + UI.escapeHtml(JSON.stringify(data.data, null, 2)) + '</pre>';
+          html2 += '<button class="btn btn-sm btn-outline" onclick="PageSQL.copyJSON(this)" data-json=\'' + UI.escapeHtml(JSON.stringify(data.data)) + '\'>\ud83d\udccb 复制 JSON</button>';
+          html2 += '</div>';
+        }
+      } else if (fmt === 'report') {
+        // 报告格式：标题 + 摘要 + 分节
+        if (data.title) html2 += '<h3 style="margin:0 0 8px">' + UI.escapeHtml(data.title) + '</h3>';
+        if (data.summary) html2 += '<p><strong>执行摘要：</strong>' + UI.escapeHtml(data.summary) + '</p>';
+        if (data.sections && data.sections.length) {
+          data.sections.forEach(function(sec) {
+            html2 += '<div class="sql-report-section">';
+            html2 += '<h4>' + UI.escapeHtml(sec.heading) + '</h4>';
+            html2 += '<p>' + UI.escapeHtml(sec.content) + '</p>';
+            if (sec.data && sec.data.length) {
+              html2 += '<table class="sql-result-table"><thead><tr>';
+              Object.keys(sec.data[0]).forEach(function(k) { html2 += '<th>' + UI.escapeHtml(k) + '</th>'; });
+              html2 += '</tr></thead><tbody>';
+              sec.data.forEach(function(row) {
+                html2 += '<tr>';
+                Object.values(row).forEach(function(v) { html2 += '<td>' + UI.escapeHtml(String(v)) + '</td>'; });
+                html2 += '</tr>';
+              });
+              html2 += '</tbody></table>';
+            }
+            html2 += '</div>';
+          });
+        }
+        if (data.conclusion) html2 += '<div class="sql-report-conclusion"><strong>\ud83d\udca1 结论：</strong>' + UI.escapeHtml(data.conclusion) + '</div>';
+      } else {
+        // 表格格式（默认）
+        if (data.summary) html2 += '<p>' + UI.escapeHtml(data.summary) + '</p>';
+        if (data.highlights && data.highlights.length) {
+          html2 += '<div class="sql-highlights">';
+          data.highlights.forEach(function(h) { html2 += '<div class="sql-highlight-item">\ud83d\udd0d ' + UI.escapeHtml(h) + '</div>'; });
+          html2 += '</div>';
+        }
       }
       document.getElementById(blockId + '-analysis-content').innerHTML = html2;
       queryHistory.push({ role: 'assistant', content: data.summary || '\u67e5\u8be2\u5b8c\u6210' });
@@ -370,5 +417,15 @@ const PageSQL = (() => {
     }
   }
 
-  return { init: init, askQuestion: askQuestion, askQuick: askQuick, copySQL: copySQL, toggleEdit: toggleEdit, reExecute: reExecute, exportExcel: exportExcel, showSchema: showSchema };
+  function copyJSON(btn) {
+    var jsonStr = btn.dataset.json || '';
+    try {
+      var formatted = JSON.stringify(JSON.parse(jsonStr), null, 2);
+      navigator.clipboard.writeText(formatted).then(function() { UI.toast('JSON 已复制', 'success'); });
+    } catch(e) {
+      navigator.clipboard.writeText(jsonStr).then(function() { UI.toast('JSON 已复制', 'success'); });
+    }
+  }
+
+  return { init: init, askQuestion: askQuestion, askQuick: askQuick, copySQL: copySQL, toggleEdit: toggleEdit, reExecute: reExecute, exportExcel: exportExcel, showSchema: showSchema, copyJSON: copyJSON };
 })();
