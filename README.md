@@ -97,6 +97,15 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - **图谱构建** — 从已有文档一键构建图谱 ✅
 - **技术方案** — [文档](docs/features/kg-enhancement/知识图谱增强_技术方案_v1.0.docx) ✅
 
+### ✅ 数据源同步（Git / 网页 URL）
+- Git 仓库同步 — 浅克隆 + SHA-256 diff + 增量更新 ✅
+- 网页 URL 同步 — 单页/递归爬取 + 正文提取 ✅
+- 定时同步（cron 表达式） ✅
+- 连接测试 ✅
+- 前端管理界面 — 新增/编辑/删除/同步状态轮询 ✅
+- 快速失败机制 — API 额度耗尽时自动中止 ✅
+- 技术方案 — [文档](docs/features/data-source-sync/数据源同步_技术方案_v1.0.docx) ✅
+
 ### 📋 v5.5 — 产品体验
 - 查询审计日志（NL→SQL 历史记录）
 - 查询模板（预置常见分析场景）
@@ -105,7 +114,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - 工具插件化注册（Tool Registry 热加载）
 
 ### 💡 v6.0 — 架构演进
-- 多 Agent 协作 / 数据源同步 / API 开放 + Bot 发布
+- 多 Agent 协作 / API 开放 + Bot 发布
 
 ### 🛡️ 系统优化
 - JWT 双 token / 告警机制 / Redis 缓存 / MySQL 定时备份

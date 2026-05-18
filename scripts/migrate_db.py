@@ -312,6 +312,33 @@ def migrate():
                 else:
                     print(f"  ❌ {table_name}: {e}")
 
+        # ── 数据源同步表 ──
+        print("\n📋 检查数据源同步表...")
+        ds_tables = {
+            "data_source": (
+                "CREATE TABLE IF NOT EXISTS data_source ("
+                " id VARCHAR(32) PRIMARY KEY, kb_id VARCHAR(32) NOT NULL,"
+                " name VARCHAR(256) NOT NULL, source_type VARCHAR(32) NOT NULL,"
+                " config TEXT, sync_cron VARCHAR(64) DEFAULT '',"
+                " sync_status VARCHAR(16) DEFAULT 'idle',"
+                " last_sync_at DATETIME, last_sync_result TEXT,"
+                " created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                " updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
+                " INDEX ix_ds_kb (kb_id))"
+            ),
+        }
+        for table_name, ddl in ds_tables.items():
+            try:
+                conn.execute(text(ddl))
+                conn.commit()
+                print(f"  ✅ {table_name}")
+            except Exception as e:
+                err = str(e).lower()
+                if "already exists" in err or "duplicate" in err:
+                    print(f"  ⏭️  {table_name}（已存在）")
+                else:
+                    print(f"  ❌ {table_name}: {e}")
+
     print("\n✅ 迁移完成")
 
 

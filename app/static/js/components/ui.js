@@ -28,9 +28,48 @@ const UI = (() => {
     document.getElementById('modal-' + name).style.display = 'block';
   }
 
+  /**
+   * 动态模态框：传入标题、HTML 内容、按钮数组
+   * buttons: [{ text, class, onClick }]
+   */
+  function showDynamicModal(title, bodyHtml, buttons) {
+    // 移除上一个动态模态框
+    const old = document.getElementById('modal-dynamic');
+    if (old) old.remove();
+
+    const btnsHtml = (buttons || []).map((b, i) => {
+      const cls = b.class || 'btn';
+      return `<button class="${cls}" id="modal-dyn-btn-${i}">${b.text}</button>`;
+    }).join('');
+
+    const div = document.createElement('div');
+    div.id = 'modal-dynamic';
+    div.className = 'modal';
+    div.style.cssText = 'display:block;max-width:640px;width:90vw;max-height:80vh;overflow-y:auto;';
+    div.innerHTML = `
+      <div class="modal-header">
+        <span>${title}</span>
+        <button onclick="UI.hideModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">×</button>
+      </div>
+      <div class="modal-body">${bodyHtml}</div>
+      <div class="modal-footer">${btnsHtml}</div>
+    `;
+
+    document.getElementById('modal-overlay').style.display = 'flex';
+    document.getElementById('modal-overlay').appendChild(div);
+
+    // 绑定按钮事件
+    (buttons || []).forEach((b, i) => {
+      const btn = document.getElementById(`modal-dyn-btn-${i}`);
+      if (btn && b.onClick) btn.addEventListener('click', b.onClick);
+    });
+  }
+
   function hideModal() {
     document.getElementById('modal-overlay').style.display = 'none';
     document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    const dyn = document.getElementById('modal-dynamic');
+    if (dyn) dyn.remove();
   }
 
   // ─── Tab 切换 ────────────────────────────────────
@@ -193,7 +232,7 @@ const UI = (() => {
   }
 
   return {
-    renderPagination, showModal, hideModal, switchTab, md2html, escapeHtml,
+    renderPagination, showModal, showDynamicModal, hideModal, switchTab, md2html, escapeHtml,
     extractCharts, renderCharts,
     loadDepts, fillDeptSelect, getDeptList: () => deptList,
   };

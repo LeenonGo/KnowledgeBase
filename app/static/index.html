@@ -160,6 +160,7 @@
     <div class="tab active" onclick="UI.switchTab(this,'kb-tab-docs')">文档管理</div>
     <div class="tab" onclick="UI.switchTab(this,'kb-tab-settings');PageKB.loadKBSettings()">知识库设置</div>
     <div class="tab" onclick="PageKG.openFromKB(window.__currentKbId||PageKB.getCurrentKbId()||'')">🔗 知识图谱</div>
+    <div class="tab" onclick="PageDataSource.openFromKB(window.__currentKbId||PageKB.getCurrentKbId()||'')">📡 数据源</div>
   </div>
   <!-- KB Tab: Documents -->
   <div id="kb-tab-docs">
@@ -648,18 +649,18 @@
       </div>
     </div>
 
+    <button class="btn btn-primary mt-16" onclick="PageConfig.saveModelConfig()" style="width:100%;justify-content:center;height:40px;font-size:15px;">💾 保存配置</button>
+
     <!-- 重建索引 -->
-    <div class="card">
+    <div class="card mt-16">
       <h3 class="mb-16">🔄 索引重建</h3>
-      <p class="text-muted" style="margin-bottom:16px;">更换 Embedding 模型后，需要重新向量化所有文档。此操作会用新模型重新计算向量，不影响原始文本。</p>
+      <p class="text-muted" style="margin-bottom:16px;">⚠️ <b>请先保存上方模型配置</b>，再重建索引。更换 Embedding 模型后，需要重新向量化所有文档。此操作会用新模型重新计算向量，不影响原始文本。</p>
       <div class="flex gap-12">
         <button class="btn btn-primary" onclick="PageConfig.reindexAll()">重建全部索引</button>
         <button class="btn" onclick="PageConfig.reindexCurrentKB()">重建当前知识库索引</button>
       </div>
       <div id="reindex-status" style="margin-top:12px;display:none;"></div>
     </div>
-
-    <button class="btn btn-primary mt-16" onclick="PageConfig.saveModelConfig()" style="width:100%;justify-content:center;height:40px;font-size:15px;">💾 保存配置</button>
   </div>
   
   <div id="config-tab-prompt" style="display:none;">
@@ -973,6 +974,24 @@
   <div id="kg-node-detail" style="margin-top:12px"></div>
 </div>
 
+<!-- 📡 数据源管理 -->
+<div id="data-source" class="screen">
+  <div class="screen-title" style="margin-bottom:12px">
+    <a onclick="history.back()" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
+    <span>📡 数据源管理</span>
+  </div>
+  <div class="flex-between mb-16">
+    <span class="text-muted">自动同步外部文档到知识库</span>
+    <button class="btn btn-primary" onclick="PageDataSource.showCreate()">+ 新增数据源</button>
+  </div>
+  <div class="card">
+    <table class="data-table">
+      <thead><tr><th>名称</th><th>类型</th><th>状态</th><th>上次同步</th><th>定时</th><th>操作</th></tr></thead>
+      <tbody id="ds-table-body"><tr><td colspan="6" class="empty">加载中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
 </div><!-- end main-area -->
 
 
@@ -1177,6 +1196,7 @@
 <script src="/js/pages/faq.js?v=17"></script>
 <script src="/js/pages/sql_agent.js?v=17"></script>
 <script src="/js/pages/kg.js?v=17"></script>
+<script src="/js/pages/datasource.js?v=17"></script>
 <!-- 初始化 -->
 <script>
   // 侧边栏收起/展开
