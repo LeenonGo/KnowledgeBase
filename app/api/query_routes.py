@@ -169,9 +169,9 @@ async def query_knowledge_base(
 
     # ── 6.5 Agent 模式 or 普通模式 ──
     if req.use_agent:
-        from app.core.tools import TOOL_DEFINITIONS
         # Agent 模式：不注入检索 context，让 LLM 主动调工具
-        agent_tools = list(TOOL_DEFINITIONS)  # copy to avoid mutation
+        from app.core.tools import registry
+        agent_tools = registry.get_definitions(db)  # 从 registry 获取启用的工具
         # 注入用户记忆
         from app.core.memory_service import get_user_memories, format_memories_for_prompt
         user_mems = get_user_memories(db, user.get("sub", ""))
@@ -360,7 +360,6 @@ async def agent_query_stream(
 
     from app.core.llm import plan_and_execute_stream, get_refuse_answer
     from app.core.vectorstore import search_accessible
-    from app.core.tools import TOOL_DEFINITIONS
 
     # 获取对话历史
     history = req.history or ""
@@ -381,7 +380,9 @@ async def agent_query_stream(
             agent_context = "（请使用可用工具来查找信息回答用户问题）"
             if memory_text:
                 agent_context = memory_text + "\n\n" + agent_context
-            agent_tools = list(TOOL_DEFINITIONS)
+            # 从 registry 获取启用的工具（支持热加载）
+            from app.core.tools import registry
+            agent_tools = registry.get_definitions(db)
 
             for event in plan_and_execute_stream(
                 req.question, agent_context, history=history,

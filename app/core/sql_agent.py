@@ -251,17 +251,109 @@ class SQLExecutor:
 
         # ③ 注入检测：检查常见注入模式
         injection_patterns = [
-            r';\s*(SELECT|INSERT|UPDATE|DELETE|DROP)',  # 多语句
-            r'UNION\s+ALL\s+SELECT.*--',                # UNION 注释
-            r'OR\s+1\s*=\s*1',                          # 永真条件
+            (r'UNION\s+ALL\s+SELECT.*--', '疑似 SQL 注入'),   # UNION 注释
+            (r'OR\s+1\s*=\s*1', '疑似 SQL 注入'),             # 永真条件
         ]
-        for pat in injection_patterns:
+        for pat, msg in injection_patterns:
             if re.search(pat, sql_upper):
-                return {"valid": False, "error": "疑似 SQL 注入"}
+                return {"valid": False, "error": msg}
+
+        # ④ 检测多语句（LLM 幻觉：把多个 SQL 拼在一起）— 自动截取第一条
+        if re.search(r';\s*(SELECT|WITH|INSERT|UPDATE|DELETE|DROP)', sql_upper):
+            # 截取第一个分号之前的内容
+            first_sql = re.split(r';\s*(?:SELECT|WITH|INSERT|UPDATE|DELETE|DROP)', sql_upper, 1)[0]
+            if first_sql.strip():
+                logger.warning(f"[SQL Validate] 检测到多语句，自动截取第一条: {sql_clean[:60]}...")
+                sql_clean = first_sql.strip()
+                sql_upper = sql_clean.upper()
+            else:
+                return {"valid": False, "error": "只允许单条 SELECT 语句"}
 
         return {"valid": True, "sql": sql_clean}
 
-    def execute(self, sql: str, limit: int = 500) -> dict:
+
+
+    def _get_table_columns(self, table_name: str) -> list:
+        """获取表的实际列名"""
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(f"DESCRIBE `{table_name}`")
+            columns = [row['Field'].lower() for row in cur.fetchall()]
+            cur.close()
+            conn.close()
+            return columns
+        except:
+            return []
+
+    def _check_permission(self, sql: str, user_role: str, default_limit: int) -> dict:
+        """检查 SQL 表级权限"""
+        import re
+        from app.core.database import SessionLocal
+        from app.models.models import SqlTablePermission
+        
+        # 解析 SQL 中的表名
+        sql_upper = sql.upper()
+        tables = set()
+        # 匹配 FROM table 和 JOIN table
+        for match in re.finditer(r'\b(?:FROM|JOIN)\s+`?([a-zA-Z_][a-zA-Z0-9_]*)`?', sql_upper):
+            tables.add(match.group(1).lower())
+        
+        if not tables:
+            return {"allowed": True, "max_rows": default_limit}
+        
+        db = SessionLocal()
+        try:
+            # 获取该角色的所有权限
+            perms = db.query(SqlTablePermission).filter(SqlTablePermission.role == user_role).all()
+            perm_map = {p.table_name: p for p in perms}
+            
+            for table in tables:
+                perm = perm_map.get(table)
+                if perm:
+                    if not perm.can_query:
+                        return {"allowed": False, "error": f"无权查询表 {table}"}
+                    # 检查禁止列（需要先获取表的实际列名映射）
+                    if perm.columns_deny:
+                        deny_cols = [c.strip().lower() for c in perm.columns_deny.split(",") if c.strip()]
+                        # 获取表的实际列名
+                        actual_cols = self._get_table_columns(table)
+                        for deny_col in deny_cols:
+                            # 检查 SQL 中是否引用了禁止的列
+                            # 1. 直接匹配列名：cost_price 或 table.cost_price
+                            if re.search(rf'`?{deny_col}`?|{table}\.`?{deny_col}`?', sql.lower()):
+                                return {"allowed": False, "error": f"无权查询表 {table} 的列 {deny_col}"}
+                            # 2. 检查是否有列的别名映射到禁止列
+                            # 例如：cost_price AS 成本价，SQL中写成 cost AS 成本价
+                            # 通过检查 SELECT 子句中的列是否在禁止列表中
+                            select_match = re.search(r'SELECT\s+(.*?)\s+FROM', sql, re.IGNORECASE | re.DOTALL)
+                            if select_match:
+                                select_cols = select_match.group(1)
+                                # 检查是否有 AS 别名映射到禁止列
+                                for actual_col in actual_cols:
+                                    if actual_col.lower() == deny_col:
+                                        # 检查这个列是否在 SELECT 中（可能用别名）
+                                        if re.search(rf'`?{actual_col}`?\s+AS', select_cols, re.IGNORECASE):
+                                            return {"allowed": False, "error": f"无权查询表 {table} 的列 {deny_col}"}
+                                        # 也检查直接引用
+                                        if re.search(rf'\b{actual_col}\b', select_cols, re.IGNORECASE):
+                                            return {"allowed": False, "error": f"无权查询表 {table} 的列 {deny_col}"}
+                else:
+                    # 没有配置的表，默认允许（super_admin 可以配置所有表）
+                    pass
+            
+            # 计算最大行数（取所有涉及表的最小值）
+            max_rows = default_limit
+            for table in tables:
+                perm = perm_map.get(table)
+                if perm and perm.can_query:
+                    max_rows = min(max_rows, perm.max_rows)
+            
+            return {"allowed": True, "max_rows": max_rows}
+        finally:
+            db.close()
+
+    def execute(self, sql: str, limit: int = 500, user_role: str = None) -> dict:
         """安全执行 SQL 查询"""
         # 校验
         validation = self.validate(sql)
@@ -270,8 +362,21 @@ class SQLExecutor:
 
         sql_clean = validation["sql"]
 
-        # 自动追加 LIMIT
-        if 'LIMIT' not in sql_clean.upper():
+        # 权限校验
+        if user_role and user_role != "super_admin":
+            perm_result = self._check_permission(sql_clean, user_role, limit)
+            if not perm_result["allowed"]:
+                return {"error": perm_result["error"]}
+            limit = min(limit, perm_result["max_rows"])
+
+        # 处理 LIMIT：确保不超过权限允许的 max_rows
+        import re
+        limit_match = re.search(r'\bLIMIT\s+(\d+)', sql_clean, re.IGNORECASE)
+        if limit_match:
+            current_limit = int(limit_match.group(1))
+            if current_limit > limit:
+                sql_clean = re.sub(r'\bLIMIT\s+\d+', f'LIMIT {limit}', sql_clean, flags=re.IGNORECASE)
+        else:
             sql_clean += f' LIMIT {limit}'
 
         conn = get_db_connection()
@@ -351,7 +456,11 @@ SQL_DEFAULT_PROMPTS = {
 4. 如果问题涉及时间，使用 NOW()、DATE_SUB() 等函数动态计算当前相对时间
 5. 多表关联时使用明确的 JOIN ... ON 语法
 6. 如果问题有歧义，选择最合理的解释
-7. 使用聚合函数时注意 GROUP BY
+7. GROUP BY 严格模式（only_full_group_by）：
+   - SELECT 中的每个非聚合列（无 SUM/COUNT/AVG 等函数包裹的列）必须出现在 GROUP BY 中
+   - 当用 CASE WHEN 或表达式分组时，SELECT 中也要用相同的表达式，不能直接引用原字段
+   - 正确示例：`SELECT CASE WHEN x THEN 'A' ELSE 'B' END AS type, COUNT(*) ... GROUP BY CASE WHEN x THEN 'A' ELSE 'B' END`
+   - 错误示例：`SELECT CASE WHEN x THEN 'A' ELSE 'B' END AS type, x, COUNT(*) ... GROUP BY CASE WHEN x THEN 'A' ELSE 'B' END`（x 没在 GROUP BY 中）
 
 ## 输出格式（严格 JSON）
 ```json
@@ -434,6 +543,11 @@ class SQLGenerator:
             if "sql" not in result:
                 result["sql"] = content
                 result["thinking"] = "无法解析思考过程"
+            # 修复字面量换行 + 压缩为单行
+            sql = result.get("sql", "")
+            if '\\n' in sql:
+                sql = sql.replace('\\n', '\n')
+            result["sql"] = re.sub(r'\s+', ' ', sql).strip()
             return result
         except json.JSONDecodeError:
             # 尝试从内容中提取 SQL
@@ -458,17 +572,20 @@ class SQLGenerator:
         client, model, cfg = get_llm_client()
 
         for attempt in range(max_retries):
+            _t0 = time.time()
             response = client.chat.completions.create(
                 model=model,
                 messages=messages,
                 max_tokens=cfg.get("max_tokens", 2048),
                 temperature=0.1,
             )
+            _t_llm = time.time() - _t0
             content = (response.choices[0].message.content or "").strip()
             content = re.sub(r'```json\s*', '', content)
             if not content:
                 messages.append({"role": "assistant", "content": ""})
                 messages.append({"role": "user", "content": "你返回了空内容，请重新输出 JSON。"})
+                logger.info(f"[SQL Gen] 尝试 {attempt+1}: 空响应, LLM耗时 {_t_llm:.1f}s")
                 continue
             content = re.sub(r'```\s*$', '', content)
 
@@ -481,13 +598,21 @@ class SQLGenerator:
                 sql = sql_match.group(1).strip() if sql_match else content
                 thinking = ""
 
+            # 修复 LLM 返回的 SQL 中字面量 \n（反斜杠+n）→ 真实换行
+            if '\\n' in sql:
+                sql = sql.replace('\\n', '\n')
+                logger.info(f"[SQL Gen] 已修复字面量换行符")
+            # SQL 压缩为单行，避免驱动对换行/空白敏感
+            sql = re.sub(r'\s+', ' ', sql).strip()
+
             # 校验
             validation = executor.validate(sql)
             if validation["valid"]:
+                logger.info(f"[SQL Gen] 尝试 {attempt+1}: 成功, LLM耗时 {_t_llm:.1f}s")
                 return {"sql": sql, "thinking": thinking, "attempts": attempt + 1}
 
             # 校验失败，把错误反馈给 LLM
-            logger.warning(f"SQL 校验失败 (尝试 {attempt+1}): {validation['error']}")
+            logger.warning(f"[SQL Gen] 尝试 {attempt+1}: 校验失败 ({validation['error']}), LLM耗时 {_t_llm:.1f}s")
             messages.append({"role": "assistant", "content": json.dumps({"sql": sql, "thinking": thinking})})
             messages.append({"role": "user", "content": f"SQL 有问题：{validation['error']}，请修正后重新输出 JSON。"})
 
@@ -607,12 +732,14 @@ data 中每项是一个对象，key 用中文字段名。schema 描述每个字�
             question=question, sql=sql, result_preview=preview
         ) + format_prompt
 
+        _t0 = time.time()
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=cfg.get("max_tokens", 2048),
             temperature=0.3,
         )
+        logger.info(f"[SQL Analyze] LLM耗时 {time.time()-_t0:.1f}s, format={output_format}")
 
         content = (response.choices[0].message.content or "").strip()
         content = re.sub(r'```json\s*', '', content)
@@ -646,31 +773,40 @@ class SQLAgent:
         self.executor = SQLExecutor()
         self.analyzer = AnalysisGenerator()
 
-    def query(self, question: str, history: list = None, output_format: str = "table") -> Generator[dict, None, None]:
+    def query(self, question: str, history: list = None, output_format: str = "table", user_role: str = None) -> Generator[dict, None, None]:
         """
         流式输出，逐步返回：
         1. {"step": "sql", "data": {"sql": "...", "thinking": "..."}}
         2. {"step": "result", "data": {"columns": [...], "rows": [...], ...}}
         3. {"step": "analysis", "data": {"summary": "...", "chart": {...}, "output_format": "..."}}
         """
+        _t_start = time.time()
+
         # Step 1: 获取 Schema
         schema_text = self.schema.get_schema_text()
 
         # Step 2: 生成 SQL
+        _t = time.time()
         sql_info = self.generator.generate_with_retry(
             question, schema_text, self.executor, history
         )
+        logger.info(f"[SQL Query] 生成SQL耗时 {time.time()-_t:.1f}s, attempts={sql_info.get('attempts',1)}")
         yield {"step": "sql", "data": sql_info}
 
         # Step 3: 执行
-        result = self.executor.execute(sql_info["sql"])
+        _t = time.time()
+        result = self.executor.execute(sql_info["sql"], user_role=user_role)
+        logger.info(f"[SQL Query] 执行耗时 {time.time()-_t:.1f}s, rows={result.get('row_count',0)}")
         yield {"step": "result", "data": result}
 
         # Step 4: 分析
+        _t = time.time()
         analysis = self.analyzer.analyze(question, sql_info["sql"], result, output_format=output_format)
+        logger.info(f"[SQL Query] 分析耗时 {time.time()-_t:.1f}s")
+        logger.info(f"[SQL Query] 总耗时 {time.time()-_t_start:.1f}s")
         yield {"step": "analysis", "data": analysis}
 
-    def query_sync(self, question: str) -> str:
+    def query_sync(self, question: str, user_role: str = None) -> str:
         """同步查询（供 Agent 工具调用），返回文本结果"""
         schema_text = self.schema.get_schema_text()
 
@@ -678,7 +814,7 @@ class SQLAgent:
             question, schema_text, self.executor
         )
 
-        result = self.executor.execute(sql_info["sql"])
+        result = self.executor.execute(sql_info["sql"], user_role=user_role)
 
         if result.get("error"):
             return f"查询出错：{result['error']}\n生成的 SQL：{sql_info['sql']}"
@@ -699,9 +835,9 @@ class SQLAgent:
 
         return "\n".join(lines)
 
-    def execute_sql_direct(self, sql: str) -> dict:
+    def execute_sql_direct(self, sql: str, user_role: str = None) -> dict:
         """直接执行 SQL（编辑后手动执行）"""
-        return self.executor.execute(sql)
+        return self.executor.execute(sql, user_role=user_role)
 
 
 # 全局单例

@@ -91,7 +91,8 @@ async def sql_query(
         status = "success"
 
         try:
-            for event in agent.query(req.question, history, output_format=output_format):
+            user_role = user.get("role", "user")
+            for event in agent.query(req.question, history, output_format=output_format, user_role=user_role):
                 step = event["step"]
                 data = json.dumps(event["data"], ensure_ascii=False)
 
@@ -136,7 +137,8 @@ async def sql_execute(
     from app.core.sql_agent import get_sql_agent
 
     agent = get_sql_agent()
-    result = agent.execute_sql_direct(req.sql)
+    user_role = user.get("role", "user")
+    result = agent.execute_sql_direct(req.sql, user_role=user_role)
 
     log_audit(db, user, "sql_execute", req.sql[:100], "直接执行SQL", "success")
     return result
@@ -201,3 +203,123 @@ async def get_query_audit_logs(
             "created_at": str(l.created_at),
         } for l in logs]
     }
+
+
+# ─── 查询模板 CRUD ──────────────────────────────
+
+
+class TemplateCreate(BaseModel):
+    category: str = Field(..., min_length=1, max_length=50)
+    name: str = Field(..., min_length=1, max_length=100)
+    question: str = Field(..., min_length=1)
+    icon: str = Field(default="📊")
+    sort_order: int = Field(default=0)
+
+
+class TemplateUpdate(BaseModel):
+    category: Optional[str] = None
+    name: Optional[str] = None
+    question: Optional[str] = None
+    icon: Optional[str] = None
+    sort_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+@router.get("/templates")
+async def get_templates(
+    user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """获取查询模板列表（按分类分组）"""
+    from app.models.models import QueryTemplate
+
+    templates = db.query(QueryTemplate).filter(
+        QueryTemplate.is_active == True
+    ).order_by(QueryTemplate.category, QueryTemplate.sort_order).all()
+
+    # 按分类分组
+    grouped = {}
+    for t in templates:
+        if t.category not in grouped:
+            grouped[t.category] = []
+        grouped[t.category].append({
+            "id": t.id,
+            "name": t.name,
+            "question": t.question,
+            "icon": t.icon,
+            "sort_order": t.sort_order,
+        })
+
+    return {"categories": grouped}
+
+
+@router.post("/templates")
+async def create_template(
+    req: TemplateCreate,
+    user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """创建查询模板（仅管理员）"""
+    if user.get("role") not in ("super_admin", "kb_admin"):
+        raise HTTPException(403, "权限不足")
+
+    from app.models.models import QueryTemplate
+    t = QueryTemplate(
+        category=req.category,
+        name=req.name,
+        question=req.question,
+        icon=req.icon,
+        sort_order=req.sort_order,
+    )
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+
+    log_audit(db, user, "template_create", req.name, "创建查询模板", "success")
+    return {"id": t.id, "message": "创建成功"}
+
+
+@router.put("/templates/{template_id}")
+async def update_template(
+    template_id: int,
+    req: TemplateUpdate,
+    user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """更新查询模板（仅管理员）"""
+    if user.get("role") not in ("super_admin", "kb_admin"):
+        raise HTTPException(403, "权限不足")
+
+    from app.models.models import QueryTemplate
+    t = db.query(QueryTemplate).filter(QueryTemplate.id == template_id).first()
+    if not t:
+        raise HTTPException(404, "模板不存在")
+
+    for field in ("category", "name", "question", "icon", "sort_order", "is_active"):
+        val = getattr(req, field, None)
+        if val is not None:
+            setattr(t, field, val)
+
+    db.commit()
+    log_audit(db, user, "template_update", t.name, "更新查询模板", "success")
+    return {"message": "更新成功"}
+
+
+@router.delete("/templates/{template_id}")
+async def delete_template(
+    template_id: int,
+    user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """删除查询模板（仅管理员）"""
+    if user.get("role") not in ("super_admin", "kb_admin"):
+        raise HTTPException(403, "权限不足")
+
+    from app.models.models import QueryTemplate
+    t = db.query(QueryTemplate).filter(QueryTemplate.id == template_id).first()
+    if not t:
+        raise HTTPException(404, "模板不存在")
+
+    db.delete(t)
+    db.commit()
+    log_audit(db, user, "template_delete", t.name, "删除查询模板", "success")

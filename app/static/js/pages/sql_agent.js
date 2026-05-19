@@ -14,20 +14,74 @@ const PageSQL = (() => {
     '退货率最高的品类',
   ];
 
-  function init() {
-    var quickWrap = document.getElementById('sql-quick-questions');
-    if (quickWrap) {
-      quickWrap.innerHTML = QUICK_QUESTIONS.map(function(q) {
-        var label = q.length > 14 ? q.slice(0, 14) + '\u2026' : q;
-        return '<button class="btn btn-sm btn-outline" onclick="PageSQL.askQuick(\'' + q.replace(/'/g, "\\'") + '\')">' + UI.escapeHtml(label) + '</button>';
-      }).join('');
-    }
+  let _templates = {};
+
+  async function init() {
+    // 加载查询模板
+    await loadTemplates();
+    renderTemplates();
+
     var input = document.getElementById('sql-input');
     if (input) {
       input.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askQuestion(); }
       });
     }
+  }
+
+  async function loadTemplates() {
+    try {
+      var data = await API.request('/api/sql/templates');
+      _templates = data.categories || {};
+    } catch(e) {
+      console.warn('加载模板失败:', e);
+      _templates = {};
+    }
+  }
+
+  function renderTemplates() {
+    var wrap = document.getElementById('sql-templates');
+    if (!wrap) return;
+
+    var categories = Object.keys(_templates);
+    if (!categories.length) {
+      wrap.style.display = 'none';
+      return;
+    }
+
+    // 默认选中第一个分类
+    var activeCat = categories[0];
+    var tabsHtml = '<div class="sql-template-tabs">' + categories.map(function(cat, i) {
+      return '<button class="sql-template-tab' + (i === 0 ? ' active' : '') + '" onclick="PageSQL.switchTemplateTab(\'' + cat.replace(/'/g, "\\'") + '\')">' + UI.escapeHtml(cat) + '</button>';
+    }).join('') + '</div>';
+
+    var cardsHtml = '<div class="sql-template-cards">';
+    categories.forEach(function(cat) {
+      var items = _templates[cat] || [];
+      cardsHtml += '<div class="sql-template-group" data-cat="' + UI.escapeHtml(cat) + '" style="display:' + (cat === activeCat ? 'flex' : 'none') + '">';
+      items.forEach(function(t) {
+        cardsHtml += '<button class="sql-template-card" onclick="PageSQL.askQuick(\'' + t.question.replace(/'/g, "\\'") + '\')">' +
+          '<span class="sql-template-icon">' + UI.escapeHtml(t.icon || '📊') + '</span>' +
+          '<span class="sql-template-name">' + UI.escapeHtml(t.name) + '</span>' +
+        '</button>';
+      });
+      cardsHtml += '</div>';
+    });
+    cardsHtml += '</div>';
+
+    wrap.innerHTML = tabsHtml + cardsHtml;
+    wrap.style.display = 'block';
+  }
+
+  function switchTemplateTab(category) {
+    // 切换 tab 高亮
+    document.querySelectorAll('.sql-template-tab').forEach(function(el) {
+      el.classList.toggle('active', el.textContent === category);
+    });
+    // 切换卡片组
+    document.querySelectorAll('.sql-template-group').forEach(function(el) {
+      el.style.display = el.dataset.cat === category ? 'flex' : 'none';
+    });
   }
 
   function askQuick(question) {
@@ -99,7 +153,7 @@ const PageSQL = (() => {
           'Content-Type': 'application/json',
           'Authorization': token ? 'Bearer ' + token : '',
         },
-        body: JSON.stringify({ question: question, history: queryHistory.slice(-6), output_format: outputFormat }),
+        body: JSON.stringify({ question: question, output_format: outputFormat }),
       });
 
       if (!resp.ok) {
@@ -427,5 +481,5 @@ const PageSQL = (() => {
     }
   }
 
-  return { init: init, askQuestion: askQuestion, askQuick: askQuick, copySQL: copySQL, toggleEdit: toggleEdit, reExecute: reExecute, exportExcel: exportExcel, showSchema: showSchema, copyJSON: copyJSON };
+  return { init: init, askQuestion: askQuestion, askQuick: askQuick, copySQL: copySQL, toggleEdit: toggleEdit, reExecute: reExecute, exportExcel: exportExcel, showSchema: showSchema, copyJSON: copyJSON, switchTemplateTab: switchTemplateTab, loadTemplates: loadTemplates };
 })();

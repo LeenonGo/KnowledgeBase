@@ -18,30 +18,50 @@
     <a onclick="Router.navigate('dashboard')" class="active">📊 仪表盘</a>
   </div>
   <div class="side-section">
-    <div class="side-section-title">知识库</div>
-    <a onclick="Router.navigate('kb-list')">📂 文档管理</a>
-    <a onclick="Router.navigate('qa-chat')">💬 智能问答</a>
-    <a onclick="Router.navigate('agent-ws')">🧠 Agent 工作台</a>
-    <a onclick="Router.navigate('sql-agent')">📊 SQL 分析</a>
+    <div class="side-section-title" onclick="toggleMenuGroup(this)">知识库 <span class="menu-arrow">▾</span></div>
+    <div class="side-section-items">
+      <a onclick="Router.navigate('kb-list')">📂 文档管理</a>
+    </div>
   </div>
   <div class="side-section">
-    <div class="side-section-title">个人</div>
-    <a onclick="Router.navigate('user-memory')">💾 我的记忆</a>
+    <div class="side-section-title" onclick="toggleMenuGroup(this)">智能工具 <span class="menu-arrow">▾</span></div>
+    <div class="side-section-items">
+      <a onclick="Router.navigate('qa-chat')">💬 智能问答</a>
+      <a onclick="Router.navigate('agent-ws')">🧠 Agent 工作台</a>
+      <a onclick="Router.navigate('sql-agent')">📊 SQL 分析</a>
+    </div>
   </div>
   <div class="side-section">
-    <div class="side-section-title">管理</div>
-    <a onclick="Router.navigate('user-mgmt')" id="menu-users">👥 用户管理</a>
-    <a onclick="Router.navigate('dept-tree')" id="menu-depts">🏢 部门管理</a>
-    <a onclick="Router.navigate('perm-mgmt')" id="menu-perms">🔑 权限管理</a>
+    <div class="side-section-title" onclick="toggleMenuGroup(this)">个人 <span class="menu-arrow">▾</span></div>
+    <div class="side-section-items">
+      <a onclick="Router.navigate('user-memory')">💾 我的记忆</a>
+    </div>
   </div>
   <div class="side-section">
-    <div class="side-section-title">运维</div>
-    <a onclick="Router.navigate('faq-mgmt')" id="menu-faq">📝 FAQ 管理</a>
-    <a onclick="Router.navigate('quality')" id="menu-quality">📈 质量监控</a>
-    <a onclick="Router.navigate('evaluation')" id="menu-eval">🧪 效果评测</a>
-    <a onclick="Router.navigate('audit-log')" id="menu-audit">📋 审计日志</a>
-    <a onclick="Router.navigate('sql-audit')" id="menu-sql-audit">🔍 查询审计</a>
-    <a onclick="Router.navigate('sys-config')" id="menu-config">⚙️ 系统配置</a>
+    <div class="side-section-title" onclick="toggleMenuGroup(this)">管理 <span class="menu-arrow">▾</span></div>
+    <div class="side-section-items">
+      <a onclick="Router.navigate('user-mgmt')" id="menu-users">👥 用户管理</a>
+      <a onclick="Router.navigate('dept-tree')" id="menu-depts">🏢 部门管理</a>
+      <a onclick="Router.navigate('perm-mgmt')" id="menu-perms">🔑 权限管理</a>
+      <a onclick="Router.navigate('sql-perm')" id="menu-sql-perm">🔐 数据权限</a>
+    </div>
+  </div>
+  <div class="side-section">
+    <div class="side-section-title" onclick="toggleMenuGroup(this)">运维 <span class="menu-arrow">▾</span></div>
+    <div class="side-section-items">
+      <a onclick="Router.navigate('faq-mgmt')" id="menu-faq">📝 FAQ 管理</a>
+      <a onclick="Router.navigate('quality')" id="menu-quality">📈 质量监控</a>
+      <a onclick="Router.navigate('evaluation')" id="menu-eval">🧪 效果评测</a>
+      <a onclick="Router.navigate('audit-log')" id="menu-audit">📋 审计日志</a>
+      <a onclick="Router.navigate('sql-audit')" id="menu-sql-audit">🔍 查询审计</a>
+    </div>
+  </div>
+  <div class="side-section">
+    <div class="side-section-title" onclick="toggleMenuGroup(this)">系统配置 <span class="menu-arrow">▾</span></div>
+    <div class="side-section-items">
+      <a onclick="Router.navigate('tool-mgmt')" id="menu-tools">🧰 工具管理</a>
+      <a onclick="Router.navigate('sys-config')" id="menu-config">⚙️ 系统设置</a>
+    </div>
   </div>
 </nav>
 
@@ -78,17 +98,51 @@
 <!-- ==================== 1. 登录页 ==================== -->
 <div id="login" class="screen active">
 <div class="login-page">
+  <!-- 背景动画粒子 -->
+  <div class="login-particles">
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+  </div>
+  
   <div class="login-box">
-    <h1>📚 RAG 知识库</h1>
-    <p class="subtitle">企业智能知识管理平台</p>
-    <div class="form-group"><label>用户名</label><input class="input" id="login-user" type="text" placeholder="请输入用户名" value="admin"></div>
-    <div class="form-group"><label>密码</label><input class="input" id="login-pass" type="password" placeholder="请输入密码" value="admin123"></div>
-    <div class="flex-between mb-16">
-      <label style="font-size:13px;color:#666;"><input type="checkbox" checked> 记住登录</label>
-      <a href="#" style="font-size:13px;color:#1890ff;">忘记密码？</a>
+    <div class="login-logo">
+      <div class="login-logo-icon">🧠</div>
     </div>
-    <button class="btn btn-primary" style="width:100%;justify-content:center;height:40px;font-size:15px;" onclick="PageLogin.doLogin()">登 录</button>
-    <p style="text-align:center;margin-top:16px;font-size:12px;color:#ccc;">SSO 单点登录（P2 开放）</p>
+    <h1 id="login-title"></h1>
+    <p class="subtitle" id="login-subtitle">RAG · Agent · 智能问答</p>
+    
+    <div class="login-form">
+      <div class="login-input-group">
+        <span class="login-input-icon">👤</span>
+        <input class="login-input" id="login-user" type="text" placeholder="请输入用户名" value="admin">
+      </div>
+      <div class="login-input-group">
+        <span class="login-input-icon">🔒</span>
+        <input class="login-input" id="login-pass" type="password" placeholder="请输入密码" value="admin123">
+        <span class="login-eye" onclick="togglePassword()">👁</span>
+      </div>
+      
+      <div class="login-options">
+        <label class="login-remember">
+          <input type="checkbox" checked>
+          <span>记住我</span>
+        </label>
+      </div>
+      
+      <button class="login-btn" onclick="PageLogin.doLogin()">
+        <span id="login-btn-text">登 录</span>
+      </button>
+    </div>
+    
+    <div class="login-footer">
+      <span>v5.5</span>
+    </div>
   </div>
 </div>
 </div>
@@ -144,7 +198,7 @@
       <div class="text-muted">共 <span id="kb-total">0</span> 个知识库</div>
     </div>
     <table>
-      <tr><th>知识库名称</th><th>文档数</th><th>Chunks</th><th>Embedding 模型</th><th>状态</th><th>操作</th></tr>
+      <tr><th>知识库名称</th><th>文档数</th><th>Chunks</th><th>状态</th><th>操作</th></tr>
       <tbody id="kb-table-body"><tr><td colspan="6" style="text-align:center;padding:40px;color:#999;">加载中...</td></tr></tbody>
     </table>
     <div id="kb-pagination" class="mt-16"></div>
@@ -160,11 +214,17 @@
   <div class="tabs" id="kb-detail-tabs">
     <div class="tab active" onclick="UI.switchTab(this,'kb-tab-docs')">文档管理</div>
     <div class="tab" onclick="UI.switchTab(this,'kb-tab-settings');PageKB.loadKBSettings()">知识库设置</div>
-    <div class="tab" onclick="PageKG.openFromKB(window.__currentKbId||PageKB.getCurrentKbId()||'')">🔗 知识图谱</div>
-    <div class="tab" onclick="PageDataSource.openFromKB(window.__currentKbId||PageKB.getCurrentKbId()||'')">📡 数据源</div>
+    <div class="tab" onclick="UI.switchTab(this,'kb-tab-kg');PageKG.loadInTab()">🔗 知识图谱</div>
+    <div class="tab" onclick="UI.switchTab(this,'kb-tab-ds');PageDataSource.loadInTab()">📡 数据源</div>
   </div>
   <!-- KB Tab: Documents -->
   <div id="kb-tab-docs">
+    <div style="margin-bottom:16px;font-size:13px;color:#666;">
+      总文档数: <b id="kb-stat-docs">0</b> &nbsp;|&nbsp;
+      总 Chunks: <b id="kb-stat-chunks">0</b> &nbsp;|&nbsp;
+      授权部门数: <b id="kb-stat-depts">0</b> &nbsp;|&nbsp;
+      创建时间: <b id="kb-stat-created">--</b>
+    </div>
     <div class="card">
       <div class="flex-between mb-16">
         <button class="btn btn-primary kb-edit-only" onclick="Router.navigate('doc-upload')">⬆️ 上传文档</button>
@@ -174,12 +234,6 @@
         <tbody id="doc-table-body"><tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">暂无文档</td></tr></tbody>
       </table>
       <div id="doc-pagination" class="mt-16"></div>
-    </div>
-    <div class="stats-row" style="margin-top:16px;">
-      <div class="stat-card"><div class="label">总文档数</div><div class="value" id="kb-stat-docs">0</div></div>
-      <div class="stat-card"><div class="label">总 Chunks</div><div class="value" id="kb-stat-chunks">0</div></div>
-      <div class="stat-card"><div class="label">授权部门数</div><div class="value" id="kb-stat-depts">0</div></div>
-      <div class="stat-card"><div class="label">创建时间</div><div class="value" id="kb-stat-created" style="font-size:14px;">--</div></div>
     </div>
   </div>
   <!-- KB Tab: Settings -->
@@ -191,12 +245,6 @@
         <div class="form-group"><label>状态</label><select class="select" style="width:100%;" id="kb-set-status"><option value="active">活跃</option><option value="archived">归档</option></select></div>
       </div>
       <div class="form-group"><label>描述</label><textarea class="input" rows="3" style="resize:vertical;" id="kb-set-desc"></textarea></div>
-      <div class="divider"></div>
-      <h3 class="mb-16">模型配置</h3>
-      <div class="form-row">
-        <div class="form-group"><label>Embedding 模型</label><input class="input" id="kb-set-emb-model" placeholder="如 text-embedding-v3"></div>
-        <div class="form-group"><label>LLM 模型</label><input class="input" id="kb-set-llm-model" placeholder="如 qwen3.6-plus"></div>
-      </div>
       <button class="btn btn-primary mt-16 kb-admin-only" onclick="PageKB.saveKBSettings()">保存设置</button>
     </div>
     <div class="card mt-16 kb-admin-only">
@@ -207,6 +255,41 @@
       <table>
         <thead><tr><th>部门名称</th><th>权限角色</th><th>操作</th></tr></thead>
         <tbody id="kb-dept-access-body"><tr><td colspan="3" style="text-align:center;padding:20px;color:#999;">加载中...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- KB Tab: 知识图谱 -->
+  <div id="kb-tab-kg" style="display:none;">
+    <div class="card">
+      <div class="flex-between mb-16">
+        <h3>🔗 知识图谱</h3>
+        <div>
+          <button class="btn btn-sm" onclick="PageKG.exportGraph()">📥 导出</button>
+          <button class="btn btn-primary btn-sm" onclick="PageKG.buildGraph()" id="kg-build-btn">🔨 构建图谱</button>
+        </div>
+      </div>
+      <div id="kg-build-status" style="display:none;padding:8px 12px;background:#e6f7ff;border-radius:6px;margin-bottom:12px;font-size:13px;color:#1890ff;"></div>
+      <div class="mb-16">
+        <input class="input" id="kg-tab-search" placeholder="搜索实体..." style="width:300px;display:inline-block;">
+        <button class="btn btn-sm" onclick="PageKG.searchInTab()">搜索</button>
+      </div>
+      <div style="margin:12px 0;font-size:13px;color:#666;">
+        实体数: <span id="kg-tab-entities">0</span> | 关系数: <span id="kg-tab-relations">0</span>
+      </div>
+      <div id="kg-tab-container" style="width:100%;height:500px;min-height:400px;background:#fafbfc;position:relative;overflow:hidden;border-radius:8px;"></div>
+      <div id="kg-node-detail" style="margin-top:12px;min-height:60px;"></div>
+    </div>
+  </div>
+  <!-- KB Tab: 数据源 -->
+  <div id="kb-tab-ds" style="display:none;">
+    <div class="card">
+      <div class="flex-between mb-16">
+        <h3>📡 数据源管理</h3>
+        <button class="btn btn-primary btn-sm" onclick="PageDataSource.showAddModal()">＋ 添加数据源</button>
+      </div>
+      <table>
+        <thead><tr><th>名称</th><th>类型</th><th>状态</th><th>最后同步</th><th>操作</th></tr></thead>
+        <tbody id="ds-tab-body"><tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">暂无数据源</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -573,6 +656,55 @@
   </div>
 </div>
 
+<!-- ==================== 11b. 工具管理 ==================== -->
+<div id="tool-mgmt" class="screen">
+  <div class="screen-title">🧰 工具管理</div>
+  <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+    <div style="display:flex;gap:10px;align-items:center;">
+      <select id="tool-category-filter" class="select" onchange="PageTools.filterCategory(this.value)" style="width:auto;min-width:100px;">
+        <option value="">全部分类</option>
+      </select>
+      <input type="text" id="tool-search" class="input" placeholder="搜索工具名或描述..." oninput="PageTools.searchTools()" style="width:220px;">
+    </div>
+    <button class="btn btn-primary" onclick="PageTools.showCreateModal()">+ 新增工具</button>
+  </div>
+  <table>
+    <thead><tr>
+      <th>工具名称</th>
+      <th>描述</th>
+      <th>分类</th>
+      <th>状态</th>
+      <th>操作</th>
+    </tr></thead>
+    <tbody id="tool-table-body">
+      <tr><td colspan="5" class="empty">加载中...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== 11c. SQL 数据权限 ==================== -->
+<div id="sql-perm" class="screen">
+  <div class="screen-title">🔐 SQL 数据权限管理</div>
+  <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+    <div style="display:flex;gap:10px;align-items:center;">
+      <select id="perm-role-filter" class="select" onchange="PageSQLPerm.filterRole(this.value)" style="width:auto;min-width:150px;">
+        <option value="">选择角色查看权限</option>
+      </select>
+    </div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>数据表</th>
+      <th>是否可查</th>
+      <th>最大行数</th>
+      <th>禁止列</th>
+    </tr></thead>
+    <tbody id="perm-table-body">
+      <tr><td colspan="4" class="empty">请选择角色</td></tr>
+    </tbody>
+  </table>
+</div>
+
 <!-- ==================== 12. 系统配置 ==================== -->
 <div id="sys-config" class="screen">
   <div class="screen-title">⚙️ 系统配置</div>
@@ -922,6 +1054,9 @@
 <div id="sql-agent" class="screen">
   <div class="screen-title" style="margin-bottom:12px;font-size:18px;">📊 SQL 分析助手</div>
 
+  <!-- 查询模板 -->
+  <div id="sql-templates" class="sql-templates" style="display:none;margin-bottom:16px;"></div>
+
   <div class="sql-input-area">
     <div class="sql-input-row">
       <input type="text" id="sql-input" class="sql-input" placeholder="用自然语言提问，如：本月各品类销售额是多少？" autocomplete="off">
@@ -933,7 +1068,6 @@
       <button id="sql-send-btn" class="btn btn-primary" onclick="PageSQL.askQuestion()">查询</button>
       <button class="btn btn-outline" onclick="PageSQL.showSchema()" title="查看表结构">📋 Schema</button>
     </div>
-    <div class="sql-quick-questions" id="sql-quick-questions"></div>
   </div>
 
   <div id="sql-schema-panel" style="display:none;margin-bottom:16px;"></div>
@@ -991,10 +1125,7 @@
 
 <!-- 🔗 知识图谱 -->
 <div id="kg-graph" class="screen">
-  <div class="screen-title" style="margin-bottom:12px">
-    <a onclick="history.back()" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
-    <span>🔗 知识图谱</span>
-  </div>
+  <div class="screen-title">🔗 知识图谱</div>
   <div class="stats-row" style="margin-bottom:12px">
     <div class="stat-card"><div class="label">实体总数</div><div class="value" id="kg-entity-count">0</div></div>
     <div class="stat-card"><div class="label">关系总数</div><div class="value" id="kg-relation-count">0</div></div>
@@ -1016,10 +1147,7 @@
 
 <!-- 📡 数据源管理 -->
 <div id="data-source" class="screen">
-  <div class="screen-title" style="margin-bottom:12px">
-    <a onclick="history.back()" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
-    <span>📡 数据源管理</span>
-  </div>
+  <div class="screen-title">📡 数据源管理</div>
   <div class="flex-between mb-16">
     <span class="text-muted">自动同步外部文档到知识库</span>
     <button class="btn btn-primary" onclick="PageDataSource.showCreate()">+ 新增数据源</button>
@@ -1236,10 +1364,35 @@
 <script src="/js/pages/faq.js?v=17"></script>
 <script src="/js/pages/sql_agent.js?v=17"></script>
 <script src="/js/pages/sql_audit.js?v=17"></script>
+<script src="/js/pages/tools.js"></script>
+<script src="/js/pages/sql_perm.js"></script>
 <script src="/js/pages/kg.js?v=17"></script>
 <script src="/js/pages/datasource.js?v=17"></script>
 <!-- 初始化 -->
 <script>
+  // 返回知识库详情
+  function goBackToKB() {
+    var kbId = window.__currentKbId || localStorage.getItem('__currentKbId');
+    if (kbId) {
+      Router.navigate('kb-detail');
+    } else {
+      Router.navigate('kb-list');
+    }
+  }
+
+  // 密码显示/隐藏
+  function togglePassword() {
+    const input = document.getElementById('login-pass');
+    const eye = document.querySelector('.login-eye');
+    if (input.type === 'password') {
+      input.type = 'text';
+      eye.textContent = '🙈';
+    } else {
+      input.type = 'password';
+      eye.textContent = '👁';
+    }
+  }
+
   // 侧边栏收起/展开
   let sidebarCollapsed = false;
   function toggleSidebar() {
@@ -1247,6 +1400,17 @@
     document.getElementById('sidebar').classList.toggle('collapsed', sidebarCollapsed);
     document.getElementById('sidebar-toggle').textContent = sidebarCollapsed ? '☰' : '✕';
     document.getElementById('sidebar-toggle').title = sidebarCollapsed ? '展开菜单' : '收起菜单';
+  }
+
+  // 菜单分组收起/展开
+  function toggleMenuGroup(titleEl) {
+    const section = titleEl.parentElement;
+    const items = section.querySelector('.side-section-items');
+    const arrow = titleEl.querySelector('.menu-arrow');
+    if (!items) return;
+    const isCollapsed = items.style.display === 'none';
+    items.style.display = isCollapsed ? 'block' : 'none';
+    if (arrow) arrow.textContent = isCollapsed ? '▾' : '▸';
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -1274,6 +1438,9 @@
     PageMemory.init();
     PageFAQ.init();
     PageSQL.init();
+    PageSQLAudit.init();
+    PageTools.init();
+    PageSQLPerm.init();
     // 检查已有 token，自动进入
     if (API.getToken()) {
       PageLogin.showApp();

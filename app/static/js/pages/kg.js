@@ -57,8 +57,8 @@ const PageKG = (() => {
       `${stats.displayed_nodes || 0} 节点 / ${stats.displayed_edges || 0} 边`;
   }
 
-  function renderGraph(nodes, edges) {
-    const container = document.getElementById('kg-graph-container');
+  function renderGraph(nodes, edges, containerId) {
+    const container = document.getElementById(containerId || 'kg-graph-container');
     container.innerHTML = '';
 
     if (!nodes.length) {
@@ -301,43 +301,42 @@ const PageKG = (() => {
     if (!currentKbId) currentKbId = window.__currentKbId || '';
     console.log('[KG] buildGraph kb_id:', currentKbId);
     if (!currentKbId) return alert('请先选择知识库');
+    
     const btn = document.getElementById('kg-build-btn');
     const status = document.getElementById('kg-build-status');
-    btn.disabled = true;
-    btn.textContent = '⏳ 构建中...';
-    status.style.display = 'block';
-    status.textContent = '图谱构建已启动，正在从文档中抽取实体和关系，请稍候...';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 构建中...'; }
+    if (status) { status.style.display = 'block'; status.textContent = '图谱构建已启动，正在从文档中抽取实体和关系，请稍候...'; }
 
     try {
       const data = await API.request(`/api/kg/${currentKbId}/build`, { method: 'POST' });
       status.textContent = data.message || '构建已启动';
       // 轮询等待完成
       let attempts = 0;
+      const maxAttempts = 120; // 最多等 10 分钟
       const poll = setInterval(async () => {
         attempts++;
-        if (attempts > 60) { // 最多等 5 分钟
+        if (attempts > maxAttempts) {
           clearInterval(poll);
-          btn.disabled = false;
-          btn.textContent = '⚙️ 构建图谱';
-          status.textContent = '构建超时，请刷新页面查看结果';
+          if (btn) { btn.disabled = false; btn.textContent = '🔨 构建图谱'; }
+          if (status) status.textContent = '⏰ 构建超时，请刷新页面查看结果';
           return;
         }
+        // 显示进度
+        if (status) status.textContent = '⏳ 构建中... (' + Math.floor(attempts * 5 / 60) + '分' + (attempts * 5 % 60) + '秒)';
         try {
           const stats = await API.request(`/api/kg/${currentKbId}/stats`);
           if (stats.entity_count > 0) {
             clearInterval(poll);
-            btn.disabled = false;
-            btn.textContent = '⚙️ 构建图谱';
-            status.textContent = `✅ 构建完成！共 ${stats.entity_count} 个实体，${stats.relation_count} 条关系`;
-            setTimeout(() => { status.style.display = 'none'; }, 3000);
-            await loadGraph();
+            if (btn) { btn.disabled = false; btn.textContent = '⚙️ 构建图谱'; }
+            if (status) { status.textContent = '✅ 构建完成！共 ' + stats.entity_count + ' 个实体，' + stats.relation_count + ' 条关系'; setTimeout(() => { status.style.display = 'none'; }, 3000); }
+            // 重新加载图谱到当前容器
+            loadInTab();
           }
         } catch (e) { /* keep polling */ }
       }, 5000);
     } catch (e) {
-      btn.disabled = false;
-      btn.textContent = '⚙️ 构建图谱';
-      status.style.display = 'none';
+      if (btn) { btn.disabled = false; btn.textContent = '⚙️ 构建图谱'; }
+      if (status) status.style.display = 'none';
       alert('构建失败: ' + e.message);
     }
   }
@@ -371,5 +370,73 @@ const PageKG = (() => {
     new MutationObserver(handleResize).observe(sidebar, { attributes: true, attributeFilter: ['class'] });
   }
 
-  return { init, load, searchEntity, resetView, exportImage, buildGraph, openFromKB, handleResize };
+  function loadInTab() {
+    // 重置节点详情
+    var detail = document.getElementById('kg-node-detail');
+    if (detail) detail.innerHTML = '';
+    
+    var kbId = window.__currentKbId || localStorage.getItem('__currentKbId') || '';
+    if (!kbId) return;
+    currentKbId = kbId;
+    // 加载图谱到tab容器
+    var container = document.getElementById('kg-tab-container');
+    if (container) {
+      loadGraphToContainer(container, kbId);
+    }
+    // 加载统计
+    loadStatsToTab(kbId);
+  }
+
+  async function loadGraphToContainer(container, kbId) {
+    try {
+      var data = await API.request('/api/kg/' + kbId + '/graph?limit=150');
+      if (!data.nodes || !data.nodes.length) {
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;">暂无图谱数据，请先构建图谱</div>';
+        return;
+      }
+      // 使用renderGraph，传入容器ID
+      renderGraph(data.nodes, data.edges, 'kg-tab-container');
+    } catch (e) {
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;">加载失败: ' + e.message + '</div>';
+    }
+  }
+
+
+
+  async function loadStatsToTab(kbId) {
+    try {
+      var stats = await API.request('/api/kg/' + kbId + '/stats');
+      document.getElementById('kg-tab-entities').textContent = stats.entity_count || 0;
+      document.getElementById('kg-tab-relations').textContent = stats.relation_count || 0;
+    } catch (e) {}
+  }
+
+  async function searchInTab() {
+    var keyword = document.getElementById('kg-tab-search').value.trim();
+    if (!keyword || !currentKbId) return;
+    
+    try {
+      var data = await API.request(
+        '/api/kg/' + currentKbId + '/search?entity=' + encodeURIComponent(keyword) + '&hops=1'
+      );
+      if (!data.nodes || !data.nodes.length) {
+        alert('未找到该实体');
+        return;
+      }
+      // 更新统计
+      document.getElementById('kg-tab-entities').textContent = data.nodes.length;
+      document.getElementById('kg-tab-relations').textContent = data.edges.length;
+      // 渲染到tab容器
+      renderGraph(data.nodes, data.edges, 'kg-tab-container');
+    } catch (e) {
+      alert('搜索失败: ' + e.message);
+    }
+  }
+
+  function exportGraph() {
+    if (!currentKbId) return alert('请先选择知识库');
+    window.open('/api/kg/' + currentKbId + '/export', '_blank');
+  }
+
+  return { init, load, searchEntity, resetView, exportImage, buildGraph, openFromKB, handleResize, loadInTab, searchInTab, exportGraph };
 })();

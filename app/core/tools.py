@@ -957,3 +957,190 @@ def _search_kg(args: dict, db: Session, user: dict) -> str:
         return f"实体「{entity_name}」存在但没有关联关系"
 
     return text
+
+
+# ─── 工具注册中心（插件化）──
+
+class ToolRegistry:
+    """工具注册中心 — 单例模式，支持热加载"""
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._handlers = {}
+            cls._instance._cache = None
+            cls._instance._cache_time = 0
+        return cls._instance
+    
+    def register(self, name: str, description: str = "", parameters: dict = None,
+                 category: str = "general", handler: callable = None, is_builtin: bool = False):
+        """注册工具（装饰器或直接调用）"""
+        meta = {
+            "name": name,
+            "description": description,
+            "parameters": parameters or {"type": "object", "properties": {}, "required": []},
+            "category": category,
+            "is_builtin": is_builtin,
+        }
+        
+        def decorator(fn):
+            self._handlers[name] = fn
+            fn._tool_meta = meta
+            return fn
+        
+        if handler:
+            self._handlers[name] = handler
+            handler._tool_meta = meta
+            return handler
+        return decorator
+    
+    def get_definitions(self, db=None) -> list:
+        """获取工具定义列表（给 LLM 的 JSON Schema）"""
+        import time
+        import json
+        
+        # 5分钟缓存
+        now = time.time()
+        if self._cache and now - self._cache_time < 300:
+            return self._cache
+        
+        defs = []
+        db_tool_names = set()  # 数据库中所有工具名（无论是否启用）
+        active_db_names = set()  # 数据库中启用的工具名
+        
+        # 1. 从数据库读取工具配置（优先级最高）
+        if db:
+            try:
+                from app.models.models import ToolDef
+                all_db_tools = db.query(ToolDef).all()
+                for t in all_db_tools:
+                    db_tool_names.add(t.name)
+                    if t.is_active:
+                        active_db_names.add(t.name)
+                        try:
+                            params = json.loads(t.parameters) if t.parameters else {}
+                        except:
+                            params = {}
+                        defs.append({
+                            "type": "function",
+                            "function": {
+                                "name": t.name,
+                                "description": t.description,
+                                "parameters": params,
+                            }
+                        })
+            except Exception as e:
+                print(f"[ToolRegistry] 读取数据库工具失败: {e}")
+        
+        # 2. 补充内置工具（数据库中没有记录的才补充）
+        for name, handler in self._handlers.items():
+            if name in db_tool_names:
+                continue  # 数据库中有记录，不补充
+            meta = getattr(handler, "_tool_meta", None)
+            if meta:
+                defs.append({
+                    "type": "function",
+                    "function": {
+                        "name": meta["name"],
+                        "description": meta["description"],
+                        "parameters": meta["parameters"],
+                    }
+                })
+        
+        self._cache = defs
+        self._cache_time = now
+        return defs
+    
+    def execute(self, name: str, arguments: dict, db, user) -> str:
+        """执行工具调用"""
+        handler = self._handlers.get(name)
+        if not handler:
+            return f"未知工具: {name}"
+        try:
+            import inspect
+            sig = inspect.signature(handler)
+            params = list(sig.parameters.keys())
+            
+            if "db" in params and "user" in params:
+                return handler(arguments, db, user)
+            elif "db" in params:
+                return handler(arguments, db)
+            else:
+                return handler(arguments)
+        except Exception as e:
+            import logging
+            logging.getLogger("kb.tools").warning(f"工具 {name} 执行异常: {e}")
+            return f"工具执行出错: {str(e)}"
+    
+    def clear_cache(self):
+        """清除缓存"""
+        self._cache = None
+        self._cache_time = 0
+
+
+# 全局注册器实例
+registry = ToolRegistry()
+
+# 注册内置工具
+_builtin_tools = [
+    ("search_kb", "在指定知识库中进行语义检索，返回相关文档片段。当需要从知识库中查找信息时使用。",
+     {"type": "object", "properties": {"keywords": {"type": "string", "description": "检索关键词或问题"}, "kb_id": {"type": "string", "description": "知识库 ID。不填则搜索全部可访问的知识库"}}, "required": ["keywords"]},
+     "kb", _search_kb, True),
+    ("list_kb", "列出当前用户可访问的所有知识库（名称和ID）。当不确定该搜哪个知识库，或用户问'有哪些知识库'时使用。",
+     {"type": "object", "properties": {}, "required": []},
+     "kb", _list_kb_wrapper := lambda args, db, user: _list_kb(db, user), True),
+    ("get_doc_content", "获取指定文档的完整内容（分块合并）。当检索片段不够、需要查看文档全文时使用。",
+     {"type": "object", "properties": {"filename": {"type": "string", "description": "文档文件名"}, "kb_id": {"type": "string", "description": "文档所在的知识库 ID"}, "max_chars": {"type": "integer", "description": "最大返回字符数，默认 10000，最大 30000"}}, "required": ["filename", "kb_id"]},
+     "kb", _get_doc_content, True),
+    ("list_docs", "列出指定知识库下的所有文档。当需要知道某个知识库有哪些文档时使用。",
+     {"type": "object", "properties": {"kb_id": {"type": "string", "description": "知识库 ID"}}, "required": ["kb_id"]},
+     "kb", _list_docs, True),
+    ("summarize_doc", "对指定文档生成摘要。当用户要求总结某篇文档时使用。",
+     {"type": "object", "properties": {"filename": {"type": "string", "description": "文档文件名"}, "kb_id": {"type": "string", "description": "文档所在的知识库 ID"}}, "required": ["filename", "kb_id"]},
+     "kb", _summarize_doc, True),
+    ("web_search", "联网搜索最新信息。当知识库中没有答案、或问题涉及实时/外部信息时使用。",
+     {"type": "object", "properties": {"query": {"type": "string", "description": "搜索关键词"}}, "required": ["query"]},
+     "system", _web_search, True),
+    ("current_time", "获取当前日期和时间（北京时间）。当用户问现在几点、今天几号等时间相关问题时使用。",
+     {"type": "object", "properties": {}, "required": []},
+     "system", lambda args: _current_time(), True),
+    ("calculator", "精确数学计算。当需要进行数值计算、公式求值时使用。",
+     {"type": "object", "properties": {"expression": {"type": "string", "description": "数学表达式，如 2+3*4"}}, "required": ["expression"]},
+     "system", _calculator, True),
+    ("doc_stats", "获取知识库的统计信息（文档数、分块数、格式分布等）。",
+     {"type": "object", "properties": {"kb_id": {"type": "string", "description": "知识库 ID。不填则统计全部"}}, "required": []},
+     "kb", lambda args, db, user: _doc_stats(args, db, user), True),
+    ("chart_generator", "根据数据自动生成可视化图表（柱状图/折线图/饼图）。",
+     {"type": "object", "properties": {"data": {"type": "string", "description": "数据，如 '北京:100,上海:200,广州:150'"}, "chart_type": {"type": "string", "enum": ["bar", "line", "pie"], "description": "图表类型"}, "title": {"type": "string", "description": "图表标题"}}, "required": ["data"]},
+     "system", _chart_generator, True),
+    ("recall_memory", "检索与当前问题相关的用户记忆（偏好、背景、历史纠正等）。",
+     {"type": "object", "properties": {"query": {"type": "string", "description": "检索关键词"}}, "required": ["query"]},
+     "kb", _recall_memory, True),
+    ("search_faq", "检索 FAQ 高频问答库。当问题可能是常见问题时使用。",
+     {"type": "object", "properties": {"query": {"type": "string", "description": "检索关键词"}}, "required": ["query"]},
+     "kb", _search_faq, True),
+    ("knowledge_compare", "对比两个知识库或文档的内容差异。",
+     {"type": "object", "properties": {"source": {"type": "string", "description": "来源1（知识库名或文档名）"}, "target": {"type": "string", "description": "来源2（知识库名或文档名）"}, "query": {"type": "string", "description": "对比维度/问题"}}, "required": ["source", "target"]},
+     "kb", _knowledge_compare, True),
+    ("http_request", "发送 HTTP 请求访问外部 API。支持 GET/POST，有 SSRF 防护。",
+     {"type": "object", "properties": {"url": {"type": "string", "description": "目标 URL"}, "method": {"type": "string", "enum": ["GET", "POST"], "description": "请求方法"}, "headers": {"type": "string", "description": "JSON 格式的请求头"}, "body": {"type": "string", "description": "POST 请求体"}}, "required": ["url"]},
+     "system", _http_request, True),
+    ("sql_query", "用自然语言查询电商数据库。支持多表关联、聚合、排序。",
+     {"type": "object", "properties": {"question": {"type": "string", "description": "自然语言问题"}}, "required": ["question"]},
+     "sql", _sql_query, True),
+    ("sql_schema", "查看电商数据库的表结构信息，包括表名、字段、类型和关联关系。",
+     {"type": "object", "properties": {}, "required": []},
+     "sql", lambda args: _sql_schema(), True),
+    ("search_kg", "在知识图谱中检索实体和关系。当问题涉及实体间关系、多跳推理时使用。",
+     {"type": "object", "properties": {"entity": {"type": "string", "description": "实体名称"}, "kb_id": {"type": "string", "description": "知识库 ID"}, "hops": {"type": "integer", "description": "查询跳数，1-2，默认1"}}, "required": ["entity"]},
+     "kg", _search_kg, True),
+]
+
+for _name, _desc, _params, _cat, _handler, _builtin in _builtin_tools:
+    registry.register(_name, description=_desc, parameters=_params, category=_cat, handler=_handler, is_builtin=_builtin)
+
+# 兼容旧的 execute_tool 函数
+def execute_tool(name: str, arguments: dict, db, user) -> str:
+    """执行工具调用（兼容旧接口）"""
+    return registry.execute(name, arguments, db, user)

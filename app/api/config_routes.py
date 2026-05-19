@@ -13,6 +13,18 @@ from app.api.deps import get_current_user, log_audit
 router = APIRouter(prefix="/api", tags=["配置"])
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "models.json"
+
+
+@router.get("/config/public")
+async def get_public_config():
+    """公开配置（无需登录）— 用于登录页显示系统名称"""
+    import json
+    general_path = Path(__file__).parent.parent.parent / "config" / "general.json"
+    if general_path.exists():
+        with open(general_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return {"systemName": data.get("systemName", "知识库管理系统")}
+    return {"systemName": "知识库管理系统"}
 PROMPTS_DIR = Path(__file__).parent.parent.parent / "config" / "prompts"
 GENERAL_PATH = Path(__file__).parent.parent.parent / "config" / "general.json"
 

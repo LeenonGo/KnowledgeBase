@@ -5,8 +5,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hira
 .sidebar.collapsed{width:0;padding:0;overflow:hidden}
 .sidebar.collapsed h2,.sidebar.collapsed .side-section-title,.sidebar.collapsed a{display:none}
 .sidebar h2{padding:16px 20px 12px;font-size:15px;color:#fff;border-bottom:1px solid rgba(255,255,255,.1);white-space:nowrap}
-.side-section{padding:12px 0}
-.side-section-title{font-size:11px;color:rgba(255,255,255,.35);padding:4px 20px 8px;text-transform:uppercase;letter-spacing:1px}
+.side-section{padding:4px 0}
+.side-section-title{font-size:11px;color:rgba(255,255,255,.35);padding:8px 20px 6px;text-transform:uppercase;letter-spacing:1px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:color .2s}
+.side-section-title:hover{color:rgba(255,255,255,.55)}
+.menu-arrow{font-size:14px;transition:transform .2s;font-weight:bold}
+.side-section-items{overflow:hidden;transition:max-height .3s ease}
 .sidebar a{display:block;padding:8px 20px 8px 28px;color:rgba(255,255,255,.75);text-decoration:none;font-size:13px;transition:all .2s;border-left:3px solid transparent;cursor:pointer}
 .sidebar a:hover,.sidebar a.active{background:rgba(24,144,255,.15);color:#fff;border-left-color:#1890ff}
 /* Main */
@@ -156,10 +159,181 @@ strong{font-weight:600;color:#0f172a}
 .page-btn{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #d9d9d9;border-radius:6px;font-size:13px;cursor:pointer;background:#fff}
 .page-btn.active{background:#1890ff;color:#fff;border-color:#1890ff}
 /* Login */
-.login-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}
-.login-box{background:#fff;border-radius:12px;padding:40px;width:400px;box-shadow:0 8px 32px rgba(0,0,0,.2)}
-.login-box h1{text-align:center;margin-bottom:8px;font-size:24px;color:#1a1a1a}
-.login-box .subtitle{text-align:center;color:#999;margin-bottom:32px;font-size:14px}
+/* 登录页 - 现代设计 */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0c0c1d 0%, #1a1a3e 50%, #2d1b4e 100%);
+  position: relative;
+  overflow: hidden;
+}
+.login-particles {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+.particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 50%;
+  animation: float-particle 15s infinite ease-in-out;
+}
+.particle:nth-child(1) { left: 10%; top: 20%; animation-delay: 0s; animation-duration: 12s; }
+.particle:nth-child(2) { left: 20%; top: 80%; animation-delay: 2s; animation-duration: 14s; }
+.particle:nth-child(3) { left: 60%; top: 10%; animation-delay: 4s; animation-duration: 16s; }
+.particle:nth-child(4) { left: 80%; top: 50%; animation-delay: 1s; animation-duration: 13s; }
+.particle:nth-child(5) { left: 40%; top: 70%; animation-delay: 3s; animation-duration: 15s; }
+.particle:nth-child(6) { left: 70%; top: 30%; animation-delay: 5s; animation-duration: 11s; }
+.particle:nth-child(7) { left: 30%; top: 50%; animation-delay: 2.5s; animation-duration: 17s; }
+.particle:nth-child(8) { left: 90%; top: 80%; animation-delay: 1.5s; animation-duration: 14s; }
+@keyframes float-particle {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+  25% { transform: translate(30px, -50px) scale(1.5); opacity: 0.6; }
+  50% { transform: translate(-20px, -100px) scale(1); opacity: 0.3; }
+  75% { transform: translate(40px, -30px) scale(1.2); opacity: 0.5; }
+}
+.login-box {
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 48px 40px;
+  width: 400px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  position: relative;
+  z-index: 1;
+  animation: fadeInUp 0.6s ease-out;
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.login-logo {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.login-logo-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  font-size: 36px;
+  box-shadow: 0 8px 24px rgba(102,126,234,0.4);
+}
+.login-box h1 {
+  text-align: center;
+  margin-bottom: 8px;
+  font-size: 24px;
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+.login-box .subtitle {
+  text-align: center;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 36px;
+  font-size: 14px;
+  letter-spacing: 2px;
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.login-input-group {
+  display: flex;
+  align-items: center;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 0 16px;
+  transition: all 0.3s;
+}
+.login-input-group:focus-within {
+  border-color: #667eea;
+  background: rgba(102,126,234,0.08);
+  box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+}
+.login-input-icon {
+  font-size: 16px;
+  margin-right: 12px;
+  opacity: 0.6;
+}
+.login-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 14px 0;
+  font-size: 14px;
+  color: #fff;
+  outline: none;
+}
+.login-input::placeholder {
+  color: rgba(255,255,255,0.3);
+}
+.login-eye {
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+  font-size: 16px;
+}
+.login-eye:hover {
+  opacity: 0.8;
+}
+.login-options {
+  display: flex;
+  justify-content: flex-start;
+}
+.login-remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+}
+.login-remember input[type="checkbox"] {
+  accent-color: #667eea;
+}
+.login-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-top: 8px;
+}
+.login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(102,126,234,0.4);
+}
+.login-btn:active {
+  transform: translateY(0);
+}
+.login-btn.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+.login-footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.25);
+}
 /* Upload file list */
 .file-list-item{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #f0f0f5;font-size:13px}
 .file-list-item:last-child{border-bottom:none}
@@ -397,3 +571,53 @@ body.has-header .main{padding-top:76px}
 
 /* SQL 查询审计 */
 #sql-audit .sql-code { background: #f8fafc; padding: 10px; border-radius: 6px; font-size: 13px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+
+/* 查询模板 */
+.sql-templates { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; }
+.sql-template-tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.sql-template-tab { padding: 6px 14px; border: 1px solid #d1d5db; border-radius: 20px; background: #fff; font-size: 13px; cursor: pointer; transition: all 0.2s; color: #4b5563; }
+.sql-template-tab:hover { border-color: #6366f1; color: #6366f1; }
+.sql-template-tab.active { background: #6366f1; border-color: #6366f1; color: #fff; }
+.sql-template-cards { display: flex; }
+.sql-template-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.sql-template-card { display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-size: 13px; color: #374151; }
+.sql-template-card:hover { border-color: #6366f1; background: #eef2ff; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(99,102,241,0.15); }
+.sql-template-icon { font-size: 16px; }
+.sql-template-name { white-space: nowrap; }
+
+/* Toggle Switch 滑动块 */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  cursor: pointer;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #ccc;
+  border-radius: 22px;
+  transition: .3s;
+}
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: .3s;
+}
+.toggle-switch input:checked + .toggle-slider { background-color: #52c41a; }
+.toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+
+/* 登录页全屏覆盖 */
+#login {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}

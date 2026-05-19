@@ -12,6 +12,12 @@ const PageLogin = (() => {
     const user = document.getElementById('login-user').value.trim();
     const pass = document.getElementById('login-pass').value.trim();
     if (!user || !pass) { alert('请输入用户名和密码'); return; }
+    
+    const btn = document.querySelector('.login-btn');
+    const btnText = document.getElementById('login-btn-text');
+    btn.classList.add('loading');
+    btnText.textContent = '登录中...';
+    
     try {
       const data = await API.request('/api/login', {
         method: 'POST',
@@ -19,9 +25,10 @@ const PageLogin = (() => {
       });
       localStorage.setItem('kb_token', data.token);
       localStorage.setItem('kb_user', JSON.stringify(data.user));
-      // 刷新页面确保所有状态完全重置
       window.location.reload();
     } catch (e) {
+      btn.classList.remove('loading');
+      btnText.textContent = '登 录';
       alert(e.message);
     }
   }
@@ -61,10 +68,14 @@ const PageLogin = (() => {
     document.getElementById('sidebar').style.display = 'none';
     document.getElementById('top-header').style.display = 'none';
     document.body.classList.remove('has-header');
-    document.getElementById('login').style.display = 'flex';
+    // 隐藏所有页面
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    // 显示登录页
+    const loginEl = document.getElementById('login');
+    loginEl.style.display = '';
+    loginEl.classList.add('active');
     const dd = document.getElementById('user-dropdown');
     if (dd) dd.style.display = 'none';
-    Router.navigate('login');
   }
 
   return { init, doLogin, showApp, logout, applyRoleAccess };

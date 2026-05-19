@@ -24,7 +24,6 @@ const PageKB = (() => {
           return `<tr>
             <td><strong>📖 ${k.name}</strong><br><span class="text-muted">${k.description || ''}</span></td>
             <td>${k.doc_count || 0}</td><td>${k.chunk_count || 0}</td>
-            <td><span class="tag tag-blue">${k.embedding_model}</span></td>
             <td><span class="tag tag-green">${k.status}</span></td>
             <td>${actions}</td>
           </tr>`;
@@ -91,8 +90,8 @@ const PageKB = (() => {
     document.getElementById('kb-set-name').value = kb.name || '';
     document.getElementById('kb-set-desc').value = kb.description || '';
     document.getElementById('kb-set-status').value = kb.status || 'active';
-    document.getElementById('kb-set-emb-model').value = kb.embedding_model || '';
-    document.getElementById('kb-set-llm-model').value = kb.llm_model || '';
+
+
     // 加载部门授权
     loadDeptAccess();
   }
@@ -106,8 +105,6 @@ const PageKB = (() => {
           name: document.getElementById('kb-set-name').value.trim(),
           description: document.getElementById('kb-set-desc').value.trim(),
           status: document.getElementById('kb-set-status').value,
-          embedding_model: document.getElementById('kb-set-emb-model').value.trim(),
-          llm_model: document.getElementById('kb-set-llm-model').value.trim(),
         },
       });
       const d = await API.request('/api/knowledge-bases?page=1&page_size=100');

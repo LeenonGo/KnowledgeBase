@@ -58,35 +58,51 @@ def _parse_llm_json(text: str) -> dict:
                     pass
     try:
         return json.loads(text)
-    except json.JSONDecodeError:
-        logger.warning(f"[KG] JSON 解析失败: {text[:200]}")
+    except json.JSONDecodeError as e:
+        logger.warning(f"[KG] JSON 解析失败: {text[:1000]}")
+        logger.warning(f"[KG] 解析错误: {e}")
         return {}
 
 
 # ─── 实体抽取 ───────────────────────────────────
-async def extract_from_chunk(chunk_text: str) -> dict:
-    """对单个 chunk 调用 LLM 抽取实体和关系"""
+async def extract_from_chunk(chunk_text: str, max_retries: int = 2) -> dict:
+    """对单个 chunk 调用 LLM 抽取实体和关系（带重试）"""
     p = _get_prompt("kg_extract")
     prompt = (p.get("user") or "").format(text=chunk_text[:3000])
-    try:
-        resp = _llm_chat(
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            max_tokens=2000,
-        )
-        result = _parse_llm_json(resp)
-        entities = result.get("entities", [])
-        relations = result.get("relations", [])
-        # 过滤空名称
-        entities = [e for e in entities if e.get("name", "").strip()]
-        relations = [
-            r for r in relations
-            if r.get("subject", "").strip() and r.get("object", "").strip()
-        ]
-        return {"entities": entities, "relations": relations}
-    except Exception as e:
-        logger.error(f"[KG] 抽取失败: {e}")
-        return {"entities": [], "relations": []}
+    
+    for attempt in range(max_retries + 1):
+        try:
+            resp = _llm_chat(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=2000,
+            )
+            if not resp or not resp.strip():
+                if attempt < max_retries:
+                    logger.warning(f"[KG] LLM返回空，重试 {attempt+1}/{max_retries}")
+                    continue
+                else:
+                    return {"entities": [], "relations": []}
+            
+            logger.info(f"[KG] LLM原始输出: {resp[:300]}")
+            result = _parse_llm_json(resp)
+            entities = result.get("entities", [])
+            relations = result.get("relations", [])
+            logger.info(f"[KG] 抽取结果: entities={len(entities)}, relations={len(relations)}")
+            # 过滤空名称
+            entities = [e for e in entities if e.get("name", "").strip()]
+            relations = [
+                r for r in relations
+                if r.get("subject", "").strip() and r.get("object", "").strip()
+            ]
+            return {"entities": entities, "relations": relations}
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning(f"[KG] 抽取异常，重试 {attempt+1}/{max_retries}: {e}")
+                continue
+            else:
+                logger.error(f"[KG] 抽取失败: {e}")
+                return {"entities": [], "relations": []}
 
 
 async def extract_and_store(

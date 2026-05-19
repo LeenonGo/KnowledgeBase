@@ -361,7 +361,7 @@ def generate_answer_agent(
             return msg.content
 
         # 有工具调用 → 逐个执行
-        messages.append({
+        assistant_msg = {
             "role": "assistant",
             "content": msg.content or "",
             "tool_calls": [
@@ -375,7 +375,11 @@ def generate_answer_agent(
                 }
                 for tc in msg.tool_calls
             ],
-        })
+        }
+        # DeepSeek 推理模型：需要传回 reasoning_content
+        if hasattr(msg, 'reasoning_content') and msg.reasoning_content:
+            assistant_msg["reasoning_content"] = msg.reasoning_content
+        messages.append(assistant_msg)
 
         for tc in msg.tool_calls:
             func_name = tc.function.name
@@ -428,6 +432,43 @@ def generate_answer_agent_stream(
     agent_prompt = get_prompt("agent")
     agent_system = agent_prompt.get("system", "你是一个智能知识库助手，请使用工具来回答问题。")
 
+    # 动态注入可用工具列表到 prompt
+    if tools:
+        tool_names = [t['function']['name'] for t in tools]
+        tools_desc = "\n".join([
+            f"- {t['function']['name']}() — {t['function'].get('description', '')[:50]}"
+            for t in tools
+        ])
+        
+        # 动态生成使用指引
+        usage_steps = []
+        kb_tools = [n for n in ['search_kb', 'list_kb', 'list_docs', 'get_doc_content', 'doc_stats', 'summarize_doc', 'knowledge_compare'] if n in tool_names]
+        if kb_tools:
+            usage_steps.append(f"- 【知识库】涉及知识库内容 → 调用 {', '.join(kb_tools)}")
+        if 'web_search' in tool_names:
+            usage_steps.append("- 【联网搜索】实时信息 → 调用 web_search")
+        if 'http_request' in tool_names:
+            usage_steps.append("- 【外部API】直接请求外部API → 调用 http_request")
+        if 'sql_query' in tool_names:
+            usage_steps.append("- 【数据查询】查询数据库 → 调用 sql_query")
+        if 'search_kg' in tool_names:
+            usage_steps.append("- 【知识图谱】实体关系查询 → 调用 search_kg")
+        if 'current_time' in tool_names:
+            usage_steps.append("- 【时间】当前时间 → 调用 current_time")
+        if 'calculator' in tool_names:
+            usage_steps.append("- 【计算】数学计算 → 调用 calculator")
+        if 'chart_generator' in tool_names:
+            usage_steps.append("- 【图表】数据可视化 → 调用 chart_generator")
+        usage_guide = "\n".join(usage_steps) if usage_steps else "- 根据问题类型选择合适的工具"
+        
+        # 替换占位符
+        agent_system = agent_system.replace("{{TOOLS_DESC}}", tools_desc)
+        agent_system = agent_system.replace("{{USAGE_GUIDE}}", usage_guide)
+    else:
+        # 没有工具时移除占位符
+        agent_system = agent_system.replace("{{TOOLS_DESC}}", "（暂无可用工具）")
+        agent_system = agent_system.replace("{{USAGE_GUIDE}}", "（暂无可用工具）")
+
     # 注入 context（含用户记忆）到 system prompt
     if context:
         agent_system = context + "\n\n" + agent_system
@@ -479,7 +520,7 @@ def generate_answer_agent_stream(
             return
 
         # 有工具调用 → 逐个执行
-        messages.append({
+        assistant_msg = {
             "role": "assistant",
             "content": msg.content or "",
             "tool_calls": [
@@ -493,7 +534,11 @@ def generate_answer_agent_stream(
                 }
                 for tc in msg.tool_calls
             ],
-        })
+        }
+        # DeepSeek 推理模型：需要传回 reasoning_content
+        if hasattr(msg, 'reasoning_content') and msg.reasoning_content:
+            assistant_msg["reasoning_content"] = msg.reasoning_content
+        messages.append(assistant_msg)
 
         for tc in msg.tool_calls:
             func_name = tc.function.name
@@ -634,11 +679,16 @@ def plan_and_execute_stream(
         yield {"type": "subtask_start", "task_id": task_id, "description": task_desc}
 
         # 每个子任务独立 ReAct 循环（最多 3 轮）
+        sub_system = (
+            "你是一个知识库检索助手。请使用工具来完成以下子任务。\n"
+            "完成后给出简洁的结果总结。"
+        )
+        # 动态注入可用工具列表
+        if tools:
+            tools_desc = "\n".join([f"- {t['function']['name']}()" for t in tools])
+            sub_system += f"\n\n可用工具：\n{tools_desc}"
         sub_messages = [
-            {"role": "system", "content": (
-                "你是一个知识库检索助手。请使用工具来完成以下子任务。\n"
-                "完成后给出简洁的结果总结。"
-            )},
+            {"role": "system", "content": sub_system},
             {"role": "user", "content": f"子任务：{task_desc}\n检索提示：{search_hint}"},
         ]
         sub_result = ""
@@ -676,7 +726,7 @@ def plan_and_execute_stream(
                 break
 
             # 有工具调用
-            sub_messages.append({
+            assistant_msg = {
                 "role": "assistant",
                 "content": msg.content or "",
                 "tool_calls": [
@@ -684,7 +734,11 @@ def plan_and_execute_stream(
                      "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
                     for tc in msg.tool_calls
                 ],
-            })
+            }
+            # DeepSeek 推理模型：需要传回 reasoning_content
+            if hasattr(msg, 'reasoning_content') and msg.reasoning_content:
+                assistant_msg["reasoning_content"] = msg.reasoning_content
+            sub_messages.append(assistant_msg)
 
             for tc in msg.tool_calls:
                 func_name = tc.function.name
@@ -860,12 +914,16 @@ def resume_execution(
                 yield {"type": "thought", "step": global_step, "content": f"[子任务{task_id}] 完成"}
                 break
 
-            sub_messages.append({
+            assistant_msg = {
                 "role": "assistant", "content": msg.content or "",
                 "tool_calls": [{"id": tc.id, "type": "function",
                                 "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
                                for tc in msg.tool_calls],
-            })
+            }
+            # DeepSeek 推理模型：需要传回 reasoning_content
+            if hasattr(msg, 'reasoning_content') and msg.reasoning_content:
+                assistant_msg["reasoning_content"] = msg.reasoning_content
+            sub_messages.append(assistant_msg)
 
             for tc in msg.tool_calls:
                 func_name = tc.function.name

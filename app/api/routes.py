@@ -19,6 +19,8 @@ from app.api.memory_routes import router as memory_router
 from app.api.sql_routes import router as sql_router
 from app.api.kg_routes import router as kg_router
 from app.api.ds_routes import router as ds_router
+from app.api.tool_routes import router as tool_router
+from app.api.perm_sql_routes import router as perm_sql_router
 
 router = APIRouter()
 
@@ -39,3 +41,5 @@ router.include_router(memory_router)
 router.include_router(sql_router)
 router.include_router(kg_router)
 router.include_router(ds_router)
+router.include_router(tool_router)
+router.include_router(perm_sql_router)

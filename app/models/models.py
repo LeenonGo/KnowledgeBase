@@ -242,6 +242,64 @@ class QueryAuditLog(Base):
     )
 
 
+# ─── SQL 查询模板 ──────────────────────────────
+class QueryTemplate(Base):
+    __tablename__ = "query_template"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    category = Column(String(50), nullable=False, comment="分类：销售/用户/商品")
+    name = Column(String(100), nullable=False, comment="显示名")
+    question = Column(Text, nullable=False, comment="实际提问")
+    icon = Column(String(10), default="📊", comment="图标")
+    sort_order = Column(Integer, default=0, comment="排序")
+    is_active = Column(Boolean, default=True, comment="启用/禁用")
+    created_at = Column(DateTime, default=_now)
+
+    __table_args__ = (
+        Index("ix_qtpl_category", "category"),
+    )
+
+
+# ─── 工具注册表 ──────────────────────────────
+class ToolDef(Base):
+    __tablename__ = "tool_registry"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(64), unique=True, nullable=False, comment="工具名：search_kb")
+    description = Column(Text, default="", comment="给 LLM 看的描述")
+    parameters = Column(Text, default="{}", comment="JSON Schema")
+    handler = Column(String(256), nullable=False, comment="执行函数路径：app.core.tools:search_kb")
+    category = Column(String(32), default="general", comment="分类：kb/sql/kg/system/general")
+    is_active = Column(Boolean, default=True, comment="启用/禁用")
+    is_builtin = Column(Boolean, default=False, comment="内置工具不可删除")
+    sort_order = Column(Integer, default=0, comment="排序")
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("ix_treg_category", "category"),
+    )
+
+
+# ─── SQL 表级权限 ──────────────────────────────
+class SqlTablePermission(Base):
+    __tablename__ = "sql_table_permission"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    role = Column(String(32), nullable=False, comment="角色：user / kb_admin / super_admin")
+    table_name = Column(String(64), nullable=False, comment="表名：orders / users / products")
+    can_query = Column(Boolean, default=True, comment="允许查询")
+    max_rows = Column(Integer, default=500, comment="最大返回行数")
+    columns_deny = Column(Text, default="", comment="禁止查询的列（逗号分隔）")
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        UniqueConstraint("role", "table_name", name="uk_role_table"),
+        Index("ix_stp_role", "role"),
+    )
+
+
 # ─── 评测集 ─────────────────────────────────────
 class EvalDataset(Base):
     __tablename__ = "eval_dataset"

@@ -295,5 +295,39 @@ const PageDataSource = (() => {
     loadSources();
   }
 
-  return { init, load, showCreate, toggleConfig, syncNow, editSource, remove, openFromKB };
+  async function loadInTab() {
+    var kbId = window.__currentKbId || localStorage.getItem('__currentKbId') || '';
+    if (!kbId) {
+      document.getElementById('ds-tab-body').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">请先选择知识库</td></tr>';
+      return;
+    }
+    currentKbId = kbId;
+    try {
+      var data = await API.request('/api/data-sources?kb_id=' + kbId);
+      var items = Array.isArray(data) ? data : (data.items || []);
+      var tbody = document.getElementById('ds-tab-body');
+      if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:#999;">暂无数据源</td></tr>';
+        return;
+      }
+      tbody.innerHTML = items.map(function(s) {
+        var typeLabel = s.source_type === 'git' ? '📦 Git' : '🌐 URL';
+        var statusLabel = s.sync_status === 'success' ? '<span style="color:#52c41a">✓ 同步成功</span>' :
+                         s.sync_status === 'syncing' ? '<span style="color:#1890ff">⟳ 同步中</span>' :
+                         s.sync_status === 'error' ? '<span style="color:#ff4d4f">✗ ' + (s.last_error || '失败') + '</span>' : '未同步';
+        return '<tr>' +
+          '<td><strong>' + UI.escapeHtml(s.name) + '</strong></td>' +
+          '<td>' + typeLabel + '</td>' +
+          '<td>' + statusLabel + '</td>' +
+          '<td>' + (s.last_sync_at ? s.last_sync_at.slice(0, 16) : '-') + '</td>' +
+          '<td><button class="btn btn-xs" onclick="PageDataSource.syncNow(\'' + s.id + '\')">同步</button> ' +
+          '<button class="btn btn-xs" onclick="PageDataSource.remove(\'' + s.id + '\')">删除</button></td>' +
+          '</tr>';
+      }).join('');
+    } catch (e) {
+      document.getElementById('ds-tab-body').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#ff4d4f;">加载失败: ' + e.message + '</td></tr>';
+    }
+  }
+
+  return { init, load, showCreate, toggleConfig, syncNow, editSource, remove, openFromKB, loadInTab };
 })();

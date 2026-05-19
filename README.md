@@ -16,6 +16,10 @@
 | 📈 效果评测 | LLM-as-Judge 9 维度自动评分 |
 | 💬 多轮对话 | 上下文传递、Query 润色、查询改写、引用标注 [C1][C2] |
 | 📊 数据可视化 | Agent 可生成 ECharts 图表（柱状图/饼图/折线图） |
+| 📋 查询模板 | 预置常见分析场景，一键查询 |
+| 🧰 工具插件化 | 工具注册中心、热加载、启停控制 |
+| 🔐 表级权限 | SQL查询表级权限控制、禁止列设置 |
+| 🎨 登录页优化 | 深色渐变背景、粒子动画、品牌化展示 |
 
 ## 技术栈
 
@@ -54,7 +58,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | 审计日志 / 质量监控 / 效果评测 | 操作记录、差评率、自动评分 | super_admin |
 | 系统配置 | LLM/Embedding/Reranker/Prompt/检索策略 | super_admin |
 
-## Agent 工具（17 个）
+## Agent 工具（17 个，支持插件化管理）
 
 | 工具 | 功能 |
 |---|---|
@@ -120,10 +124,12 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - 审计日志页面：筛选 / 分页 / 详情查看 ✅
 - 普通用户查看自己的，管理员查看全部 ✅
 
-### 📋 v5.5c — 待做
-- 查询模板（预置常见分析场景）
-- 表级权限控制
-- 工具插件化注册（Tool Registry 热加载）
+### ✅ v5.0 — 查询模板 + 工具插件化 + 表级权限（已完成）
+- **查询模板** — 预置销售/用户/商品分析场景，一键查询 ✅
+- **工具插件化注册** — ToolRegistry 单例 + 装饰器注册 + 数据库配置 + 热加载 ✅
+- **表级权限控制** — 角色-表映射 + can_query + max_rows + columns_deny ✅
+- **登录页优化** — 深色渐变 + 粒子动画 + 品牌化 + 密码显示/隐藏 ✅
+- **菜单分组优化** — 知识库/智能工具/管理/运维/系统配置分组 + 折叠 ✅
 
 ### 💡 v6.0 — 架构演进
 - 多 Agent 协作 / API 开放 + Bot 发布
@@ -133,8 +139,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## 详细文档
 
+- [PRD 产品需求文档 v5.0](docs/prd/RAG知识库管理系统_PRD_v5.0.docx)
+- [整体设计方案 v5.0](docs/design/RAG知识库管理系统_整体设计方案_v5.0.docx)
 - [文档目录](docs/文档目录.docx)
 - [API 接口文档](docs/api/API文档.docx)
 - [架构设计](docs/design/架构概览.docx)
 - [SQL 分析助手技术方案](docs/features/sql-agent/SQL分析助手_技术方案_v1.0.docx)
 - [知识图谱增强技术方案](docs/features/kg-enhancement/知识图谱增强_技术方案_v1.0.docx)
+- [数据源同步技术方案](docs/features/data-source-sync/数据源同步_技术方案_v1.0.docx)
