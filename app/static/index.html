@@ -60,6 +60,7 @@
     <div class="side-section-title" onclick="toggleMenuGroup(this)">系统配置 <span class="menu-arrow">▾</span></div>
     <div class="side-section-items">
       <a onclick="Router.navigate('tool-mgmt')" id="menu-tools">🧰 工具管理</a>
+      <a onclick="Router.navigate('skills-mgmt')" id="menu-skills">⚡ Skills</a>
       <a onclick="Router.navigate('sys-config')" id="menu-config">⚙️ 系统设置</a>
     </div>
   </div>
@@ -1160,6 +1161,25 @@
   </div>
 </div>
 
+<!-- ⚡ Skills 管理 -->
+<div id="skills-mgmt" class="screen">
+  <div class="screen-title">
+    <a onclick="Router.navigate('sys-config')" style="color:#1890ff;font-size:16px;margin-right:8px;cursor:pointer;">←</a>
+    <span>⚡ Skills 管理</span>
+    <button class="btn btn-primary" onclick="PageSkills.showCreate()" style="margin-left:auto">+ 创建 Skill</button>
+  </div>
+  <div class="stats-row" id="skills-stats"></div>
+  <div class="card" style="margin-bottom:12px">
+    <div id="skills-category-filter" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+  </div>
+  <div class="card">
+    <table class="data-table">
+      <thead><tr><th>Skill</th><th>分类</th><th>描述</th><th>类型</th><th style="width:60px;text-align:center">启用</th><th style="width:60px;text-align:center">调用</th><th>操作</th></tr></thead>
+      <tbody id="skills-table-body"><tr><td colspan="7" class="empty">加载中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
 </div><!-- end main-area -->
 
 
@@ -1368,6 +1388,7 @@
 <script src="/js/pages/sql_perm.js"></script>
 <script src="/js/pages/kg.js?v=17"></script>
 <script src="/js/pages/datasource.js?v=17"></script>
+<script src="/js/pages/skills.js"></script>
 <!-- 初始化 -->
 <script>
   // 返回知识库详情

@@ -495,3 +495,69 @@ class TraceSpan(Base):
     __table_args__ = (
         Index("ix_span_trace", "trace_id"),
     )
+
+
+# ─── Skills 插件化 ─────────────────────────────
+class Skill(Base):
+    """技能定义 — 可插拔的 Agent 能力单元"""
+    __tablename__ = "skill"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    name = Column(String(100), unique=True, nullable=False, comment="唯一标识：knowledge_search")
+    display_name = Column(String(100), nullable=False, comment="显示名称：知识库检索")
+    description = Column(Text, default="", comment="功能描述")
+    category = Column(String(50), default="general", comment="分类：retrieval/analysis/generation/utility/memory")
+    version = Column(String(20), default="1.0.0")
+    author = Column(String(100), default="system")
+    icon = Column(String(10), default="⚡", comment="图标 emoji")
+
+    # Skill 配置（JSON Schema）
+    parameters_schema = Column(Text, default="{}", comment="参数 JSON Schema")
+    return_schema = Column(Text, default="{}", comment="返回值 JSON Schema")
+
+    # 执行配置
+    handler_type = Column(String(20), default="python", comment="python / http / prompt")
+    handler_config = Column(Text, default="{}", comment="执行逻辑配置 JSON")
+    # python: {"module": "app.core.tools", "function": "_search_kb"}
+    # http: {"url": "https://api.example.com", "method": "POST"}
+    # prompt: {"system": "...", "template": "...", "tools": ["sql_query"]}
+
+    # 权限 & 限制
+    required_role = Column(String(32), default="user", comment="最低角色要求")
+    rate_limit = Column(Integer, default=100, comment="每分钟调用上限")
+    timeout_seconds = Column(Integer, default=30, comment="超时时间")
+
+    # 状态 & 统计
+    is_enabled = Column(Boolean, default=True)
+    is_builtin = Column(Boolean, default=False, comment="内置 Skill 不可删除")
+    usage_count = Column(Integer, default=0, comment="调用次数")
+    avg_latency_ms = Column(Float, default=0, comment="平均延迟")
+    last_used_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("ix_skill_category", "category"),
+        Index("ix_skill_enabled", "is_enabled"),
+    )
+
+
+class SkillExecutionLog(Base):
+    """Skill 执行日志"""
+    __tablename__ = "skill_execution_log"
+
+    id = Column(String(32), primary_key=True, default=gen_id)
+    skill_id = Column(String(32), ForeignKey("skill.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(32), nullable=True)
+    arguments = Column(Text, default="{}", comment="调用参数 JSON")
+    result_preview = Column(Text, default="", comment="结果预览（前200字）")
+    success = Column(Boolean, default=True)
+    error_message = Column(Text, default="")
+    latency_ms = Column(Integer, default=0)
+    created_at = Column(DateTime, default=_now)
+
+    __table_args__ = (
+        Index("ix_skill_log_skill", "skill_id"),
+        Index("ix_skill_log_user", "user_id"),
+    )

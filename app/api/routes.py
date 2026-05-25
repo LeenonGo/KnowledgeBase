@@ -43,3 +43,7 @@ router.include_router(kg_router)
 router.include_router(ds_router)
 router.include_router(tool_router)
 router.include_router(perm_sql_router)
+
+# v6.0 Skills
+from app.api.skill_routes import router as skill_router
+router.include_router(skill_router)

@@ -54,6 +54,7 @@ const Router = (() => {
       'user-memory': '我的记忆', 'faq-mgmt': 'FAQ 管理',
       'sql-agent': 'SQL 分析', 'sql-audit': '查询审计', 'kg-graph': '知识图谱', 'data-source': '数据源管理',
       'tool-mgmt': '工具管理',
+      'skills-mgmt': 'Skills',
       'sql-perm': '数据权限',
     };
     const label = navMap[screenName];
