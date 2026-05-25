@@ -334,6 +334,7 @@ def generate_answer_agent(
     db = tool_context.get("db") if tool_context else None
     user_info = tool_context.get("user") if tool_context else None
     collected_sources = []  # 收集工具返回的来源信息
+    collected_charts = []   # 实时收集图表数据
 
     for round_num in range(max_rounds):
         # 控制上下文长度
@@ -408,7 +409,15 @@ def generate_answer_agent(
         temperature=temperature,
         # 不传 tools，强制直接回答
     )
-    return final_resp.choices[0].message.content or "（Agent 已完成信息收集，但未能生成回答，请尝试换一种问法）"
+    _final_answer = final_resp.choices[0].message.content or "（Agent 已完成信息收集，但未能生成回答，请尝试换一种问法）"
+
+    # 提取工具结果中的图表标记，确保保留在最终回答中
+    _all_tool_text = '\n'.join(str(m.get('content', '')) for m in messages if m.get('role') == 'tool')
+    _charts = re.findall(r'\[CHART\].*?\[/CHART\]', _all_tool_text, re.DOTALL)
+    if _charts and '[CHART]' not in _final_answer:
+        _final_answer += '\n\n' + '\n\n'.join(_charts)
+
+    return _final_answer
 
 
 def generate_answer_agent_stream(
@@ -485,6 +494,7 @@ def generate_answer_agent_stream(
     user_info = tool_context.get("user") if tool_context else None
     collected_sources = []  # 收集工具返回的来源
     collected_citation_map = {}  # 引用映射 C1 -> {source, text_preview}
+    collected_charts = []   # 实时收集图表数据
 
     for round_num in range(max_rounds):
         # 生成思考步骤（占位）
@@ -516,7 +526,11 @@ def generate_answer_agent_stream(
         if not msg.tool_calls:
             yield {"type": "thought", "step": round_num + 1,
                    "content": msg.content[:200] if msg.content else "准备回答"}
-            yield {"type": "answer", "content": msg.content or "", "sources": collected_sources}
+            _answer = msg.content or ""
+            # 注入收集到的图表数据
+            if collected_charts and '[CHART]' not in _answer:
+                _answer += '\n\n' + '\n\n'.join(collected_charts)
+            yield {"type": "answer", "content": _answer, "sources": collected_sources}
             return
 
         # 有工具调用 → 逐个执行
@@ -552,6 +566,11 @@ def generate_answer_agent_stream(
                    "tool": func_name, "arguments": func_args}
 
             result = execute_tool(func_name, func_args, db, user_info)
+
+            # 实时收集图表数据
+            for _chart in re.findall(r'\[CHART\].*?\[/CHART\]', result, re.DOTALL):
+                if _chart not in collected_charts:
+                    collected_charts.append(_chart)
 
             # 发送 observe 事件
             yield {"type": "observe", "step": round_num + 1,
@@ -589,11 +608,9 @@ def generate_answer_agent_stream(
     )
     _final_answer = final_resp.choices[0].message.content or "（Agent 已完成信息收集，但未能生成回答，请尝试换一种问法）"
 
-    # 提取工具结果中的图表标记，确保保留在最终回答中
-    _all_tool_text = '\n'.join(str(m.get('content', '')) for m in messages if m.get('role') == 'tool')
-    _charts = re.findall(r'\[CHART\].*?\[/CHART\]', _all_tool_text, re.DOTALL)
-    if _charts and '[CHART]' not in _final_answer:
-        _final_answer += '\n\n' + '\n\n'.join(_charts)
+    # 注入收集到的图表数据
+    if collected_charts and '[CHART]' not in _final_answer:
+        _final_answer += '\n\n' + '\n\n'.join(collected_charts)
 
     yield {"type": "answer", "content": _final_answer, "sources": collected_sources}
 
@@ -776,6 +793,12 @@ def plan_and_execute_stream(
             except Exception:
                 sub_result = "（子任务执行超时）"
 
+        # 从子任务的工具响应中提取图表标记，确保不丢失
+        sub_tool_text = '\n'.join(str(m.get('content', '')) for m in sub_messages if m.get('role') == 'tool')
+        sub_charts = re.findall(r'\[CHART\].*?\[/CHART\]', sub_tool_text, re.DOTALL)
+        if sub_charts and sub_result and '[CHART]' not in sub_result:
+            sub_result += '\n\n' + '\n\n'.join(sub_charts)
+
         all_results.append({
             "task_id": task_id,
             "description": task_desc,
@@ -819,7 +842,6 @@ def plan_and_execute_stream(
     if charts_in_results:
         charts_in_answer = re.findall(r'\[CHART\].*?\[/CHART\]', final_answer, re.DOTALL)
         if not charts_in_answer:
-            # LLM 丢弃了图表标记，从子任务结果中恢复
             final_answer += '\n\n' + '\n\n'.join(charts_in_results)
 
     yield {"type": "answer", "content": final_answer, "sources": list(all_sources)}
@@ -951,6 +973,12 @@ def resume_execution(
                 sub_result = final.choices[0].message.content or ""
             except Exception:
                 sub_result = "（子任务执行超时）"
+
+        # 从子任务的工具响应中提取图表标记，确保不丢失
+        sub_tool_text = '\n'.join(str(m.get('content', '')) for m in sub_messages if m.get('role') == 'tool')
+        sub_charts = re.findall(r'\[CHART\].*?\[/CHART\]', sub_tool_text, re.DOTALL)
+        if sub_charts and sub_result and '[CHART]' not in sub_result:
+            sub_result += '\n\n' + '\n\n'.join(sub_charts)
 
         all_results.append({"task_id": task_id, "description": task_desc, "result": sub_result})
         yield {"type": "subtask_done", "task_id": task_id, "result_preview": sub_result[:200]}

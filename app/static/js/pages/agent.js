@@ -222,8 +222,9 @@ const PageAgent = (() => {
               assistantContent = data.content || '';
               finalSources = data.sources || [];
               if (data.citations) finalCitations = data.citations;
-              // 渲染回答（Markdown），不碰推理链
-              const _chartData = UI.extractCharts(assistantContent); answerText.innerHTML = UI.md2html(_chartData.text); UI.renderCharts(answerText, _chartData.charts);
+              const _chartData = UI.extractCharts(assistantContent); 
+              answerText.innerHTML = UI.md2html(_chartData.text); 
+              UI.renderCharts(answerText, _chartData.charts);
               if (finalSources.length) {
                 finalSources.forEach(s => {
                   if (!detectedSources.has(s)) {

@@ -64,17 +64,6 @@ const Router = (() => {
 
     currentScreen = screenName;
 
-    // QA 和 Agent 页面自动收起侧边栏
-    const autoCollapsePages = ['qa-chat', 'agent-ws'];
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar && typeof sidebarCollapsed !== 'undefined') {
-      if (autoCollapsePages.includes(screenName) && !sidebarCollapsed) {
-        toggleSidebar();
-      } else if (!autoCollapsePages.includes(screenName) && sidebarCollapsed) {
-        toggleSidebar();
-      }
-    }
-
     // 调用注册的回调
     const handler = routes.get(screenName);
     if (handler) handler(params);

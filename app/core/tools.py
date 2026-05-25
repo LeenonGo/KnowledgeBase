@@ -687,12 +687,31 @@ def _chart_generator(args: dict) -> str:
 
     chart_type = args.get("chart_type", "bar")
     title = args.get("title", "")
-    categories = args.get("categories", [])
-    values = args.get("values", [])
     value_name = args.get("value_name", "数量")
 
+    # 支持两种参数格式：
+    # 1. data 字符串格式: "北京:100,上海:200,广州:150"
+    # 2. categories + values 数组格式
+    categories = args.get("categories", [])
+    values = args.get("values", [])
+
     if not categories or not values:
-        return "需要提供 categories 和 values"
+        data_str = args.get("data", "")
+        if data_str and ":" in data_str:
+            pairs = [p.strip() for p in data_str.split(",") if p.strip()]
+            categories = []
+            values = []
+            for pair in pairs:
+                parts = pair.split(":", 1)
+                if len(parts) == 2:
+                    categories.append(parts[0].strip())
+                    try:
+                        values.append(float(parts[1].strip()))
+                    except ValueError:
+                        values.append(0)
+
+    if not categories or not values:
+        return "需要提供 categories 和 values，或 data 字符串（如 '北京:100,上海:200'）"
     if len(categories) != len(values):
         return f"categories({len(categories)}) 和 values({len(values)}) 长度不一致"
 
@@ -1111,7 +1130,7 @@ _builtin_tools = [
     ("doc_stats", "获取知识库的统计信息（文档数、分块数、格式分布等）。",
      {"type": "object", "properties": {"kb_id": {"type": "string", "description": "知识库 ID。不填则统计全部"}}, "required": []},
      "kb", lambda args, db, user: _doc_stats(args, db, user), True),
-    ("chart_generator", "根据数据自动生成可视化图表（柱状图/折线图/饼图）。",
+    ("chart_generator", "根据数据自动生成可视化图表（柱状图/折线图/饼图）。参数 data 格式: '北京:100,上海:200,广州:150'（逗号分隔，冒号前是标签，冒号后是数值）",
      {"type": "object", "properties": {"data": {"type": "string", "description": "数据，如 '北京:100,上海:200,广州:150'"}, "chart_type": {"type": "string", "enum": ["bar", "line", "pie"], "description": "图表类型"}, "title": {"type": "string", "description": "图表标题"}}, "required": ["data"]},
      "system", _chart_generator, True),
     ("recall_memory", "检索与当前问题相关的用户记忆（偏好、背景、历史纠正等）。",
